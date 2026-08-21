@@ -12,9 +12,9 @@ export interface Database {
         Relationships: []
       }
       fincas: {
-        Row: { id: string; nombre: string; municipio: string | null; departamento: string | null; hectareas: number | null; tipo_produccion: string[] | null; propietario_id: string | null; created_at: string }
-        Insert: { id?: string; nombre: string; municipio?: string | null; departamento?: string | null; hectareas?: number | null; tipo_produccion?: string[] | null; propietario_id?: string | null; created_at?: string }
-        Update: { id?: string; nombre?: string; municipio?: string | null; departamento?: string | null; hectareas?: number | null; tipo_produccion?: string[] | null; propietario_id?: string | null; created_at?: string }
+        Row: { id: string; nombre: string; municipio: string | null; departamento: string | null; hectareas: number | null; tipo_produccion: string[] | null; propietario_id: string | null; altitud_msnm: number | null; velocidad_viento_kmh: number | null; clima_predominante: string | null; temperatura_promedio_ext: number | null; created_at: string }
+        Insert: { id?: string; nombre: string; municipio?: string | null; departamento?: string | null; hectareas?: number | null; tipo_produccion?: string[] | null; propietario_id?: string | null; altitud_msnm?: number | null; velocidad_viento_kmh?: number | null; clima_predominante?: string | null; temperatura_promedio_ext?: number | null; created_at?: string }
+        Update: { id?: string; nombre?: string; municipio?: string | null; departamento?: string | null; hectareas?: number | null; tipo_produccion?: string[] | null; propietario_id?: string | null; altitud_msnm?: number | null; velocidad_viento_kmh?: number | null; clima_predominante?: string | null; temperatura_promedio_ext?: number | null; created_at?: string }
         Relationships: []
       }
       finca_miembros: {
@@ -85,9 +85,15 @@ export interface Database {
       }
       // ── Aves Ponedoras ────────────────────────────────────────────────
       lotes_aves: {
-        Row: { id: string; finca_id: string; nombre: string; linea_genetica: string | null; fecha_inicio: string; fecha_fin: string | null; aves_iniciales: number; aves_actuales: number; origen_aves: string | null; estado: string; observaciones: string | null; registrado_por: string | null; created_at: string }
-        Insert: { id?: string; finca_id: string; nombre: string; linea_genetica?: string | null; fecha_inicio?: string; fecha_fin?: string | null; aves_iniciales?: number; aves_actuales?: number; origen_aves?: string | null; estado?: string; observaciones?: string | null; registrado_por?: string | null; created_at?: string }
-        Update: { id?: string; finca_id?: string; nombre?: string; linea_genetica?: string | null; fecha_inicio?: string; fecha_fin?: string | null; aves_iniciales?: number; aves_actuales?: number; origen_aves?: string | null; estado?: string; observaciones?: string | null; registrado_por?: string | null; created_at?: string }
+        Row: { id: string; finca_id: string; nombre: string; linea_genetica: string | null; fecha_inicio: string; fecha_fin: string | null; aves_iniciales: number; aves_actuales: number; origen_aves: string | null; estado: string; observaciones: string | null; area_galpon_m2: number | null; fecha_inicio_postura: string | null; semanas_ciclo_postura: number | null; meta_postura_pct: number | null; precio_huevo: number | null; precio_gramo_alimento: number | null; peso_bulto_alimento_kg: number | null; registrado_por: string | null; created_at: string }
+        Insert: { id?: string; finca_id: string; nombre: string; linea_genetica?: string | null; fecha_inicio?: string; fecha_fin?: string | null; aves_iniciales?: number; aves_actuales?: number; origen_aves?: string | null; estado?: string; observaciones?: string | null; area_galpon_m2?: number | null; fecha_inicio_postura?: string | null; semanas_ciclo_postura?: number | null; meta_postura_pct?: number | null; precio_huevo?: number | null; precio_gramo_alimento?: number | null; peso_bulto_alimento_kg?: number | null; registrado_por?: string | null; created_at?: string }
+        Update: { id?: string; finca_id?: string; nombre?: string; linea_genetica?: string | null; fecha_inicio?: string; fecha_fin?: string | null; aves_iniciales?: number; aves_actuales?: number; origen_aves?: string | null; estado?: string; observaciones?: string | null; area_galpon_m2?: number | null; fecha_inicio_postura?: string | null; semanas_ciclo_postura?: number | null; meta_postura_pct?: number | null; precio_huevo?: number | null; precio_gramo_alimento?: number | null; peso_bulto_alimento_kg?: number | null; registrado_por?: string | null; created_at?: string }
+        Relationships: []
+      }
+      horarios_alimentacion_aves: {
+        Row: { id: string; lote_id: string; finca_id: string; hora: string; descripcion: string | null; cantidad_kg: number | null; activo: boolean; created_at: string }
+        Insert: { id?: string; lote_id: string; finca_id: string; hora: string; descripcion?: string | null; cantidad_kg?: number | null; activo?: boolean; created_at?: string }
+        Update: { id?: string; lote_id?: string; finca_id?: string; hora?: string; descripcion?: string | null; cantidad_kg?: number | null; activo?: boolean; created_at?: string }
         Relationships: []
       }
       produccion_diaria_aves: {

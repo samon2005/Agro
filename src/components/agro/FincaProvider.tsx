@@ -9,6 +9,10 @@ type Finca = {
   municipio: string | null
   departamento: string | null
   hectareas: number | null
+  altitud_msnm: number | null
+  velocidad_viento_kmh: number | null
+  clima_predominante: string | null
+  temperatura_promedio_ext: number | null
 }
 
 type FincaContextType = {
@@ -42,7 +46,10 @@ export default function FincaProvider({ children }: { children: React.ReactNode 
 
     const list = data ?? []
     setFincas(list)
-    if (list.length > 0 && !fincaActual) setFincaActual(list[0])
+    setFincaActual(prev => {
+      if (!prev) return list[0] ?? null
+      return list.find(f => f.id === prev.id) ?? prev
+    })
     setLoading(false)
   }
 

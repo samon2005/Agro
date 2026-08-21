@@ -13,7 +13,18 @@ import type { Database } from '@/types/database'
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 type Parametro = Database['public']['Tables']['parametros_ambientales_aves']['Row']
 
-interface Props { loteActual: LoteAves }
+type Finca = {
+  altitud_msnm: number | null
+  velocidad_viento_kmh: number | null
+  clima_predominante: string | null
+  temperatura_promedio_ext: number | null
+}
+
+interface Props { loteActual: LoteAves; finca?: Finca | null }
+
+const CLIMA_LABEL: Record<string, string> = {
+  calido: 'Cálido', templado: 'Templado', frio: 'Frío', paramo: 'Páramo',
+}
 
 function AlertaBanner({ tipo, mensaje }: { tipo: 'danger' | 'warning'; mensaje: string }) {
   const cls = tipo === 'danger'
@@ -39,7 +50,7 @@ function StatCard({ label, value, unit, warning }: { label: string; value: strin
   )
 }
 
-export default function TabAmbiental({ loteActual }: Props) {
+export default function TabAmbiental({ loteActual, finca }: Props) {
   const supabase = createClient()
   const [registros, setRegistros] = useState<Parametro[]>([])
   const [loading, setLoading] = useState(true)
@@ -85,6 +96,16 @@ export default function TabAmbiental({ loteActual }: Props) {
           + Registrar lectura
         </Button>
       </div>
+
+      {finca && (finca.altitud_msnm || finca.velocidad_viento_kmh || finca.clima_predominante || finca.temperatura_promedio_ext) && (
+        <div className="flex flex-wrap gap-4 px-4 py-2.5 rounded-lg bg-sky-50 border border-sky-200 text-sm text-sky-800">
+          <span className="font-semibold">📍 Finca:</span>
+          {finca.altitud_msnm != null && <span>⛰️ {finca.altitud_msnm} msnm</span>}
+          {finca.velocidad_viento_kmh != null && <span>💨 {finca.velocidad_viento_kmh} km/h</span>}
+          {finca.clima_predominante && <span>☁️ {CLIMA_LABEL[finca.clima_predominante] ?? finca.clima_predominante}</span>}
+          {finca.temperatura_promedio_ext != null && <span>🌡️ {finca.temperatura_promedio_ext}°C promedio</span>}
+        </div>
+      )}
 
       {alertas.length > 0 && (
         <div className="space-y-2">

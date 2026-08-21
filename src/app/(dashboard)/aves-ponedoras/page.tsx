@@ -6,6 +6,7 @@ import { useFinca } from '@/components/agro/FincaProvider'
 import { cn } from '@/lib/utils'
 import LoteSelector from '@/components/agro/aves/LoteSelector'
 import CrearLoteModal from '@/components/agro/aves/CrearLoteModal'
+import EditarFincaModal from '@/components/agro/EditarFincaModal'
 import TabProduccion from '@/components/agro/aves/produccion/TabProduccion'
 import TabAmbiental from '@/components/agro/aves/ambiental/TabAmbiental'
 import TabSanitario from '@/components/agro/aves/sanitario/TabSanitario'
@@ -32,7 +33,7 @@ const TABS: { id: Tab; label: string }[] = [
 interface Alerta { tipo: 'danger' | 'warning'; mensaje: string }
 
 export default function AvesPonedorasPage() {
-  const { fincaActual, loading: fincaLoading } = useFinca()
+  const { fincaActual, loading: fincaLoading, refetch: refetchFinca } = useFinca()
   const supabase = createClient()
 
   const [lotes, setLotes] = useState<LoteAves[]>([])
@@ -40,6 +41,7 @@ export default function AvesPonedorasPage() {
   const [loadingLotes, setLoadingLotes] = useState(true)
   const [activeTab, setActiveTab] = useState<Tab>('produccion')
   const [modalNuevoLote, setModalNuevoLote] = useState(false)
+  const [modalFinca, setModalFinca] = useState(false)
 
   // Alertas cross-módulo
   const [alertas, setAlertas] = useState<Alerta[]>([])
@@ -123,9 +125,17 @@ export default function AvesPonedorasPage() {
   return (
     <div className="flex-1 overflow-auto p-6 space-y-5">
       {/* Encabezado */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">🐔 Aves Ponedoras</h1>
-        <p className="text-sm text-gray-500">{fincaActual.nombre} · Gestión integral de lotes</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">🐔 Aves Ponedoras</h1>
+          <p className="text-sm text-gray-500">{fincaActual.nombre} · Gestión integral de lotes</p>
+        </div>
+        <button
+          onClick={() => setModalFinca(true)}
+          className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors"
+        >
+          📍 Datos geográficos de la finca
+        </button>
       </div>
 
       {/* Alertas cross-módulo */}
@@ -202,13 +212,13 @@ export default function AvesPonedorasPage() {
               {activeTab === 'produccion' && (
                 <TabProduccion
                   loteActual={loteActual}
-                  onLoteUpdated={() => {
+                  onLoteUpdated={updated => {
                     fetchLotes()
-                    setLoteActual(prev => prev ? { ...prev, aves_actuales: prev.aves_actuales } : prev)
+                    if (updated) setLoteActual(updated)
                   }}
                 />
               )}
-              {activeTab === 'ambiental' && <TabAmbiental loteActual={loteActual} />}
+              {activeTab === 'ambiental' && <TabAmbiental loteActual={loteActual} finca={fincaActual} />}
               {activeTab === 'sanitario' && <TabSanitario loteActual={loteActual} />}
               {activeTab === 'costos' && <TabCostos loteActual={loteActual} />}
               {activeTab === 'equipos' && <TabEquipos loteActual={loteActual} />}
@@ -225,6 +235,13 @@ export default function AvesPonedorasPage() {
           setLotes(prev => [lote, ...prev])
           setLoteActual(lote)
         }}
+      />
+
+      <EditarFincaModal
+        open={modalFinca}
+        onClose={() => setModalFinca(false)}
+        finca={fincaActual}
+        onUpdated={refetchFinca}
       />
     </div>
   )
