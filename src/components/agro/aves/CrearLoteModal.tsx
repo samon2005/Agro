@@ -29,7 +29,6 @@ export default function CrearLoteModal({ open, onClose, fincaId, onCreated }: Pr
     linea_genetica: '',
     fecha_inicio: new Date().toISOString().split('T')[0],
     aves_iniciales: '',
-    origen_aves: '',
     observaciones: '',
   })
 
@@ -53,7 +52,6 @@ export default function CrearLoteModal({ open, onClose, fincaId, onCreated }: Pr
         fecha_inicio: form.fecha_inicio,
         aves_iniciales: aves,
         aves_actuales: aves,
-        origen_aves: form.origen_aves || null,
         observaciones: form.observaciones || null,
       })
       .select()
@@ -62,7 +60,7 @@ export default function CrearLoteModal({ open, onClose, fincaId, onCreated }: Pr
     setLoading(false)
     if (error) { toast.error('Error al crear el lote'); return }
     toast.success(`Lote "${data.nombre}" creado`)
-    setForm({ nombre: '', linea_genetica: '', fecha_inicio: new Date().toISOString().split('T')[0], aves_iniciales: '', origen_aves: '', observaciones: '' })
+    setForm({ nombre: '', linea_genetica: '', fecha_inicio: new Date().toISOString().split('T')[0], aves_iniciales: '', observaciones: '' })
     onCreated(data)
     onClose()
   }
@@ -92,13 +90,9 @@ export default function CrearLoteModal({ open, onClose, fincaId, onCreated }: Pr
               <Label>Fecha de inicio</Label>
               <Input type="date" value={form.fecha_inicio} onChange={e => set('fecha_inicio', e.target.value)} />
             </div>
-            <div className="space-y-1">
+            <div className="col-span-2 space-y-1">
               <Label>Número de aves iniciales *</Label>
               <Input type="number" min="1" placeholder="Ej: 5000" value={form.aves_iniciales} onChange={e => set('aves_iniciales', e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>Origen de las aves</Label>
-              <Input placeholder="Ej: Incubadora XYZ" value={form.origen_aves} onChange={e => set('origen_aves', e.target.value)} />
             </div>
             <div className="col-span-2 space-y-1">
               <Label>Observaciones</Label>

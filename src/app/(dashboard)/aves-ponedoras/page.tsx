@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useFinca } from '@/components/agro/FincaProvider'
+import { useRol } from '@/components/agro/RolProvider'
+import AccesoRestringido from '@/components/agro/AccesoRestringido'
 import { cn } from '@/lib/utils'
 import LoteSelector from '@/components/agro/aves/LoteSelector'
 import CrearLoteModal from '@/components/agro/aves/CrearLoteModal'
@@ -34,6 +36,7 @@ interface Alerta { tipo: 'danger' | 'warning'; mensaje: string }
 
 export default function AvesPonedorasPage() {
   const { fincaActual, loading: fincaLoading, refetch: refetchFinca } = useFinca()
+  const rol = useRol()
   const supabase = createClient()
 
   const [lotes, setLotes] = useState<LoteAves[]>([])
@@ -220,7 +223,7 @@ export default function AvesPonedorasPage() {
               )}
               {activeTab === 'ambiental' && <TabAmbiental loteActual={loteActual} finca={fincaActual} />}
               {activeTab === 'sanitario' && <TabSanitario loteActual={loteActual} />}
-              {activeTab === 'costos' && <TabCostos loteActual={loteActual} />}
+              {activeTab === 'costos' && (rol === 'trabajador' ? <AccesoRestringido /> : <TabCostos loteActual={loteActual} />)}
               {activeTab === 'equipos' && <TabEquipos loteActual={loteActual} />}
             </div>
           </div>

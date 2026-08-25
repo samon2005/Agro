@@ -17,8 +17,13 @@ import type { Database } from '@/types/database'
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
 type Vacunacion = Database['public']['Tables']['vacunaciones_cerdos']['Row']
 type Desparasitacion = Database['public']['Tables']['desparasitaciones_cerdos']['Row']
+type Desinfeccion = Database['public']['Tables']['desinfecciones_cerdos']['Row']
 
-type SubTab = 'vacunas' | 'desparasitaciones'
+type SubTab = 'vacunas' | 'desparasitaciones' | 'desinfecciones'
+
+function cop(n: number) {
+  return n.toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })
+}
 
 interface Props { loteActual: LoteCerdos }
 
@@ -31,11 +36,14 @@ export default function TabSanitarioCerdos({ loteActual }: Props) {
   const [subTab, setSubTab] = useState<SubTab>('vacunas')
   const [vacunas, setVacunas] = useState<Vacunacion[]>([])
   const [desparasitaciones, setDesparasitaciones] = useState<Desparasitacion[]>([])
+  const [desinfecciones, setDesinfecciones] = useState<Desinfeccion[]>([])
   const [loading, setLoading] = useState(true)
   const [showFormVac, setShowFormVac] = useState(false)
   const [showFormDesp, setShowFormDesp] = useState(false)
+  const [showFormDesinf, setShowFormDesinf] = useState(false)
   const [savingVac, setSavingVac] = useState(false)
   const [savingDesp, setSavingDesp] = useState(false)
+  const [savingDesinf, setSavingDesinf] = useState(false)
 
   const [formVac, setFormVac] = useState({
     fecha_aplicacion: new Date().toISOString().split('T')[0],
@@ -52,14 +60,21 @@ export default function TabSanitarioCerdos({ loteActual }: Props) {
     proxima_aplicacion: '', observaciones: '',
   })
 
+  const [formDesinf, setFormDesinf] = useState({
+    fecha: new Date().toISOString().split('T')[0],
+    producto: '', previene: '', dosis: '', responsable: '', costo: '', observaciones: '',
+  })
+
   const fetchAll = useCallback(async () => {
     setLoading(true)
-    const [v, d] = await Promise.all([
+    const [v, d, desinf] = await Promise.all([
       supabase.from('vacunaciones_cerdos').select('*').eq('lote_id', loteActual.id).order('fecha_aplicacion', { ascending: false }),
       supabase.from('desparasitaciones_cerdos').select('*').eq('lote_id', loteActual.id).order('fecha', { ascending: false }),
+      supabase.from('desinfecciones_cerdos').select('*').eq('lote_id', loteActual.id).order('fecha', { ascending: false }),
     ])
     setVacunas(v.data ?? [])
     setDesparasitaciones(d.data ?? [])
+    setDesinfecciones(desinf.data ?? [])
     setLoading(false)
   }, [loteActual.id, supabase])
 
@@ -114,6 +129,25 @@ export default function TabSanitarioCerdos({ loteActual }: Props) {
     fetchAll()
   }
 
+  async function saveDesinfeccion(e: React.FormEvent) {
+    e.preventDefault()
+    if (!formDesinf.producto.trim()) { toast.error('Ingresa el producto usado'); return }
+    setSavingDesinf(true)
+    const { error } = await supabase.from('desinfecciones_cerdos').insert({
+      lote_id: loteActual.id, finca_id: loteActual.finca_id,
+      fecha: formDesinf.fecha, producto: formDesinf.producto.trim(),
+      previene: formDesinf.previene || null, dosis: formDesinf.dosis || null,
+      responsable: formDesinf.responsable || null,
+      costo: formDesinf.costo ? Number(formDesinf.costo) : null,
+      observaciones: formDesinf.observaciones || null,
+    })
+    setSavingDesinf(false)
+    if (error) { toast.error('Error'); return }
+    toast.success('Desinfección registrada')
+    setShowFormDesinf(false)
+    fetchAll()
+  }
+
   function fmt(d: string) {
     return new Date(d + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
   }
@@ -125,6 +159,7 @@ export default function TabSanitarioCerdos({ loteActual }: Props) {
         <div>
           {subTab === 'vacunas' && <Button onClick={() => setShowFormVac(v => !v)} className="bg-green-700 hover:bg-green-800 text-white text-sm">+ Registrar vacuna</Button>}
           {subTab === 'desparasitaciones' && <Button onClick={() => setShowFormDesp(v => !v)} className="bg-green-700 hover:bg-green-800 text-white text-sm">+ Desparasitar</Button>}
+          {subTab === 'desinfecciones' && <Button onClick={() => setShowFormDesinf(v => !v)} className="bg-green-700 hover:bg-green-800 text-white text-sm">+ Registrar desinfección</Button>}
         </div>
       </div>
 
@@ -132,6 +167,7 @@ export default function TabSanitarioCerdos({ loteActual }: Props) {
         {[
           { id: 'vacunas' as const, label: '💉 Vacunaciones', count: vacunas.length },
           { id: 'desparasitaciones' as const, label: '🔬 Desparasitaciones', count: desparasitaciones.length },
+          { id: 'desinfecciones' as const, label: '🧴 Desinfección', count: desinfecciones.length },
         ].map(t => (
           <button key={t.id} onClick={() => setSubTab(t.id)}
             className={cn('px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors', subTab === t.id ? 'border-green-600 text-green-700' : 'border-transparent text-gray-500 hover:text-gray-700')}>
@@ -207,10 +243,54 @@ export default function TabSanitarioCerdos({ loteActual }: Props) {
         </Card>
       )}
 
+      {subTab === 'desinfecciones' && showFormDesinf && (
+        <Card className="border-sky-200">
+          <CardContent className="p-4">
+            <form onSubmit={saveDesinfeccion} className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <div className="space-y-1"><Label className="text-xs">Fecha</Label><Input type="date" value={formDesinf.fecha} onChange={e => setFormDesinf(p => ({ ...p, fecha: e.target.value }))} /></div>
+              <div className="space-y-1"><Label className="text-xs">Producto *</Label><Input placeholder="Ej: Amonio cuaternario" value={formDesinf.producto} onChange={e => setFormDesinf(p => ({ ...p, producto: e.target.value }))} /></div>
+              <div className="space-y-1"><Label className="text-xs">Qué previene</Label><Input placeholder="Ej: PRRS, parvovirus..." value={formDesinf.previene} onChange={e => setFormDesinf(p => ({ ...p, previene: e.target.value }))} /></div>
+              <div className="space-y-1"><Label className="text-xs">Dosis / dilución</Label><Input placeholder="Ej: 1:200" value={formDesinf.dosis} onChange={e => setFormDesinf(p => ({ ...p, dosis: e.target.value }))} /></div>
+              <div className="space-y-1"><Label className="text-xs">Responsable</Label><Input value={formDesinf.responsable} onChange={e => setFormDesinf(p => ({ ...p, responsable: e.target.value }))} /></div>
+              <div className="space-y-1"><Label className="text-xs">Costo (COP)</Label><Input type="number" value={formDesinf.costo} onChange={e => setFormDesinf(p => ({ ...p, costo: e.target.value }))} /></div>
+              <div className="col-span-2 md:col-span-3 flex gap-2">
+                <Input placeholder="Observaciones..." value={formDesinf.observaciones} onChange={e => setFormDesinf(p => ({ ...p, observaciones: e.target.value }))} />
+                <Button type="submit" disabled={savingDesinf} className="shrink-0 bg-sky-600 hover:bg-sky-700 text-white">{savingDesinf ? '...' : 'Guardar'}</Button>
+                <Button type="button" variant="outline" onClick={() => setShowFormDesinf(false)}>Cancelar</Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardContent className="p-0">
           {loading ? (
             <div className="p-4 space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}</div>
+          ) : subTab === 'desinfecciones' ? (
+            desinfecciones.length === 0 ? (
+              <div className="py-10 text-center"><p className="text-4xl mb-2">🧴</p><p className="text-gray-500">Sin desinfecciones registradas</p></div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow><TableHead>Fecha</TableHead><TableHead>Producto</TableHead><TableHead>Previene</TableHead><TableHead>Dosis</TableHead><TableHead>Responsable</TableHead><TableHead className="text-right">Costo</TableHead></TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {desinfecciones.map(d => (
+                      <TableRow key={d.id}>
+                        <TableCell className="text-sm">{fmt(d.fecha)}</TableCell>
+                        <TableCell className="font-medium text-sm">{d.producto}</TableCell>
+                        <TableCell className="text-sm text-gray-500">{d.previene ?? '—'}</TableCell>
+                        <TableCell className="text-sm text-gray-500">{d.dosis ?? '—'}</TableCell>
+                        <TableCell className="text-sm text-gray-500">{d.responsable ?? '—'}</TableCell>
+                        <TableCell className="text-right text-sm">{d.costo ? cop(d.costo) : '—'}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )
           ) : subTab === 'vacunas' ? (
             vacunas.length === 0 ? (
               <div className="py-10 text-center"><p className="text-4xl mb-2">💉</p><p className="text-gray-500">Sin vacunaciones registradas</p></div>

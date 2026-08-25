@@ -4,11 +4,14 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useFinca } from '@/components/agro/FincaProvider'
 import RegistrarInventarioModal from '@/components/agro/RegistrarInventarioModal'
+import EquiposInventario from '@/components/agro/EquiposInventario'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { cn } from '@/lib/utils'
+import type { EspecieFinca } from '@/lib/especies'
 
 type Item = {
   id: string
@@ -28,6 +31,9 @@ export default function InventarioPage() {
   const [items, setItems] = useState<Item[]>([])
   const [loading, setLoading] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
+  const [tab, setTab] = useState<'insumos' | 'equipos'>('insumos')
+  const [borrandoId, setBorrandoId] = useState<string | null>(null)
+  const [confirmandoId, setConfirmandoId] = useState<string | null>(null)
 
   async function fetchInventario() {
     if (!fincaActual) return
@@ -43,6 +49,19 @@ export default function InventarioPage() {
   }
 
   useEffect(() => { fetchInventario() }, [fincaActual])
+
+  async function eliminarItem(id: string) {
+    if (confirmandoId !== id) {
+      setConfirmandoId(id)
+      return
+    }
+    setConfirmandoId(null)
+    setBorrandoId(id)
+    const supabase = createClient()
+    await supabase.from('inventario').delete().eq('id', id)
+    setItems(prev => prev.filter(i => i.id !== id))
+    setBorrandoId(null)
+  }
 
   const stockBajo = items.filter(i => i.cantidad_actual <= i.cantidad_minima && i.cantidad_minima > 0)
   const porVencer = items.filter(i => {
@@ -72,15 +91,41 @@ export default function InventarioPage() {
               {fincaActual ? `Finca: ${fincaActual.nombre}` : 'Selecciona una finca'}
             </p>
           </div>
-          <Button
-            className="bg-green-700 hover:bg-green-800 text-white"
-            onClick={() => setModalOpen(true)}
-            disabled={!fincaActual}
-          >
-            + Agregar Ítem
-          </Button>
+          {tab === 'insumos' && (
+            <Button
+              className="bg-green-700 hover:bg-green-800 text-white"
+              onClick={() => setModalOpen(true)}
+              disabled={!fincaActual}
+            >
+              + Agregar Ítem
+            </Button>
+          )}
         </div>
 
+        <div className="flex gap-2 border-b border-gray-200 mb-6">
+          {([
+            { id: 'insumos' as const, label: '📦 Insumos' },
+            { id: 'equipos' as const, label: '⚙️ Equipos' },
+          ]).map(t => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={cn(
+                'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+                tab === t.id ? 'border-green-600 text-green-700' : 'border-transparent text-gray-500 hover:text-gray-700'
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'equipos' ? (
+          fincaActual ? (
+            <EquiposInventario fincaId={fincaActual.id} especies={(fincaActual.tipo_produccion ?? []) as EspecieFinca[]} />
+          ) : null
+        ) : (
+        <>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
           <Card className="border-blue-200 bg-blue-50">
             <CardContent className="pt-4 pb-4 flex justify-between items-center">
@@ -129,6 +174,7 @@ export default function InventarioPage() {
                     <TableHead>Precio Unit.</TableHead>
                     <TableHead>Vencimiento</TableHead>
                     <TableHead>Estado</TableHead>
+                    <TableHead></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -171,6 +217,27 @@ export default function InventarioPage() {
                             <Badge className="bg-green-100 text-green-700">OK</Badge>
                           )}
                         </TableCell>
+                        <TableCell>
+                          {confirmandoId === item.id ? (
+                            <div className="flex gap-1">
+                              <Button size="sm" variant="destructive" className="h-7 px-2 text-xs" disabled={borrandoId === item.id} onClick={() => eliminarItem(item.id)}>
+                                Confirmar
+                              </Button>
+                              <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setConfirmandoId(null)}>
+                                Cancelar
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-red-500 hover:text-red-700 hover:bg-red-50 h-7 px-2"
+                              onClick={() => eliminarItem(item.id)}
+                            >
+                              🗑️
+                            </Button>
+                          )}
+                        </TableCell>
                       </TableRow>
                     )
                   })}
@@ -179,6 +246,8 @@ export default function InventarioPage() {
             )}
           </CardContent>
         </Card>
+        </>
+        )}
       </div>
     </>
   )

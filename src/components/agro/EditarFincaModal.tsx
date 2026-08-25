@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { ESPECIES_FINCA, type EspecieFinca } from '@/lib/especies'
 
 type Finca = {
   id: string
@@ -15,6 +16,9 @@ type Finca = {
   velocidad_viento_kmh: number | null
   clima_predominante: string | null
   temperatura_promedio_ext: number | null
+  tipo_produccion: string[] | null
+  latitud: number | null
+  longitud: number | null
 }
 
 interface Props {
@@ -39,7 +43,11 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated }: Pr
     velocidad_viento_kmh: '',
     clima_predominante: '',
     temperatura_promedio_ext: '',
+    latitud: '',
+    longitud: '',
   })
+  const [especies, setEspecies] = useState<EspecieFinca[]>([])
+  const [buscandoUbicacion, setBuscandoUbicacion] = useState(false)
 
   useEffect(() => {
     setForm({
@@ -47,8 +55,28 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated }: Pr
       velocidad_viento_kmh: finca.velocidad_viento_kmh != null ? String(finca.velocidad_viento_kmh) : '',
       clima_predominante: finca.clima_predominante ?? '',
       temperatura_promedio_ext: finca.temperatura_promedio_ext != null ? String(finca.temperatura_promedio_ext) : '',
+      latitud: finca.latitud != null ? String(finca.latitud) : '',
+      longitud: finca.longitud != null ? String(finca.longitud) : '',
     })
+    setEspecies((finca.tipo_produccion ?? []) as EspecieFinca[])
   }, [finca, open])
+
+  function usarUbicacionActual() {
+    if (!navigator.geolocation) { toast.error('Tu navegador no soporta geolocalización'); return }
+    setBuscandoUbicacion(true)
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        setForm(prev => ({ ...prev, latitud: String(pos.coords.latitude), longitud: String(pos.coords.longitude) }))
+        setBuscandoUbicacion(false)
+        toast.success('Ubicación detectada')
+      },
+      () => { setBuscandoUbicacion(false); toast.error('No se pudo obtener tu ubicación') }
+    )
+  }
+
+  function toggleEspecie(value: EspecieFinca) {
+    setEspecies(prev => prev.includes(value) ? prev.filter(e => e !== value) : [...prev, value])
+  }
 
   function set(field: string, value: string | null) {
     setForm(prev => ({ ...prev, [field]: value ?? '' }))
@@ -56,6 +84,7 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated }: Pr
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (especies.length === 0) { toast.error('Selecciona al menos una especie con la que trabaja la finca'); return }
     setLoading(true)
     const { error } = await supabase
       .from('fincas')
@@ -64,6 +93,9 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated }: Pr
         velocidad_viento_kmh: form.velocidad_viento_kmh ? Number(form.velocidad_viento_kmh) : null,
         clima_predominante: form.clima_predominante || null,
         temperatura_promedio_ext: form.temperatura_promedio_ext ? Number(form.temperatura_promedio_ext) : null,
+        tipo_produccion: especies,
+        latitud: form.latitud ? Number(form.latitud) : null,
+        longitud: form.longitud ? Number(form.longitud) : null,
       })
       .eq('id', finca.id)
 
@@ -103,6 +135,39 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated }: Pr
             <div className="space-y-1">
               <Label>Temperatura ambiente promedio (°C)</Label>
               <Input type="number" step="0.1" placeholder="Ej: 24.0" value={form.temperatura_promedio_ext} onChange={e => set('temperatura_promedio_ext', e.target.value)} />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label>Coordenadas (para el clima en tiempo real)</Label>
+              <button type="button" onClick={usarUbicacionActual} disabled={buscandoUbicacion} className="text-xs text-green-700 hover:underline">
+                {buscandoUbicacion ? 'Detectando...' : '📍 Usar mi ubicación actual'}
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Input type="number" step="0.000001" placeholder="Latitud" value={form.latitud} onChange={e => set('latitud', e.target.value)} />
+              <Input type="number" step="0.000001" placeholder="Longitud" value={form.longitud} onChange={e => set('longitud', e.target.value)} />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Especies con las que trabaja la finca *</Label>
+            <div className="grid grid-cols-3 gap-2">
+              {ESPECIES_FINCA.map(esp => {
+                const selected = especies.includes(esp.value)
+                return (
+                  <button
+                    key={esp.value}
+                    type="button"
+                    onClick={() => toggleEspecie(esp.value)}
+                    className={`flex flex-col items-center gap-1 rounded-lg border px-2 py-3 text-xs font-medium transition-colors ${
+                      selected ? 'border-green-600 bg-green-50 text-green-800' : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                    }`}
+                  >
+                    <span className="text-xl">{esp.icon}</span>
+                    {esp.label}
+                  </button>
+                )
+              })}
             </div>
           </div>
           <DialogFooter>

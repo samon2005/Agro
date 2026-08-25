@@ -8,21 +8,32 @@ import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
 import type { User } from '@supabase/supabase-js'
+import { useFinca } from './FincaProvider'
+import { useRol } from './RolProvider'
+import NotificacionesPanel from './NotificacionesPanel'
+import { ESPECIES_FINCA, type EspecieFinca } from '@/lib/especies'
 
-const navItems = [
+const BASE_NAV_ITEMS = [
   { href: '/dashboard', label: 'Resumen', icon: '📊' },
   { href: '/animales', label: 'Animales', icon: '🐄' },
   { href: '/inventario', label: 'Inventario', icon: '📦' },
   { href: '/produccion', label: 'Producción', icon: '🥛' },
-  { href: '/aves-ponedoras', label: 'Aves Ponedoras', icon: '🐔' },
-  { href: '/cerdos', label: 'Cerdos', icon: '🐷' },
-  { href: '/pollo-engorde', label: 'Pollo Engorde', icon: '🐥' },
 ]
 
 export default function DashboardSidebar({ user }: { user: User }) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
+  const { fincaActual } = useFinca()
+  const rol = useRol()
+
+  const especiesFinca = (fincaActual?.tipo_produccion ?? []) as EspecieFinca[]
+  const navItems = [
+    ...BASE_NAV_ITEMS,
+    ...(especiesFinca.length > 0 ? [{ href: '/alimento', label: 'Alimento', icon: '🌾' }] : []),
+    ...ESPECIES_FINCA.filter(esp => especiesFinca.includes(esp.value)),
+    ...(rol !== 'trabajador' ? [{ href: '/operarios', label: 'Operarios', icon: '👷' }] : []),
+  ]
 
   async function handleLogout() {
     await supabase.auth.signOut()
@@ -40,12 +51,15 @@ export default function DashboardSidebar({ user }: { user: User }) {
   return (
     <aside className="w-64 bg-white border-r border-gray-200 flex flex-col shadow-sm">
       <div className="p-6 border-b border-gray-100">
-        <div className="flex items-center gap-2">
-          <span className="text-2xl">🌿</span>
-          <div>
-            <h1 className="font-bold text-green-900 text-lg leading-tight">AgroGestión</h1>
-            <p className="text-xs text-green-600">Zootecnia Colombia</p>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">🌿</span>
+            <div>
+              <h1 className="font-bold text-green-900 text-lg leading-tight">AgroGestión</h1>
+              <p className="text-xs text-green-600">Zootecnia Colombia</p>
+            </div>
           </div>
+          <NotificacionesPanel />
         </div>
       </div>
 

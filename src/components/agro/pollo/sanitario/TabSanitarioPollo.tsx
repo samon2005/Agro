@@ -17,10 +17,15 @@ type LotePollo = Database['public']['Tables']['lotes_pollo']['Row']
 type Vacuna = Database['public']['Tables']['vacunaciones_pollo']['Row']
 type Medicacion = Database['public']['Tables']['medicaciones_pollo']['Row']
 type Evento = Database['public']['Tables']['eventos_clinicos_pollo']['Row']
+type Desinfeccion = Database['public']['Tables']['desinfecciones_pollo']['Row']
 
 interface Props { loteActual: LotePollo }
 
-type SubTab = 'vacunas' | 'medicaciones' | 'eventos'
+type SubTab = 'vacunas' | 'medicaciones' | 'eventos' | 'desinfecciones'
+
+function cop(n: number) {
+  return n.toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })
+}
 
 const VACUNAS_BROILER = ['Newcastle (La Sota)', 'Newcastle (Clon 30)', 'Gumboro (cepa intermedia)', 'Gumboro (cepa intermedia plus)', 'Bronquitis infecciosa (Ma5)', 'Bronquitis infecciosa (4/91)', 'Marek', 'Anemia infecciosa aviar', 'Síndrome de cabeza hinchada (SHS)', 'Viruela aviar']
 const VIAS = ['Ocular', 'Nasal', 'Agua de bebida', 'Spray', 'Subcutánea', 'Intramuscular', 'In ovo']
@@ -32,6 +37,7 @@ export default function TabSanitarioPollo({ loteActual }: Props) {
   const [vacunas, setVacunas] = useState<Vacuna[]>([])
   const [medicaciones, setMedicaciones] = useState<Medicacion[]>([])
   const [eventos, setEventos] = useState<Evento[]>([])
+  const [desinfecciones, setDesinfecciones] = useState<Desinfeccion[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -39,17 +45,20 @@ export default function TabSanitarioPollo({ loteActual }: Props) {
   const [fVacuna, setFVacuna] = useState({ fecha_aplicacion: new Date().toISOString().split('T')[0], vacuna: '', lote_vacuna: '', via_administracion: '', dosis: '', laboratorio: '', numero_aves: '', costo: '', proxima_dosis: '', veterinario: '', observaciones: '' })
   const [fMed, setFMed] = useState({ fecha_inicio: new Date().toISOString().split('T')[0], fecha_fin: '', medicamento: '', principio_activo: '', via_administracion: '', dosis: '', periodo_retiro_dias: '', motivo: '', costo: '', veterinario: '', observaciones: '' })
   const [fEvento, setFEvento] = useState({ fecha: new Date().toISOString().split('T')[0], tipo_evento: '', descripcion: '', aves_afectadas: '', aves_muertas: '', accion_tomada: '', veterinario: '', observaciones: '' })
+  const [fDesinf, setFDesinf] = useState({ fecha: new Date().toISOString().split('T')[0], producto: '', previene: '', dosis: '', responsable: '', costo: '', observaciones: '' })
 
   const fetchData = useCallback(async () => {
     setLoading(true)
-    const [v, m, ev] = await Promise.all([
+    const [v, m, ev, d] = await Promise.all([
       supabase.from('vacunaciones_pollo').select('*').eq('lote_id', loteActual.id).order('fecha_aplicacion', { ascending: false }),
       supabase.from('medicaciones_pollo').select('*').eq('lote_id', loteActual.id).order('fecha_inicio', { ascending: false }),
       supabase.from('eventos_clinicos_pollo').select('*').eq('lote_id', loteActual.id).order('fecha', { ascending: false }),
+      supabase.from('desinfecciones_pollo').select('*').eq('lote_id', loteActual.id).order('fecha', { ascending: false }),
     ])
     setVacunas(v.data ?? [])
     setMedicaciones(m.data ?? [])
     setEventos(ev.data ?? [])
+    setDesinfecciones(d.data ?? [])
     setLoading(false)
   }, [loteActual.id, supabase])
 
@@ -115,6 +124,25 @@ export default function TabSanitarioPollo({ loteActual }: Props) {
     fetchData()
   }
 
+  async function guardarDesinfeccion(e: React.FormEvent) {
+    e.preventDefault()
+    if (!fDesinf.producto.trim()) { toast.error('Ingresa el producto usado'); return }
+    setSaving(true)
+    const { error } = await supabase.from('desinfecciones_pollo').insert({
+      lote_id: loteActual.id, finca_id: loteActual.finca_id,
+      fecha: fDesinf.fecha, producto: fDesinf.producto.trim(),
+      previene: fDesinf.previene || null, dosis: fDesinf.dosis || null,
+      responsable: fDesinf.responsable || null,
+      costo: fDesinf.costo ? Number(fDesinf.costo) : null,
+      observaciones: fDesinf.observaciones || null,
+    })
+    setSaving(false)
+    if (error) { toast.error('Error al guardar'); return }
+    toast.success('Desinfección registrada')
+    setShowForm(false)
+    fetchData()
+  }
+
   async function marcarResuelto(id: string) {
     await supabase.from('eventos_clinicos_pollo').update({ resuelto: true }).eq('id', id)
     fetchData()
@@ -139,10 +167,10 @@ export default function TabSanitarioPollo({ loteActual }: Props) {
 
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
-          {(['vacunas', 'medicaciones', 'eventos'] as SubTab[]).map(t => (
+          {(['vacunas', 'medicaciones', 'eventos', 'desinfecciones'] as SubTab[]).map(t => (
             <button key={t} onClick={() => { setSubTab(t); setShowForm(false) }}
               className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${subTab === t ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>
-              {t === 'vacunas' ? '💉 Vacunas' : t === 'medicaciones' ? '💊 Medicaciones' : '🩺 Eventos'}
+              {t === 'vacunas' ? '💉 Vacunas' : t === 'medicaciones' ? '💊 Medicaciones' : t === 'eventos' ? '🩺 Eventos' : '🧴 Desinfección'}
             </button>
           ))}
         </div>
@@ -230,6 +258,22 @@ export default function TabSanitarioPollo({ loteActual }: Props) {
         </CardContent></Card>
       )}
 
+      {showForm && subTab === 'desinfecciones' && (
+        <Card className="border-yellow-200"><CardContent className="p-4">
+          <form onSubmit={guardarDesinfeccion} className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="space-y-1"><Label className="text-xs">Fecha</Label><Input type="date" value={fDesinf.fecha} onChange={e => setFDesinf(p => ({ ...p, fecha: e.target.value }))} /></div>
+            <div className="space-y-1"><Label className="text-xs">Producto *</Label><Input placeholder="Ej: Amonio cuaternario" value={fDesinf.producto} onChange={e => setFDesinf(p => ({ ...p, producto: e.target.value }))} /></div>
+            <div className="space-y-1"><Label className="text-xs">Qué previene</Label><Input placeholder="Ej: Newcastle, Gumboro..." value={fDesinf.previene} onChange={e => setFDesinf(p => ({ ...p, previene: e.target.value }))} /></div>
+            <div className="space-y-1"><Label className="text-xs">Dosis / dilución</Label><Input placeholder="Ej: 1:200" value={fDesinf.dosis} onChange={e => setFDesinf(p => ({ ...p, dosis: e.target.value }))} /></div>
+            <div className="space-y-1"><Label className="text-xs">Responsable</Label><Input value={fDesinf.responsable} onChange={e => setFDesinf(p => ({ ...p, responsable: e.target.value }))} /></div>
+            <div className="space-y-1"><Label className="text-xs">Costo (COP)</Label><Input type="number" value={fDesinf.costo} onChange={e => setFDesinf(p => ({ ...p, costo: e.target.value }))} /></div>
+            <div className="col-span-2 md:col-span-3 flex justify-end">
+              <Button type="submit" disabled={saving} className="bg-yellow-600 hover:bg-yellow-700 text-white">{saving ? 'Guardando...' : 'Registrar desinfección'}</Button>
+            </div>
+          </form>
+        </CardContent></Card>
+      )}
+
       {/* Tablas de historial */}
       <Card><CardContent className="p-0">
         {loading ? (
@@ -275,6 +319,22 @@ export default function TabSanitarioPollo({ loteActual }: Props) {
                   </TableRow>
                 )
               })}</TableBody>
+            </Table></div>
+          )
+        ) : subTab === 'desinfecciones' ? (
+          desinfecciones.length === 0 ? <div className="py-8 text-center text-gray-400"><p className="text-3xl mb-2">🧴</p><p>Sin desinfecciones registradas</p></div> : (
+            <div className="overflow-x-auto"><Table>
+              <TableHeader><TableRow><TableHead>Fecha</TableHead><TableHead>Producto</TableHead><TableHead>Previene</TableHead><TableHead>Dosis</TableHead><TableHead>Responsable</TableHead><TableHead className="text-right">Costo</TableHead></TableRow></TableHeader>
+              <TableBody>{desinfecciones.map(d => (
+                <TableRow key={d.id}>
+                  <TableCell className="text-sm">{fmt(d.fecha)}</TableCell>
+                  <TableCell className="text-sm font-medium">{d.producto}</TableCell>
+                  <TableCell className="text-sm text-gray-500">{d.previene ?? '—'}</TableCell>
+                  <TableCell className="text-sm text-gray-500">{d.dosis ?? '—'}</TableCell>
+                  <TableCell className="text-sm text-gray-500">{d.responsable ?? '—'}</TableCell>
+                  <TableCell className="text-right text-sm">{d.costo ? cop(d.costo) : '—'}</TableCell>
+                </TableRow>
+              ))}</TableBody>
             </Table></div>
           )
         ) : (

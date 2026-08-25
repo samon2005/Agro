@@ -24,6 +24,7 @@ const TIPOS = [
   { value: 'bebedero', label: '💧 Bebedero' },
   { value: 'lampara', label: '💡 Lámpara / Iluminación' },
   { value: 'calefactor', label: '🔥 Calefactor' },
+  { value: 'cuenta_huevos', label: '🥚 Máquina cuenta huevos' },
   { value: 'otro', label: '⚙️ Otro' },
 ]
 

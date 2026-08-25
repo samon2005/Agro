@@ -4,9 +4,11 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useFinca } from '@/components/agro/FincaProvider'
 import CrearFincaModal from '@/components/agro/CrearFincaModal'
+import ResumenEspecies from '@/components/agro/ResumenEspecies'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import type { EspecieFinca } from '@/lib/especies'
 
 type Stats = {
   totalAnimales: number
@@ -93,6 +95,10 @@ export default function DashboardPage() {
             </p>
           )}
         </div>
+
+        {fincaActual && (
+          <ResumenEspecies fincaId={fincaActual.id} especies={(fincaActual.tipo_produccion ?? []) as EspecieFinca[]} />
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <StatCard title="Total Animales" value={stats?.totalAnimales ?? '—'} icon="🐄" description="Animales activos" color="green" />

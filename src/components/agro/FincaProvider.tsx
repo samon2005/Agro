@@ -9,10 +9,13 @@ type Finca = {
   municipio: string | null
   departamento: string | null
   hectareas: number | null
+  tipo_produccion: string[] | null
   altitud_msnm: number | null
   velocidad_viento_kmh: number | null
   clima_predominante: string | null
   temperatura_promedio_ext: number | null
+  latitud: number | null
+  longitud: number | null
 }
 
 type FincaContextType = {

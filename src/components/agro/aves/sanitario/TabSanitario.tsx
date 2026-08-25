@@ -11,16 +11,22 @@ import { cn } from '@/lib/utils'
 import RegistrarVacunacionModal from './RegistrarVacunacionModal'
 import RegistrarMedicacionModal from './RegistrarMedicacionModal'
 import RegistrarEventoClinicoModal from './RegistrarEventoClinicoModal'
+import RegistrarDesinfeccionModal from './RegistrarDesinfeccionModal'
 import type { Database } from '@/types/database'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 type Vacunacion = Database['public']['Tables']['vacunaciones_aves']['Row']
 type Medicacion = Database['public']['Tables']['medicaciones_aves']['Row']
 type EventoClinico = Database['public']['Tables']['eventos_clinicos_aves']['Row']
+type Desinfeccion = Database['public']['Tables']['desinfecciones_aves']['Row']
 
-type SubTab = 'vacunas' | 'medicaciones' | 'eventos'
+type SubTab = 'vacunas' | 'medicaciones' | 'eventos' | 'desinfecciones'
 
 interface Props { loteActual: LoteAves }
+
+function cop(n: number) {
+  return n.toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })
+}
 
 const TIPO_LABELS: Record<string, string> = {
   respiratorio: '🫁 Respiratorio', locomotor: '🦴 Locomotor', digestivo: '🫃 Digestivo',
@@ -33,21 +39,25 @@ export default function TabSanitario({ loteActual }: Props) {
   const [vacunas, setVacunas] = useState<Vacunacion[]>([])
   const [medicaciones, setMedicaciones] = useState<Medicacion[]>([])
   const [eventos, setEventos] = useState<EventoClinico[]>([])
+  const [desinfecciones, setDesinfecciones] = useState<Desinfeccion[]>([])
   const [loading, setLoading] = useState(true)
   const [modalVacuna, setModalVacuna] = useState(false)
   const [modalMed, setModalMed] = useState(false)
   const [modalEvento, setModalEvento] = useState(false)
+  const [modalDesinfeccion, setModalDesinfeccion] = useState(false)
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
-    const [v, m, ev] = await Promise.all([
+    const [v, m, ev, d] = await Promise.all([
       supabase.from('vacunaciones_aves').select('*').eq('lote_id', loteActual.id).order('fecha_aplicacion', { ascending: false }),
       supabase.from('medicaciones_aves').select('*').eq('lote_id', loteActual.id).order('fecha_inicio', { ascending: false }),
       supabase.from('eventos_clinicos_aves').select('*').eq('lote_id', loteActual.id).order('fecha', { ascending: false }),
+      supabase.from('desinfecciones_aves').select('*').eq('lote_id', loteActual.id).order('fecha', { ascending: false }),
     ])
     setVacunas(v.data ?? [])
     setMedicaciones(m.data ?? [])
     setEventos(ev.data ?? [])
+    setDesinfecciones(d.data ?? [])
     setLoading(false)
   }, [loteActual.id, supabase])
 
@@ -79,6 +89,7 @@ export default function TabSanitario({ loteActual }: Props) {
     { id: 'vacunas', label: '💉 Vacunaciones', count: vacunas.length },
     { id: 'medicaciones', label: '💊 Medicaciones', count: medicaciones.length },
     { id: 'eventos', label: '🏥 Eventos Clínicos', count: eventos.length },
+    { id: 'desinfecciones', label: '🧴 Desinfección', count: desinfecciones.length },
   ]
 
   return (
@@ -89,6 +100,7 @@ export default function TabSanitario({ loteActual }: Props) {
           {subTab === 'vacunas' && <Button onClick={() => setModalVacuna(true)} className="bg-green-700 hover:bg-green-800 text-white text-sm">+ Registrar vacuna</Button>}
           {subTab === 'medicaciones' && <Button onClick={() => setModalMed(true)} className="bg-green-700 hover:bg-green-800 text-white text-sm">+ Registrar medicación</Button>}
           {subTab === 'eventos' && <Button onClick={() => setModalEvento(true)} className="bg-green-700 hover:bg-green-800 text-white text-sm">+ Registrar evento</Button>}
+          {subTab === 'desinfecciones' && <Button onClick={() => setModalDesinfeccion(true)} className="bg-green-700 hover:bg-green-800 text-white text-sm">+ Registrar desinfección</Button>}
         </div>
       </div>
 
@@ -208,7 +220,7 @@ export default function TabSanitario({ loteActual }: Props) {
                 </Table>
               </div>
             )
-          ) : (
+          ) : subTab === 'eventos' ? (
             eventos.length === 0 ? (
               <EmptyState emoji="🏥" label="Sin eventos clínicos" action={() => setModalEvento(true)} actionLabel="+ Registrar evento" />
             ) : (
@@ -245,6 +257,37 @@ export default function TabSanitario({ loteActual }: Props) {
                 </Table>
               </div>
             )
+          ) : (
+            desinfecciones.length === 0 ? (
+              <EmptyState emoji="🧴" label="Sin desinfecciones registradas" action={() => setModalDesinfeccion(true)} actionLabel="+ Registrar desinfección" />
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Fecha</TableHead>
+                      <TableHead>Producto</TableHead>
+                      <TableHead>Previene</TableHead>
+                      <TableHead>Dosis</TableHead>
+                      <TableHead>Responsable</TableHead>
+                      <TableHead className="text-right">Costo</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {desinfecciones.map(d => (
+                      <TableRow key={d.id}>
+                        <TableCell className="text-sm">{fmt(d.fecha)}</TableCell>
+                        <TableCell className="font-medium text-sm">{d.producto}</TableCell>
+                        <TableCell className="text-sm text-gray-500">{d.previene ?? '—'}</TableCell>
+                        <TableCell className="text-sm text-gray-500">{d.dosis ?? '—'}</TableCell>
+                        <TableCell className="text-sm text-gray-500">{d.responsable ?? '—'}</TableCell>
+                        <TableCell className="text-right text-sm">{d.costo ? cop(d.costo) : '—'}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )
           )}
         </CardContent>
       </Card>
@@ -252,6 +295,7 @@ export default function TabSanitario({ loteActual }: Props) {
       <RegistrarVacunacionModal open={modalVacuna} onClose={() => setModalVacuna(false)} loteId={loteActual.id} fincaId={loteActual.finca_id} onCreated={fetchAll} />
       <RegistrarMedicacionModal open={modalMed} onClose={() => setModalMed(false)} loteId={loteActual.id} fincaId={loteActual.finca_id} onCreated={fetchAll} />
       <RegistrarEventoClinicoModal open={modalEvento} onClose={() => setModalEvento(false)} loteId={loteActual.id} fincaId={loteActual.finca_id} onCreated={fetchAll} />
+      <RegistrarDesinfeccionModal open={modalDesinfeccion} onClose={() => setModalDesinfeccion(false)} loteId={loteActual.id} fincaId={loteActual.finca_id} onCreated={fetchAll} />
     </div>
   )
 }

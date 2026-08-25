@@ -8,6 +8,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import type { Database } from '@/types/database'
+
+type TipoAlimento = Database['public']['Tables']['tipos_alimento_aves']['Row']
 
 interface Props {
   open: boolean
@@ -26,6 +29,7 @@ const CAUSAS_MUERTE = [
 export default function RegistrarProduccionModal({ open, onClose, loteId, fincaId, avesActuales, onCreated }: Props) {
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
+  const [tiposAlimento, setTiposAlimento] = useState<TipoAlimento[]>([])
   const [form, setForm] = useState({
     fecha: new Date().toISOString().split('T')[0],
     aves_en_dia: String(avesActuales),
@@ -34,6 +38,7 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
     huevos_sucios: '0',
     huevos_deformes: '0',
     alimento_kg: '',
+    tipo_alimento_id: '',
     muertes: '0',
     causa_muerte: '',
     observaciones: '',
@@ -42,6 +47,12 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
   useEffect(() => {
     setForm(prev => ({ ...prev, aves_en_dia: String(avesActuales) }))
   }, [avesActuales])
+
+  useEffect(() => {
+    if (!open) return
+    supabase.from('tipos_alimento_aves').select('*').eq('finca_id', fincaId).eq('activo', true).order('nombre')
+      .then(({ data }) => setTiposAlimento(data ?? []))
+  }, [open, fincaId, supabase])
 
   function set(field: string, value: string | null) {
     setForm(prev => ({ ...prev, [field]: value ?? '' }))
@@ -73,6 +84,7 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
       huevos_deformes: Number(form.huevos_deformes) || 0,
       aves_en_dia: Number(form.aves_en_dia) || null,
       alimento_kg: Number(form.alimento_kg) || 0,
+      tipo_alimento_id: form.tipo_alimento_id || null,
       muertes: Number(form.muertes) || 0,
       causa_muerte: Number(form.muertes) > 0 ? (form.causa_muerte || null) : null,
       observaciones: form.observaciones || null,
@@ -121,7 +133,7 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
               <div className="flex items-center justify-between">
                 <Label>Huevos producidos *</Label>
                 {postura && (
-                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${Number(postura) >= 70 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${Number(postura) >= 80 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                     Postura: {postura}%
                   </span>
                 )}
@@ -152,6 +164,17 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
             <div className="space-y-1">
               <Label>Alimento consumido (kg)</Label>
               <Input type="number" min="0" step="0.1" placeholder="0.0" value={form.alimento_kg} onChange={e => set('alimento_kg', e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label>Tipo de alimento</Label>
+              <Select value={form.tipo_alimento_id} onValueChange={v => set('tipo_alimento_id', v)}>
+                <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                <SelectContent>
+                  {tiposAlimento.length === 0
+                    ? <div className="px-2 py-1.5 text-xs text-gray-400">Regístralos en Alimento</div>
+                    : tiposAlimento.map(t => <SelectItem key={t.id} value={t.id}>{t.nombre}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1">
               <Label>Muertes</Label>

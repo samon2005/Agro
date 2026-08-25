@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import RegistrarAmbientalModal from './RegistrarAmbientalModal'
+import { getClimaActual, recomendacionesAmbientales, type ClimaActual } from '@/lib/clima'
 import type { Database } from '@/types/database'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
@@ -18,6 +19,8 @@ type Finca = {
   velocidad_viento_kmh: number | null
   clima_predominante: string | null
   temperatura_promedio_ext: number | null
+  latitud: number | null
+  longitud: number | null
 }
 
 interface Props { loteActual: LoteAves; finca?: Finca | null }
@@ -55,6 +58,8 @@ export default function TabAmbiental({ loteActual, finca }: Props) {
   const [registros, setRegistros] = useState<Parametro[]>([])
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
+  const [climaExterior, setClimaExterior] = useState<ClimaActual | null>(null)
+  const [climaLoading, setClimaLoading] = useState(false)
 
   const fetch = useCallback(async () => {
     setLoading(true)
@@ -70,6 +75,12 @@ export default function TabAmbiental({ loteActual, finca }: Props) {
   }, [loteActual.id, supabase])
 
   useEffect(() => { fetch() }, [fetch])
+
+  useEffect(() => {
+    if (finca?.latitud == null || finca?.longitud == null) return
+    setClimaLoading(true)
+    getClimaActual(finca.latitud, finca.longitud).then(c => { setClimaExterior(c); setClimaLoading(false) })
+  }, [finca?.latitud, finca?.longitud])
 
   const ultimo = registros[0]
   const alertas: { tipo: 'danger' | 'warning'; mensaje: string }[] = []
@@ -111,6 +122,46 @@ export default function TabAmbiental({ loteActual, finca }: Props) {
         <div className="space-y-2">
           {alertas.map((a, i) => <AlertaBanner key={i} tipo={a.tipo} mensaje={a.mensaje} />)}
         </div>
+      )}
+
+      {/* Clima real (Open-Meteo) y recomendaciones */}
+      {finca?.latitud != null && finca?.longitud != null && (
+        <Card className="border-sky-200">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+              🌤️ Clima exterior ahora {climaLoading && <span className="text-xs text-gray-400 font-normal">(actualizando...)</span>}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {climaExterior ? (
+              <div className="flex gap-6">
+                <div>
+                  <p className="text-2xl font-bold text-sky-800">{climaExterior.temperatura.toFixed(1)}°C</p>
+                  <p className="text-xs text-gray-400">Temperatura real</p>
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-sky-800">{climaExterior.humedad.toFixed(0)}%</p>
+                  <p className="text-xs text-gray-400">Humedad relativa</p>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400">Sin datos de clima disponibles todavía.</p>
+            )}
+            <div className="space-y-1.5 pt-2 border-t border-gray-100">
+              <p className="text-xs font-semibold text-gray-500 uppercase">Recomendaciones</p>
+              {recomendacionesAmbientales({
+                tempInterior: ultimo?.temperatura_interior ?? null,
+                tempExterior: ultimo?.temperatura_exterior ?? null,
+                humedadInterior: ultimo?.humedad_interior ?? null,
+                nh3: ultimo?.nh3_ppm ?? null,
+                co2: ultimo?.co2_ppm ?? null,
+                climaExterior,
+              }).map((r, i) => (
+                <p key={i} className="text-sm text-gray-700">{r}</p>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Última lectura */}

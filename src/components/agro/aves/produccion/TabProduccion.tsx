@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import RegistrarProduccionModal from './RegistrarProduccionModal'
 import ConfigurarGalponModal from './ConfigurarGalponModal'
 import HorariosAlimentacion from './HorariosAlimentacion'
+import HorariosRecoleccion from './HorariosRecoleccion'
 import type { Database } from '@/types/database'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
@@ -21,6 +22,7 @@ interface Props {
 }
 
 const MS_DIA = 24 * 60 * 60 * 1000
+const UMBRAL_POSTURA_OK = 80
 
 function cop(n: number) {
   return n.toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })
@@ -102,6 +104,10 @@ export default function TabProduccion({ loteActual, onLoteUpdated }: Props) {
   const pesoBulto = loteActual.peso_bulto_alimento_kg ?? 40
   const costoAlimentoHoy = hoy ? Number(hoy.alimento_kg) * 1000 * precioGramo : 0
   const bultosHoy = hoy ? Number(hoy.alimento_kg) / pesoBulto : 0
+  const kgTotalHoy = hoy ? Number(hoy.alimento_kg) : null
+  const gramosGallinaHoy = hoy && hoy.aves_en_dia && hoy.aves_en_dia > 0
+    ? (Number(hoy.alimento_kg) * 1000) / hoy.aves_en_dia
+    : null
 
   // ── Densidad ──
   const densidad = loteActual.area_galpon_m2 && loteActual.area_galpon_m2 > 0
@@ -134,11 +140,11 @@ export default function TabProduccion({ loteActual, onLoteUpdated }: Props) {
             <p className="text-xs text-yellow-600 mt-0.5">Comerciales: {hoy ? (hoy.huevos_totales - hoy.huevos_rotos - hoy.huevos_sucios - hoy.huevos_deformes).toLocaleString('es-CO') : '—'}</p>
           </CardContent>
         </Card>
-        <Card className={posturaHoy && Number(posturaHoy) < metaPostura ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50'}>
+        <Card className={posturaHoy && Number(posturaHoy) < UMBRAL_POSTURA_OK ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50'}>
           <CardContent className="p-4">
-            <p className={`text-xs font-medium ${posturaHoy && Number(posturaHoy) < metaPostura ? 'text-red-700' : 'text-green-700'}`}>% Postura hoy</p>
-            <p className={`text-2xl font-bold ${posturaHoy && Number(posturaHoy) < metaPostura ? 'text-red-800' : 'text-green-800'}`}>{posturaHoy ? `${posturaHoy}%` : '—'}</p>
-            <p className={`text-xs mt-0.5 ${posturaHoy && Number(posturaHoy) < metaPostura ? 'text-red-600' : 'text-green-600'}`}>Meta: {metaPostura}%</p>
+            <p className={`text-xs font-medium ${posturaHoy && Number(posturaHoy) < UMBRAL_POSTURA_OK ? 'text-red-700' : 'text-green-700'}`}>% Postura hoy</p>
+            <p className={`text-2xl font-bold ${posturaHoy && Number(posturaHoy) < UMBRAL_POSTURA_OK ? 'text-red-800' : 'text-green-800'}`}>{posturaHoy ? `${posturaHoy}%` : '—'}</p>
+            <p className={`text-xs mt-0.5 ${posturaHoy && Number(posturaHoy) < UMBRAL_POSTURA_OK ? 'text-red-600' : 'text-green-600'}`}>Meta lote: {metaPostura}%</p>
           </CardContent>
         </Card>
         <Card className="border-blue-200 bg-blue-50">
@@ -191,8 +197,8 @@ export default function TabProduccion({ loteActual, onLoteUpdated }: Props) {
         </Card>
       </div>
 
-      {/* Alimento: costo y bultos */}
-      <div className="grid grid-cols-2 gap-3">
+      {/* Alimento: costo, bultos, gramos/gallina y kg totales */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card className="border-amber-200 bg-amber-50">
           <CardContent className="p-4">
             <p className="text-xs text-amber-700 font-medium">Costo de alimento hoy</p>
@@ -207,9 +213,24 @@ export default function TabProduccion({ loteActual, onLoteUpdated }: Props) {
             <p className="text-xs text-amber-600 mt-0.5">Bulto de {pesoBulto} kg</p>
           </CardContent>
         </Card>
+        <Card className="border-amber-200 bg-amber-50">
+          <CardContent className="p-4">
+            <p className="text-xs text-amber-700 font-medium">Alimento por gallina</p>
+            <p className="text-2xl font-bold text-amber-800">{gramosGallinaHoy != null ? gramosGallinaHoy.toFixed(0) : '—'}</p>
+            <p className="text-xs text-amber-600 mt-0.5">gramos / gallina / día</p>
+          </CardContent>
+        </Card>
+        <Card className="border-amber-200 bg-amber-50">
+          <CardContent className="p-4">
+            <p className="text-xs text-amber-700 font-medium">Alimento total del galpón</p>
+            <p className="text-2xl font-bold text-amber-800">{kgTotalHoy != null ? kgTotalHoy.toFixed(1) : '—'}</p>
+            <p className="text-xs text-amber-600 mt-0.5">kg / día</p>
+          </CardContent>
+        </Card>
       </div>
 
       <HorariosAlimentacion loteId={loteActual.id} fincaId={loteActual.finca_id} />
+      <HorariosRecoleccion loteId={loteActual.id} fincaId={loteActual.finca_id} />
 
       <Card>
         <CardHeader className="pb-2">
@@ -256,7 +277,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated }: Props) {
                         <TableCell className="text-right">{r.huevos_totales.toLocaleString('es-CO')}</TableCell>
                         <TableCell className="text-right">
                           {pct ? (
-                            <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${Number(pct) >= 70 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                            <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${Number(pct) >= UMBRAL_POSTURA_OK ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                               {pct}%
                             </span>
                           ) : '—'}

@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useFinca } from '@/components/agro/FincaProvider'
+import { useRol } from '@/components/agro/RolProvider'
+import AccesoRestringido from '@/components/agro/AccesoRestringido'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import CrearLotePolloModal from '@/components/agro/pollo/CrearLotePolloModal'
@@ -26,6 +28,7 @@ const TABS: { id: Tab; label: string }[] = [
 
 export default function PolloEngordePage() {
   const { fincaActual, loading: fincaLoading } = useFinca()
+  const rol = useRol()
   const supabase = createClient()
   const [lotes, setLotes] = useState<LotePollo[]>([])
   const [loteActual, setLoteActual] = useState<LotePollo | null>(null)
@@ -142,7 +145,7 @@ export default function PolloEngordePage() {
             {activeTab === 'produccion' && <TabProduccionPollo loteActual={loteActual} onLoteUpdated={refreshLote} />}
             {activeTab === 'ambiental'  && <TabAmbientalPollo loteActual={loteActual} />}
             {activeTab === 'sanitario'  && <TabSanitarioPollo loteActual={loteActual} />}
-            {activeTab === 'costos'     && <TabCostosPollo loteActual={loteActual} />}
+            {activeTab === 'costos'     && (rol === 'trabajador' ? <AccesoRestringido /> : <TabCostosPollo loteActual={loteActual} />)}
             {activeTab === 'equipos'    && <TabEquiposPollo loteActual={loteActual} />}
           </div>
         </div>

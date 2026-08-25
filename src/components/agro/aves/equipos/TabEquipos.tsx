@@ -17,7 +17,7 @@ interface Props { loteActual: LoteAves }
 
 const TIPO_EMOJI: Record<string, string> = {
   ventilador: '💨', banda_recoleccion: '🔄', comedero: '🍽️',
-  bebedero: '💧', lampara: '💡', calefactor: '🔥', otro: '⚙️'
+  bebedero: '💧', lampara: '💡', calefactor: '🔥', cuenta_huevos: '🥚', otro: '⚙️'
 }
 
 function estadoConfig(estado: string) {
