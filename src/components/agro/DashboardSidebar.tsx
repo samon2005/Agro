@@ -15,9 +15,7 @@ import { ESPECIES_FINCA, type EspecieFinca } from '@/lib/especies'
 
 const BASE_NAV_ITEMS = [
   { href: '/dashboard', label: 'Resumen', icon: '📊' },
-  { href: '/animales', label: 'Animales', icon: '🐄' },
   { href: '/inventario', label: 'Inventario', icon: '📦' },
-  { href: '/produccion', label: 'Producción', icon: '🥛' },
 ]
 
 export default function DashboardSidebar({ user }: { user: User }) {
