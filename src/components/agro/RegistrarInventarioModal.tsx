@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { CurrencyInput } from '@/components/ui/currency-input'
 import { toast } from 'sonner'
 
 const UNIDADES = ['kg', 'g', 'litros', 'ml', 'unidades', 'bultos', 'cajas', 'dosis', 'metros']
@@ -28,9 +29,18 @@ export default function RegistrarInventarioModal({ open, onClose, fincaId, onCre
   const [unidad, setUnidad] = useState('')
   const [nuevaCategoria, setNuevaCategoria] = useState('')
   const [creandoCategoria, setCreandoCategoria] = useState(false)
+  const [sinVencimiento, setSinVencimiento] = useState(false)
+  const [precioUnitario, setPrecioUnitario] = useState('')
+  const formRef = useRef<HTMLFormElement>(null)
 
   useEffect(() => {
     if (!open) return
+    formRef.current?.reset()
+    setCategoriaId('')
+    setUnidad('')
+    setNuevaCategoria('')
+    setSinVencimiento(false)
+    setPrecioUnitario('')
     const supabase = createClient()
     supabase.from('inventario_categorias').select('*').eq('finca_id', fincaId).order('nombre')
       .then(({ data }) => setCategorias(data ?? []))
@@ -68,9 +78,9 @@ export default function RegistrarInventarioModal({ open, onClose, fincaId, onCre
       unidad_medida: unidad || null,
       cantidad_actual: Number(form.get('cantidad_actual') ?? 0),
       cantidad_minima: Number(form.get('cantidad_minima') ?? 0),
-      precio_unitario: form.get('precio_unitario') ? Number(form.get('precio_unitario')) : null,
+      precio_unitario: precioUnitario ? Number(precioUnitario) : null,
       proveedor: form.get('proveedor') as string || null,
-      fecha_vencimiento: form.get('fecha_vencimiento') as string || null,
+      fecha_vencimiento: sinVencimiento ? null : (form.get('fecha_vencimiento') as string || null),
     })
 
     if (error) {
@@ -91,7 +101,7 @@ export default function RegistrarInventarioModal({ open, onClose, fincaId, onCre
             <span>📦</span> Agregar al Inventario
           </DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4 mt-2">
+        <form ref={formRef} onSubmit={handleSubmit} className="space-y-4 mt-2">
           <div className="space-y-1.5">
             <Label htmlFor="nombre">Nombre del Ítem *</Label>
             <Input id="nombre" name="nombre" placeholder="Ej: Ivermectina 1%" required />
@@ -150,8 +160,8 @@ export default function RegistrarInventarioModal({ open, onClose, fincaId, onCre
               <Input id="cantidad_minima" name="cantidad_minima" type="number" step="0.001" defaultValue="0" />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="precio_unitario">Precio Unitario ($)</Label>
-              <Input id="precio_unitario" name="precio_unitario" type="number" step="0.01" placeholder="Ej: 15000" />
+              <Label htmlFor="precio_unitario">Precio Unitario</Label>
+              <CurrencyInput value={precioUnitario} onValueChange={setPrecioUnitario} placeholder="Ej: 15000" />
             </div>
           </div>
 
@@ -162,7 +172,18 @@ export default function RegistrarInventarioModal({ open, onClose, fincaId, onCre
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="fecha_vencimiento">Fecha de Vencimiento</Label>
-              <Input id="fecha_vencimiento" name="fecha_vencimiento" type="date" />
+              <div className="flex gap-2">
+                <Input id="fecha_vencimiento" name="fecha_vencimiento" type="date" disabled={sinVencimiento} className="flex-1" />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={sinVencimiento ? 'default' : 'outline'}
+                  className={sinVencimiento ? 'bg-gray-700 hover:bg-gray-800 text-white text-xs shrink-0' : 'text-xs shrink-0'}
+                  onClick={() => setSinVencimiento(v => !v)}
+                >
+                  No aplica
+                </Button>
+              </div>
             </div>
           </div>
 

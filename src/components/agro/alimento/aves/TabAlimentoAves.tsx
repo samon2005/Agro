@@ -28,6 +28,12 @@ function cop(n: number) {
   return n.toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })
 }
 
+const CATEGORIA_LABEL: Record<string, string> = {
+  levante: 'Levante',
+  pollitas_ponedoras: 'Pollitas ponedoras',
+  otros: 'Otros',
+}
+
 const NUTRIENTES = [
   { key: 'proteina', label: 'Proteína bruta', pctKey: 'proteina_bruta_pct' as const, mantKey: 'mant_proteina_g' as const, prodKey: 'prod_proteina_g' as const },
   { key: 'grasa', label: 'Grasa', pctKey: 'grasa_pct' as const, mantKey: 'mant_grasa_g' as const, prodKey: 'prod_grasa_g' as const },
@@ -152,7 +158,7 @@ export default function TabAlimentoAves({ lotes }: Props) {
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-semibold text-gray-700">Balance Nutricional del Día</CardTitle>
           <p className="text-xs text-gray-400">
-            Requerimiento = mantenimiento + producción (según % de postura). Suministrado = alimento consumido × composición del alimento.
+            Requerimiento = mantenimiento + producción (según % de postura). Consumo = alimento consumido × composición del alimento.
           </p>
         </CardHeader>
         <CardContent className="p-0">
@@ -164,7 +170,7 @@ export default function TabAlimentoAves({ lotes }: Props) {
                   <TableHead className="text-right">Mantenimiento</TableHead>
                   <TableHead className="text-right">Producción</TableHead>
                   <TableHead className="text-right">Requerimiento total</TableHead>
-                  <TableHead className="text-right">Suministrado</TableHead>
+                  <TableHead className="text-right">Consumo</TableHead>
                   <TableHead>Balance</TableHead>
                 </TableRow>
               </TableHeader>
@@ -174,10 +180,10 @@ export default function TabAlimentoAves({ lotes }: Props) {
                   const prod = req[n.prodKey] * posturaFraccion
                   const total = mant + prod
                   const pctAlimento = tipoActual?.[n.pctKey] ?? null
-                  const suministradoGalpon = pctAlimento != null ? alimentoKgHoy * 1000 * (pctAlimento / 100) : null
-                  const suministradoAve = suministradoGalpon != null && avesEnDia > 0 ? suministradoGalpon / avesEnDia : null
-                  const bien = suministradoAve != null && suministradoAve >= total
-                  const sinDatos = suministradoAve == null
+                  const consumoGalpon = pctAlimento != null ? alimentoKgHoy * 1000 * (pctAlimento / 100) : null
+                  const consumoAve = consumoGalpon != null && avesEnDia > 0 ? consumoGalpon / avesEnDia : null
+                  const bien = consumoAve != null && consumoAve >= total
+                  const sinDatos = consumoAve == null
 
                   return (
                     <TableRow key={n.key}>
@@ -185,7 +191,7 @@ export default function TabAlimentoAves({ lotes }: Props) {
                       <TableCell className="text-right text-sm text-gray-600">{mant.toFixed(2)} g</TableCell>
                       <TableCell className="text-right text-sm text-gray-600">{prod.toFixed(2)} g</TableCell>
                       <TableCell className="text-right text-sm font-semibold text-gray-800">{total.toFixed(2)} g/ave</TableCell>
-                      <TableCell className="text-right text-sm">{suministradoAve != null ? `${suministradoAve.toFixed(2)} g/ave` : '—'}</TableCell>
+                      <TableCell className="text-right text-sm">{consumoAve != null ? `${consumoAve.toFixed(2)} g/ave` : '—'}</TableCell>
                       <TableCell>
                         {sinDatos ? (
                           <Badge variant="outline" className="text-[10px]">Sin datos</Badge>
@@ -204,9 +210,52 @@ export default function TabAlimentoAves({ lotes }: Props) {
         </CardContent>
       </Card>
 
+      {/* Catálogo de tipos de alimento registrados */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-semibold text-gray-700">Tipos de alimento registrados</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {tipos.length === 0 ? (
+            <p className="text-sm text-gray-400 p-4">Aún no has registrado ningún tipo de alimento. Usa &quot;+ Tipo de alimento&quot; arriba.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Nombre</TableHead>
+                    <TableHead>Marca</TableHead>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead className="text-right">Proteína</TableHead>
+                    {puedeVerCostos && <TableHead className="text-right">Precio/bulto</TableHead>}
+                    <TableHead className="text-right">Última entrada</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {tipos.map(t => (
+                    <TableRow key={t.id}>
+                      <TableCell className="font-medium text-sm">{t.nombre}</TableCell>
+                      <TableCell className="text-sm text-gray-600">{t.marca || '—'}</TableCell>
+                      <TableCell className="text-sm text-gray-600">{t.tipo_alimento_categoria ? CATEGORIA_LABEL[t.tipo_alimento_categoria] ?? t.tipo_alimento_categoria : '—'}</TableCell>
+                      <TableCell className="text-right text-sm">{t.proteina_bruta_pct != null ? `${t.proteina_bruta_pct}%` : '—'}</TableCell>
+                      {puedeVerCostos && <TableCell className="text-right text-sm">{t.precio_bulto ? cop(t.precio_bulto) : '—'}</TableCell>}
+                      <TableCell className="text-right text-xs text-gray-500">
+                        {t.cantidad_entrada && t.fecha_entrada
+                          ? `${t.cantidad_entrada} bultos · ${new Date(t.fecha_entrada + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}`
+                          : '—'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {lote && (
         <>
-          <CrearTipoAlimentoModal open={modalTipo} onClose={() => setModalTipo(false)} fincaId={lote.finca_id} onCreated={fetchAll} />
+          <CrearTipoAlimentoModal open={modalTipo} onClose={() => setModalTipo(false)} fincaId={lote.finca_id} loteId={lote.id} onCreated={fetchAll} />
           <EditarRequerimientosModal
             open={modalRequerimientos}
             onClose={() => setModalRequerimientos(false)}

@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { CurrencyInput } from '@/components/ui/currency-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 interface Props {
@@ -19,28 +20,50 @@ interface Props {
 
 const VIAS = ['Agua de bebida', 'Alimento', 'Inyectable SC', 'Inyectable IM', 'Tópico', 'Spray']
 
-export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaId, onCreated }: Props) {
-  const supabase = createClient()
-  const [loading, setLoading] = useState(false)
-  const [form, setForm] = useState({
+const UNIDAD_POR_VIA: Record<string, string> = {
+  'Agua de bebida': 'mL / L de agua',
+  'Alimento': 'g / kg de alimento',
+  'Inyectable SC': 'mL / ave',
+  'Inyectable IM': 'mL / ave',
+  'Tópico': 'mL / ave',
+  'Spray': 'mL / L',
+}
+
+function defaultForm() {
+  return {
     fecha_inicio: new Date().toISOString().split('T')[0],
     fecha_fin: '',
     medicamento: '',
     principio_activo: '',
     via_administracion: '',
-    dosis: '',
+    dosis_valor: '',
+    dosis_unidad: '',
     periodo_retiro_dias: '',
     motivo: '',
     costo: '',
-    veterinario: '',
+    encargado: '',
+    frecuencia_dias: '',
+    hora_aplicacion: '',
     observaciones: '',
-  })
+  }
+}
+
+export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaId, onCreated }: Props) {
+  const supabase = createClient()
+  const [loading, setLoading] = useState(false)
+  const [form, setForm] = useState(defaultForm)
+
+  useEffect(() => { if (open) setForm(defaultForm()) }, [open])
 
   function set(field: string, value: string | null) {
     setForm(prev => ({ ...prev, [field]: value ?? '' }))
   }
 
-  const retiro = form.fecha_fin && form.periodo_retiro_dias
+  function setVia(via: string | null) {
+    setForm(prev => ({ ...prev, via_administracion: via ?? '', dosis_unidad: (via && UNIDAD_POR_VIA[via]) ?? prev.dosis_unidad }))
+  }
+
+  const retiro = form.fecha_fin && form.periodo_retiro_dias && Number(form.periodo_retiro_dias) > 0
     ? (() => {
         const fin = new Date(form.fecha_fin)
         fin.setDate(fin.getDate() + Number(form.periodo_retiro_dias))
@@ -48,12 +71,15 @@ export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaI
       })()
     : null
 
+  const sinRetiro = form.periodo_retiro_dias !== '' && Number(form.periodo_retiro_dias) === 0
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!form.medicamento.trim()) { toast.error('El medicamento es requerido'); return }
 
     setLoading(true)
-    const { error } = await supabase.from('medicaciones_aves').insert({
+    const dosis = [form.dosis_valor, form.dosis_unidad].filter(Boolean).join(' ') || null
+    const { data: medicacion, error } = await supabase.from('medicaciones_aves').insert({
       lote_id: loteId,
       finca_id: fincaId,
       fecha_inicio: form.fecha_inicio,
@@ -61,16 +87,49 @@ export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaI
       medicamento: form.medicamento.trim(),
       principio_activo: form.principio_activo || null,
       via_administracion: form.via_administracion || null,
-      dosis: form.dosis || null,
-      periodo_retiro_dias: form.periodo_retiro_dias ? Number(form.periodo_retiro_dias) : null,
+      dosis,
+      periodo_retiro_dias: form.periodo_retiro_dias !== '' ? Number(form.periodo_retiro_dias) : null,
       motivo: form.motivo || null,
       costo: form.costo ? Number(form.costo) : null,
-      veterinario: form.veterinario || null,
+      veterinario: form.encargado || null,
       observaciones: form.observaciones || null,
-    })
+    }).select().single()
+
+    if (!error && form.costo && Number(form.costo) > 0) {
+      await supabase.from('costos_lote_aves').insert({
+        lote_id: loteId,
+        finca_id: fincaId,
+        fecha: form.fecha_inicio,
+        categoria: 'sanitario',
+        descripcion: `Medicación: ${form.medicamento.trim()}`,
+        monto: Number(form.costo),
+      })
+    }
+
+    if (!error && medicacion && form.frecuencia_dias && Number(form.frecuencia_dias) > 0) {
+      const inicio = new Date(form.fecha_inicio)
+      const fin = form.fecha_fin ? new Date(form.fecha_fin) : inicio
+      const paso = Number(form.frecuencia_dias)
+      const fechas: string[] = []
+      for (let d = new Date(inicio); d <= fin && fechas.length < 60; d.setDate(d.getDate() + paso)) {
+        fechas.push(d.toISOString().split('T')[0])
+      }
+      if (fechas.length > 0) {
+        await supabase.from('recordatorios_medicacion_aves').insert(
+          fechas.map(fecha => ({
+            medicacion_id: medicacion.id,
+            lote_id: loteId,
+            finca_id: fincaId,
+            fecha,
+            hora: form.hora_aplicacion || null,
+          }))
+        )
+      }
+    }
+
     setLoading(false)
     if (error) { toast.error('Error al registrar medicación'); return }
-    toast.success('Medicación registrada')
+    toast.success(form.frecuencia_dias ? 'Medicación registrada con recordatorios' : 'Medicación registrada')
     onCreated()
     onClose()
   }
@@ -101,20 +160,43 @@ export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaI
             </div>
             <div className="space-y-1">
               <Label>Vía de administración</Label>
-              <Select value={form.via_administracion} onValueChange={v => set('via_administracion', v)}>
+              <Select value={form.via_administracion} onValueChange={setVia}>
                 <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
                 <SelectContent>{VIAS.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-1">
               <Label>Dosis</Label>
-              <Input placeholder="Ej: 10 mg/kg" value={form.dosis} onChange={e => set('dosis', e.target.value)} />
+              <div className="flex gap-1.5">
+                <Input type="number" min="0" step="0.01" className="w-20" placeholder="10" value={form.dosis_valor} onChange={e => set('dosis_valor', e.target.value)} />
+                <Input placeholder="Unidad (mL/ave...)" value={form.dosis_unidad} onChange={e => set('dosis_unidad', e.target.value)} />
+              </div>
             </div>
             <div className="space-y-1">
               <Label>Período de retiro (días)</Label>
               <Input type="number" min="0" placeholder="0" value={form.periodo_retiro_dias} onChange={e => set('periodo_retiro_dias', e.target.value)} />
             </div>
-            {retiro && (
+            <div className="space-y-1">
+              <Label>Frecuencia de aplicación (cada cuántos días)</Label>
+              <Input type="number" min="1" placeholder="Ej: 1 (diario)" value={form.frecuencia_dias} onChange={e => set('frecuencia_dias', e.target.value)} />
+            </div>
+            {form.frecuencia_dias && (
+              <div className="space-y-1">
+                <Label>Hora de aplicación</Label>
+                <Input type="time" value={form.hora_aplicacion} onChange={e => set('hora_aplicacion', e.target.value)} />
+              </div>
+            )}
+            {form.frecuencia_dias && form.fecha_fin && (
+              <div className="col-span-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-700">
+                🔔 Se crearán recordatorios en la app cada {form.frecuencia_dias} día(s) hasta el fin del tratamiento para no olvidar seguir aplicando el medicamento.
+              </div>
+            )}
+            {sinRetiro && (
+              <div className="col-span-2 p-2 bg-green-50 border border-green-200 rounded text-sm text-green-800">
+                ✓ Sin período de retiro — los huevos se pueden comercializar normalmente
+              </div>
+            )}
+            {retiro && !sinRetiro && (
               <div className="col-span-2 p-2 bg-amber-50 border border-amber-300 rounded text-sm text-amber-800">
                 ⚠️ Huevos no comercializables hasta: <strong>{retiro}</strong>
               </div>
@@ -124,12 +206,12 @@ export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaI
               <Input placeholder="¿Por qué se aplica?" value={form.motivo} onChange={e => set('motivo', e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label>Costo (COP)</Label>
-              <Input type="number" min="0" value={form.costo} onChange={e => set('costo', e.target.value)} />
+              <Label>Costo</Label>
+              <CurrencyInput placeholder="0" value={form.costo} onValueChange={v => set('costo', v)} />
             </div>
             <div className="space-y-1">
-              <Label>Veterinario</Label>
-              <Input placeholder="Nombre" value={form.veterinario} onChange={e => set('veterinario', e.target.value)} />
+              <Label>Encargado</Label>
+              <Input placeholder="Nombre del encargado" value={form.encargado} onChange={e => set('encargado', e.target.value)} />
             </div>
             <div className="col-span-2 space-y-1">
               <Label>Observaciones</Label>

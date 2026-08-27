@@ -8,6 +8,8 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import RegistrarCostoModal from './RegistrarCostoModal'
+import CostosPredefinidosPanel from './CostosPredefinidosPanel'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { Database } from '@/types/database'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
@@ -18,38 +20,47 @@ interface Props { loteActual: LoteAves }
 const CATEGORIAS = [
   { value: 'pollitas', label: 'Pollitas', emoji: '🐣', color: 'bg-yellow-100 text-yellow-700' },
   { value: 'alimento', label: 'Alimento', emoji: '🌾', color: 'bg-orange-100 text-orange-700' },
-  { value: 'agua', label: 'Agua', emoji: '💧', color: 'bg-blue-100 text-blue-700' },
-  { value: 'energia', label: 'Energía', emoji: '⚡', color: 'bg-amber-100 text-amber-700' },
-  { value: 'mano_obra', label: 'Mano de obra', emoji: '👷', color: 'bg-slate-100 text-slate-700' },
+  { value: 'servicios_publicos', label: 'Servicios públicos', emoji: '💡', color: 'bg-blue-100 text-blue-700', legacy: ['agua', 'energia'] },
   { value: 'mantenimiento', label: 'Mantenimiento', emoji: '🔧', color: 'bg-gray-100 text-gray-700' },
   { value: 'sanitario', label: 'Sanitario', emoji: '💉', color: 'bg-purple-100 text-purple-700' },
   { value: 'otro', label: 'Otro', emoji: '📋', color: 'bg-gray-100 text-gray-500' },
 ]
 
+function categoriaInfo(categoria: string) {
+  return CATEGORIAS.find(c => c.value === categoria || ('legacy' in c && c.legacy?.includes(categoria)))
+}
+
 export default function TabCostos({ loteActual }: Props) {
   const supabase = createClient()
   const [costos, setCostos] = useState<Costo[]>([])
+  const [predefinidos, setPredefinidos] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
+  const [mesFiltro, setMesFiltro] = useState('todos')
 
   const fetch = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase
-      .from('costos_lote_aves')
-      .select('*')
-      .eq('lote_id', loteActual.id)
-      .order('fecha', { ascending: false })
-    setCostos(data ?? [])
+    const [costosRes, predefRes] = await Promise.all([
+      supabase.from('costos_lote_aves').select('*').eq('lote_id', loteActual.id).order('fecha', { ascending: false }),
+      supabase.from('costos_predefinidos_aves').select('categoria, monto_referencia').eq('finca_id', loteActual.finca_id),
+    ])
+    setCostos(costosRes.data ?? [])
+    setPredefinidos(Object.fromEntries((predefRes.data ?? []).map(p => [p.categoria, Number(p.monto_referencia)])))
     setLoading(false)
-  }, [loteActual.id, supabase])
+  }, [loteActual.id, loteActual.finca_id, supabase])
 
   useEffect(() => { fetch() }, [fetch])
 
+  const mesesDisponibles = Array.from(new Set(costos.map(c => c.fecha.slice(0, 7)))).sort().reverse()
+  const costosFiltrados = mesFiltro === 'todos' ? costos : costos.filter(c => c.fecha.slice(0, 7) === mesFiltro)
+
   const totalPorCategoria = CATEGORIAS.map(cat => ({
     ...cat,
-    total: costos.filter(c => c.categoria === cat.value).reduce((sum, c) => sum + Number(c.monto), 0),
+    total: costosFiltrados
+      .filter(c => c.categoria === cat.value || ('legacy' in cat && cat.legacy?.includes(c.categoria)))
+      .reduce((sum, c) => sum + Number(c.monto), 0),
   }))
-  const totalGeneral = costos.reduce((sum, c) => sum + Number(c.monto), 0)
+  const totalGeneral = costosFiltrados.reduce((sum, c) => sum + Number(c.monto), 0)
 
   function fmt(d: string) {
     return new Date(d + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -60,12 +71,31 @@ export default function TabCostos({ loteActual }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-base font-semibold text-gray-800">Insumos y Costos Operativos</h2>
-        <Button onClick={() => setModalOpen(true)} className="bg-green-700 hover:bg-green-800 text-white text-sm">
-          + Registrar costo
-        </Button>
+        <div className="flex items-center gap-2">
+          <Select value={mesFiltro} onValueChange={v => setMesFiltro(v ?? 'todos')}>
+            <SelectTrigger className="w-40"><SelectValue placeholder="Mes" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos los meses</SelectItem>
+              {mesesDisponibles.map(m => (
+                <SelectItem key={m} value={m}>
+                  {new Date(m + '-01T00:00:00').toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button onClick={() => setModalOpen(true)} className="bg-green-700 hover:bg-green-800 text-white text-sm">
+            + Registrar costo
+          </Button>
+        </div>
       </div>
+
+      <CostosPredefinidosPanel
+        fincaId={loteActual.finca_id}
+        valores={predefinidos}
+        onUpdated={(categoria, monto) => setPredefinidos(prev => ({ ...prev, [categoria]: monto }))}
+      />
 
       {/* Trazabilidad del lote */}
       <Card className="border-green-200 bg-green-50">
@@ -106,10 +136,10 @@ export default function TabCostos({ loteActual }: Props) {
         <CardContent className="p-0">
           {loading ? (
             <div className="p-4 space-y-2">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}</div>
-          ) : costos.length === 0 ? (
+          ) : costosFiltrados.length === 0 ? (
             <div className="py-10 text-center">
               <p className="text-4xl mb-2">💰</p>
-              <p className="text-gray-600 font-medium">Sin costos registrados</p>
+              <p className="text-gray-600 font-medium">Sin costos registrados{mesFiltro !== 'todos' ? ' en este mes' : ''}</p>
               <Button onClick={() => setModalOpen(true)} className="mt-4 bg-green-700 hover:bg-green-800 text-white">+ Registrar costo</Button>
             </div>
           ) : (
@@ -125,8 +155,8 @@ export default function TabCostos({ loteActual }: Props) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {costos.map(c => {
-                    const cat = CATEGORIAS.find(x => x.value === c.categoria)
+                  {costosFiltrados.map(c => {
+                    const cat = categoriaInfo(c.categoria)
                     return (
                       <TableRow key={c.id}>
                         <TableCell className="text-sm">{fmt(c.fecha)}</TableCell>
@@ -153,6 +183,7 @@ export default function TabCostos({ loteActual }: Props) {
         onClose={() => setModalOpen(false)}
         loteId={loteActual.id}
         fincaId={loteActual.finca_id}
+        costosPredefinidos={predefinidos}
         onCreated={fetch}
       />
     </div>

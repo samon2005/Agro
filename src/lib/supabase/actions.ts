@@ -4,6 +4,34 @@ import { createClient } from './server'
 import { createAdminClient } from './admin'
 import { revalidatePath } from 'next/cache'
 
+export async function registrarCuenta(formData: FormData) {
+  const fullName = formData.get('full_name') as string
+  const email = formData.get('email') as string
+  const password = formData.get('password') as string
+
+  if (!fullName?.trim() || !email?.trim() || !password) {
+    throw new Error('Nombre, correo y contraseña son requeridos')
+  }
+  if (password.length < 8) {
+    throw new Error('La contraseña debe tener al menos 8 caracteres')
+  }
+
+  const admin = createAdminClient()
+  const { error } = await admin.auth.admin.createUser({
+    email: email.trim(),
+    password,
+    email_confirm: true,
+    user_metadata: { full_name: fullName.trim() },
+  })
+
+  if (error) {
+    if (error.message.toLowerCase().includes('already been registered') || error.code === 'email_exists') {
+      throw new Error('Ya existe una cuenta con ese correo')
+    }
+    throw new Error(error.message)
+  }
+}
+
 export async function getFincas() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -139,6 +167,8 @@ export async function invitarOperario(formData: FormData, fincaId: string) {
   const fullName = formData.get('full_name') as string
   const email = formData.get('email') as string
   const cargo = formData.get('cargo') as string
+  const pagoMonto = formData.get('pago_monto') as string
+  const pagoPeriodo = formData.get('pago_periodo') as string
 
   if (!fullName?.trim() || !email?.trim()) throw new Error('Nombre y correo son requeridos')
 
@@ -157,7 +187,12 @@ export async function invitarOperario(formData: FormData, fincaId: string) {
 
   const { error: profileError } = await admin
     .from('profiles')
-    .update({ rol: 'trabajador', cargo: cargo?.trim() || null })
+    .update({
+      rol: 'trabajador',
+      cargo: cargo?.trim() || null,
+      pago_monto: pagoMonto ? Number(pagoMonto) : null,
+      pago_periodo: pagoPeriodo || null,
+    })
     .eq('id', operarioId)
   if (profileError) throw new Error(profileError.message)
 
@@ -168,6 +203,21 @@ export async function invitarOperario(formData: FormData, fincaId: string) {
 
   revalidatePath('/operarios')
   return { email: email.trim(), password }
+}
+
+export async function actualizarOperario(fincaId: string, operarioId: string, datos: { cargo: string; pagoMonto: string; pagoPeriodo: string }) {
+  await verificarPropietario(fincaId)
+  const admin = createAdminClient()
+  const { error } = await admin
+    .from('profiles')
+    .update({
+      cargo: datos.cargo.trim() || null,
+      pago_monto: datos.pagoMonto ? Number(datos.pagoMonto) : null,
+      pago_periodo: datos.pagoPeriodo || null,
+    })
+    .eq('id', operarioId)
+  if (error) throw new Error(error.message)
+  revalidatePath('/operarios')
 }
 
 async function verificarPropietario(fincaId: string) {
@@ -197,7 +247,7 @@ export async function getOperarios(fincaId: string) {
 
   const { data: perfiles } = await admin
     .from('profiles')
-    .select('id, full_name, cargo, activo')
+    .select('id, full_name, cargo, activo, pago_monto, pago_periodo')
     .in('id', ids)
 
   const { data: authUsers } = await admin.auth.admin.listUsers({ perPage: 1000 })

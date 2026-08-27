@@ -15,9 +15,19 @@ type Equipo = Database['public']['Tables']['equipos_aves']['Row']
 
 interface Props { loteActual: LoteAves }
 
-const TIPO_EMOJI: Record<string, string> = {
-  ventilador: '💨', banda_recoleccion: '🔄', comedero: '🍽️',
-  bebedero: '💧', lampara: '💡', calefactor: '🔥', cuenta_huevos: '🥚', otro: '⚙️'
+const TIPO_LABEL: Record<string, { label: string; icon: string }> = {
+  ventilador: { label: 'Ventilador', icon: '💨' },
+  banda_recoleccion: { label: 'Banda de recolección', icon: '🔄' },
+  comedero: { label: 'Comedero', icon: '🍽️' },
+  bebedero: { label: 'Bebedero', icon: '💧' },
+  lampara: { label: 'Lámpara / Iluminación', icon: '💡' },
+  calefactor: { label: 'Calefactor', icon: '🔥' },
+  cuenta_huevos: { label: 'Máquina cuenta huevos', icon: '🥚' },
+  otro: { label: 'Otro', icon: '⚙️' },
+}
+
+function tipoInfo(tipo: string) {
+  return TIPO_LABEL[tipo] ?? { label: tipo, icon: '⚙️' }
 }
 
 function estadoConfig(estado: string) {
@@ -33,20 +43,25 @@ function estadoConfig(estado: string) {
 export default function TabEquipos({ loteActual }: Props) {
   const supabase = createClient()
   const [equipos, setEquipos] = useState<Equipo[]>([])
+  const [usoDiario, setUsoDiario] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [modalCrear, setModalCrear] = useState(false)
   const [logEquipo, setLogEquipo] = useState<Equipo | null>(null)
 
   const fetch = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase
-      .from('equipos_aves')
-      .select('*')
-      .eq('lote_id', loteActual.id)
-      .order('created_at')
-    setEquipos(data ?? [])
+    const [equiposRes, logsRes] = await Promise.all([
+      supabase.from('equipos_aves').select('*').eq('lote_id', loteActual.id).order('created_at'),
+      supabase.from('equipos_aves_logs').select('equipo_id, horas_dia, fecha').eq('finca_id', loteActual.finca_id).order('fecha', { ascending: false }).limit(300),
+    ])
+    setEquipos(equiposRes.data ?? [])
+    const ultimoUso: Record<string, number> = {}
+    for (const log of logsRes.data ?? []) {
+      if (log.horas_dia != null && !(log.equipo_id in ultimoUso)) ultimoUso[log.equipo_id] = Number(log.horas_dia)
+    }
+    setUsoDiario(ultimoUso)
     setLoading(false)
-  }, [loteActual.id, supabase])
+  }, [loteActual.id, loteActual.finca_id, supabase])
 
   useEffect(() => { fetch() }, [fetch])
 
@@ -97,15 +112,16 @@ export default function TabEquipos({ loteActual }: Props) {
           {equipos.map(equipo => {
             const cfg = estadoConfig(equipo.estado)
             const mtoSt = mtoStatus(equipo.proximo_mantenimiento)
+            const info = tipoInfo(equipo.tipo)
             return (
               <Card key={equipo.id} className={`border-2 ${cfg.cls}`}>
                 <CardContent className="p-4 space-y-2">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="text-2xl">{TIPO_EMOJI[equipo.tipo] ?? '⚙️'}</span>
+                      <span className="text-2xl">{info.icon}</span>
                       <div>
-                        <p className="font-semibold text-sm text-gray-800 leading-tight">{equipo.nombre}</p>
-                        {equipo.ubicacion && <p className="text-xs text-gray-400">{equipo.ubicacion}</p>}
+                        <p className="font-semibold text-sm text-gray-800 leading-tight">{info.label}</p>
+                        <p className="text-xs text-gray-400">{equipo.numero_serie ? `S/N: ${equipo.numero_serie}` : 'Sin serial'}{equipo.marca ? ` · ${equipo.marca}` : ''}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5">
@@ -116,8 +132,8 @@ export default function TabEquipos({ loteActual }: Props) {
 
                   <div className="grid grid-cols-2 gap-1 text-xs text-gray-500">
                     <div>
-                      <span className="text-gray-400">Horas acum.: </span>
-                      <span className="font-medium text-gray-700">{equipo.horas_operacion ?? '—'}</span>
+                      <span className="text-gray-400">Uso diario: </span>
+                      <span className="font-medium text-gray-700">{usoDiario[equipo.id] != null ? `${usoDiario[equipo.id]} h/día` : '—'}</span>
                     </div>
                     <div>
                       <span className="text-gray-400">Última rev.: </span>
@@ -182,7 +198,7 @@ export default function TabEquipos({ loteActual }: Props) {
           open={!!logEquipo}
           onClose={() => setLogEquipo(null)}
           equipoId={logEquipo.id}
-          equipoNombre={logEquipo.nombre}
+          equipoNombre={`${tipoInfo(logEquipo.tipo).label}${logEquipo.numero_serie ? ` — S/N ${logEquipo.numero_serie}` : ''}`}
           fincaId={loteActual.finca_id}
           onCreated={fetch}
         />

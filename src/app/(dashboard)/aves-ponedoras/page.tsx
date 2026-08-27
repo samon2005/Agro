@@ -56,7 +56,7 @@ export default function AvesPonedorasPage() {
       .from('lotes_aves')
       .select('*')
       .eq('finca_id', fincaActual.id)
-      .eq('estado', 'activo')
+      .in('estado', ['activo', 'preparacion'])
       .order('created_at', { ascending: false })
     setLotes(data ?? [])
     if (data && data.length > 0 && !loteActual) {

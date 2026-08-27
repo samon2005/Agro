@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { registrarCuenta } from '@/lib/supabase/actions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -19,17 +20,23 @@ export default function RegisterPage() {
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
-    const supabase = createClient()
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { data: { full_name: fullName } },
-    })
-    if (error) {
-      toast.error(error.message)
-    } else {
-      toast.success('Cuenta creada. Revisa tu correo para confirmar.')
-      router.push('/login')
+
+    try {
+      const data = new FormData()
+      data.set('full_name', fullName)
+      data.set('email', email)
+      data.set('password', password)
+      await registrarCuenta(data)
+
+      const supabase = createClient()
+      const { error: loginError } = await supabase.auth.signInWithPassword({ email, password })
+      if (loginError) throw loginError
+
+      toast.success('¡Cuenta creada!')
+      router.push('/dashboard')
+      router.refresh()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al crear la cuenta')
     }
     setLoading(false)
   }

@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { CurrencyInput } from '@/components/ui/currency-input'
 
 interface Props {
   open: boolean
@@ -16,10 +17,8 @@ interface Props {
   onCreated: () => void
 }
 
-export default function RegistrarDesinfeccionModal({ open, onClose, loteId, fincaId, onCreated }: Props) {
-  const supabase = createClient()
-  const [loading, setLoading] = useState(false)
-  const [form, setForm] = useState({
+function defaultForm() {
+  return {
     fecha: new Date().toISOString().split('T')[0],
     producto: '',
     previene: '',
@@ -27,7 +26,15 @@ export default function RegistrarDesinfeccionModal({ open, onClose, loteId, finc
     responsable: '',
     costo: '',
     observaciones: '',
-  })
+  }
+}
+
+export default function RegistrarDesinfeccionModal({ open, onClose, loteId, fincaId, onCreated }: Props) {
+  const supabase = createClient()
+  const [loading, setLoading] = useState(false)
+  const [form, setForm] = useState(defaultForm)
+
+  useEffect(() => { if (open) setForm(defaultForm()) }, [open])
 
   function set(field: string, value: string) {
     setForm(prev => ({ ...prev, [field]: value }))
@@ -49,6 +56,18 @@ export default function RegistrarDesinfeccionModal({ open, onClose, loteId, finc
       costo: form.costo ? Number(form.costo) : null,
       observaciones: form.observaciones || null,
     })
+
+    if (!error && form.costo && Number(form.costo) > 0) {
+      await supabase.from('costos_lote_aves').insert({
+        lote_id: loteId,
+        finca_id: fincaId,
+        fecha: form.fecha,
+        categoria: 'sanitario',
+        descripcion: `Desinfección: ${form.producto.trim()}`,
+        monto: Number(form.costo),
+      })
+    }
+
     setLoading(false)
     if (error) { toast.error('Error al registrar la desinfección'); return }
     toast.success('Desinfección registrada')
@@ -85,8 +104,8 @@ export default function RegistrarDesinfeccionModal({ open, onClose, loteId, finc
               <Input placeholder="Nombre" value={form.responsable} onChange={e => set('responsable', e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label>Costo (COP)</Label>
-              <Input type="number" min="0" placeholder="0" value={form.costo} onChange={e => set('costo', e.target.value)} />
+              <Label>Costo</Label>
+              <CurrencyInput placeholder="0" value={form.costo} onValueChange={v => set('costo', v)} />
             </div>
             <div className="col-span-2 space-y-1">
               <Label>Observaciones</Label>

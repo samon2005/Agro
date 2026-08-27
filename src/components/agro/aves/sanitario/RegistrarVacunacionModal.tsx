@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { CurrencyInput } from '@/components/ui/currency-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 interface Props {
@@ -20,26 +21,47 @@ interface Props {
 const VACUNAS_COMUNES = ['Newcastle', 'Bronquitis infecciosa', 'Marek', 'Gumboro', 'Viruela aviar', 'Laringotraqueítis', 'Salmonelosis', 'Encefalomielitis', 'Otra']
 const VIAS = ['Agua de bebida', 'Ocular', 'Spray', 'Inyectable SC', 'Inyectable IM', 'Ala-web', 'Intranasal']
 
-export default function RegistrarVacunacionModal({ open, onClose, loteId, fincaId, onCreated }: Props) {
-  const supabase = createClient()
-  const [loading, setLoading] = useState(false)
-  const [form, setForm] = useState({
+const UNIDAD_POR_VIA: Record<string, string> = {
+  'Agua de bebida': 'mL / L de agua',
+  'Ocular': 'gota / ave',
+  'Spray': 'mL / ave',
+  'Inyectable SC': 'mL / ave',
+  'Inyectable IM': 'mL / ave',
+  'Ala-web': 'punción / ave',
+  'Intranasal': 'gota / ave',
+}
+
+function defaultForm() {
+  return {
     fecha_aplicacion: new Date().toISOString().split('T')[0],
     vacuna: '',
     vacuna_otra: '',
     lote_vacuna: '',
     via_administracion: '',
-    dosis: '',
+    dosis_valor: '',
+    dosis_unidad: '',
     laboratorio: '',
     numero_aves: '',
     costo: '',
     proxima_dosis: '',
-    veterinario: '',
+    encargado: '',
     observaciones: '',
-  })
+  }
+}
+
+export default function RegistrarVacunacionModal({ open, onClose, loteId, fincaId, onCreated }: Props) {
+  const supabase = createClient()
+  const [loading, setLoading] = useState(false)
+  const [form, setForm] = useState(defaultForm)
+
+  useEffect(() => { if (open) setForm(defaultForm()) }, [open])
 
   function set(field: string, value: string | null) {
     setForm(prev => ({ ...prev, [field]: value ?? '' }))
+  }
+
+  function setVia(via: string | null) {
+    setForm(prev => ({ ...prev, via_administracion: via ?? '', dosis_unidad: (via && UNIDAD_POR_VIA[via]) ?? prev.dosis_unidad }))
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -48,6 +70,7 @@ export default function RegistrarVacunacionModal({ open, onClose, loteId, fincaI
     if (!vacunaFinal.trim()) { toast.error('Selecciona o escribe la vacuna'); return }
 
     setLoading(true)
+    const dosis = [form.dosis_valor, form.dosis_unidad].filter(Boolean).join(' ') || null
     const { error } = await supabase.from('vacunaciones_aves').insert({
       lote_id: loteId,
       finca_id: fincaId,
@@ -55,14 +78,26 @@ export default function RegistrarVacunacionModal({ open, onClose, loteId, fincaI
       vacuna: vacunaFinal.trim(),
       lote_vacuna: form.lote_vacuna || null,
       via_administracion: form.via_administracion || null,
-      dosis: form.dosis || null,
+      dosis,
       laboratorio: form.laboratorio || null,
       numero_aves: form.numero_aves ? Number(form.numero_aves) : null,
       costo: form.costo ? Number(form.costo) : null,
       proxima_dosis: form.proxima_dosis || null,
-      veterinario: form.veterinario || null,
+      veterinario: form.encargado || null,
       observaciones: form.observaciones || null,
     })
+
+    if (!error && form.costo && Number(form.costo) > 0) {
+      await supabase.from('costos_lote_aves').insert({
+        lote_id: loteId,
+        finca_id: fincaId,
+        fecha: form.fecha_aplicacion,
+        categoria: 'sanitario',
+        descripcion: `Vacuna: ${vacunaFinal.trim()}`,
+        monto: Number(form.costo),
+      })
+    }
+
     setLoading(false)
     if (error) { toast.error('Error al registrar vacunación'); return }
     toast.success('Vacunación registrada')
@@ -101,14 +136,17 @@ export default function RegistrarVacunacionModal({ open, onClose, loteId, fincaI
             </div>
             <div className="space-y-1">
               <Label>Vía de administración</Label>
-              <Select value={form.via_administracion} onValueChange={v => set('via_administracion', v)}>
+              <Select value={form.via_administracion} onValueChange={setVia}>
                 <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
                 <SelectContent>{VIAS.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-1">
               <Label>Dosis</Label>
-              <Input placeholder="Ej: 1 dosis/ave" value={form.dosis} onChange={e => set('dosis', e.target.value)} />
+              <div className="flex gap-1.5">
+                <Input type="number" min="0" step="0.01" className="w-20" placeholder="1" value={form.dosis_valor} onChange={e => set('dosis_valor', e.target.value)} />
+                <Input placeholder="Unidad (dosis/ave...)" value={form.dosis_unidad} onChange={e => set('dosis_unidad', e.target.value)} />
+              </div>
             </div>
             <div className="space-y-1">
               <Label>Laboratorio</Label>
@@ -119,16 +157,16 @@ export default function RegistrarVacunacionModal({ open, onClose, loteId, fincaI
               <Input type="number" min="0" value={form.numero_aves} onChange={e => set('numero_aves', e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label>Costo (COP)</Label>
-              <Input type="number" min="0" placeholder="0" value={form.costo} onChange={e => set('costo', e.target.value)} />
+              <Label>Costo</Label>
+              <CurrencyInput placeholder="0" value={form.costo} onValueChange={v => set('costo', v)} />
             </div>
             <div className="space-y-1">
               <Label>Próxima dosis</Label>
               <Input type="date" value={form.proxima_dosis} onChange={e => set('proxima_dosis', e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label>Veterinario</Label>
-              <Input placeholder="Nombre del veterinario" value={form.veterinario} onChange={e => set('veterinario', e.target.value)} />
+              <Label>Encargado</Label>
+              <Input placeholder="Nombre del encargado" value={form.encargado} onChange={e => set('encargado', e.target.value)} />
             </div>
             <div className="col-span-2 space-y-1">
               <Label>Observaciones</Label>

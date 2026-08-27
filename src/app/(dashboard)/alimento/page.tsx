@@ -32,7 +32,7 @@ export default function AlimentoPage() {
       .from('lotes_aves')
       .select('*')
       .eq('finca_id', fincaActual.id)
-      .eq('estado', 'activo')
+      .in('estado', ['activo', 'preparacion'])
       .order('created_at', { ascending: false })
     setLotesAves(data ?? [])
     setLoadingLotes(false)

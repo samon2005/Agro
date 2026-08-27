@@ -7,6 +7,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { CurrencyInput } from '@/components/ui/currency-input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+
+const PERIODOS = [
+  { value: 'mensual', label: 'Mensual' },
+  { value: 'quincenal', label: 'Quincenal' },
+  { value: 'semanal', label: 'Semanal' },
+  { value: 'diario', label: 'Diario' },
+  { value: 'por_tarea', label: 'Por tarea' },
+]
 
 interface Props {
   open: boolean
@@ -17,7 +27,7 @@ interface Props {
 
 export default function InvitarOperarioModal({ open, onClose, fincaId, onCreated }: Props) {
   const [loading, setLoading] = useState(false)
-  const [form, setForm] = useState({ full_name: '', email: '', cargo: '' })
+  const [form, setForm] = useState({ full_name: '', email: '', cargo: '', pago_monto: '', pago_periodo: 'mensual' })
   const [credenciales, setCredenciales] = useState<{ email: string; password: string } | null>(null)
 
   function set(field: string, value: string) {
@@ -33,6 +43,8 @@ export default function InvitarOperarioModal({ open, onClose, fincaId, onCreated
     data.set('full_name', form.full_name)
     data.set('email', form.email)
     data.set('cargo', form.cargo)
+    data.set('pago_monto', form.pago_monto)
+    data.set('pago_periodo', form.pago_periodo)
 
     try {
       const result = await invitarOperario(data, fincaId)
@@ -46,7 +58,7 @@ export default function InvitarOperarioModal({ open, onClose, fincaId, onCreated
   }
 
   function handleClose() {
-    setForm({ full_name: '', email: '', cargo: '' })
+    setForm({ full_name: '', email: '', cargo: '', pago_monto: '', pago_periodo: 'mensual' })
     setCredenciales(null)
     onClose()
   }
@@ -92,6 +104,19 @@ export default function InvitarOperarioModal({ open, onClose, fincaId, onCreated
               <div className="space-y-1">
                 <Label>Cargo / función</Label>
                 <Input placeholder="Ej: Encargado de alimentación" value={form.cargo} onChange={e => set('cargo', e.target.value)} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label>Pago</Label>
+                  <CurrencyInput placeholder="Ej: 1200000" value={form.pago_monto} onValueChange={v => set('pago_monto', v)} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Periodicidad</Label>
+                  <Select value={form.pago_periodo} onValueChange={v => set('pago_periodo', v ?? 'mensual')}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{PERIODOS.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
               </div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={handleClose}>Cancelar</Button>

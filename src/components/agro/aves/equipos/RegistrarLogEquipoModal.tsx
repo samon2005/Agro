@@ -87,7 +87,7 @@ export default function RegistrarLogEquipoModal({ open, onClose, equipoId, equip
               </Select>
             </div>
             <div className="space-y-1">
-              <Label>Horas de operación hoy</Label>
+              <Label>Tiempo de uso hoy (horas)</Label>
               <Input type="number" min="0" step="0.5" placeholder="0" value={form.horas_dia} onChange={e => set('horas_dia', e.target.value)} />
             </div>
             <div className="flex items-center gap-3 pt-6">

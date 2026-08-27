@@ -6,6 +6,8 @@ import { useFinca } from '@/components/agro/FincaProvider'
 import { useRol } from '@/components/agro/RolProvider'
 import { getOperarios, actualizarEstadoOperario } from '@/lib/supabase/actions'
 import InvitarOperarioModal from '@/components/agro/operarios/InvitarOperarioModal'
+import EditarOperarioModal from '@/components/agro/operarios/EditarOperarioModal'
+import MiPerfilOperario from '@/components/agro/operarios/MiPerfilOperario'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -16,7 +18,15 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 
-type Operario = { id: string; full_name: string | null; cargo: string | null; activo: boolean; email: string | null }
+type Operario = { id: string; full_name: string | null; cargo: string | null; activo: boolean; email: string | null; pago_monto: number | null; pago_periodo: string | null }
+
+const PERIODO_LABEL: Record<string, string> = {
+  mensual: 'mensual', quincenal: 'quincenal', semanal: 'semanal', diario: 'diario', por_tarea: 'por tarea',
+}
+
+function cop(n: number) {
+  return n.toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })
+}
 type Turno = { id: string; operario_id: string; fecha: string; hora_inicio: string; hora_fin: string | null; area: string | null }
 type Tarea = { id: string; operario_id: string | null; descripcion: string; fecha: string; estado: string }
 
@@ -37,6 +47,7 @@ export default function OperariosPage() {
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<Tab>('turnos')
   const [modalOperario, setModalOperario] = useState(false)
+  const [operarioEditar, setOperarioEditar] = useState<Operario | null>(null)
 
   const [formTurno, setFormTurno] = useState({ operario_id: '', fecha: new Date().toISOString().split('T')[0], hora_inicio: '', hora_fin: '', area: '' })
   const [formTarea, setFormTarea] = useState({ operario_id: '', descripcion: '', fecha: new Date().toISOString().split('T')[0] })
@@ -113,16 +124,8 @@ export default function OperariosPage() {
   if (fincaLoading) return <div className="p-8"><Skeleton className="h-8 w-64 mb-6" /><Skeleton className="h-64 rounded-xl" /></div>
 
   if (rol === 'trabajador') {
-    return (
-      <div className="p-8">
-        <Card className="border-dashed border-gray-300">
-          <CardContent className="py-16 text-center">
-            <p className="text-4xl mb-2">🔒</p>
-            <p className="text-gray-600 font-medium">No tienes permiso para ver esta sección</p>
-          </CardContent>
-        </Card>
-      </div>
-    )
+    if (!fincaActual) return null
+    return <MiPerfilOperario fincaId={fincaActual.id} />
   }
 
   return (
@@ -148,7 +151,7 @@ export default function OperariosPage() {
           ) : (
             <Table>
               <TableHeader>
-                <TableRow><TableHead>Nombre</TableHead><TableHead>Cargo</TableHead><TableHead>Correo</TableHead><TableHead>Estado</TableHead><TableHead></TableHead></TableRow>
+                <TableRow><TableHead>Nombre</TableHead><TableHead>Cargo</TableHead><TableHead>Correo</TableHead><TableHead>Pago</TableHead><TableHead>Estado</TableHead><TableHead></TableHead></TableRow>
               </TableHeader>
               <TableBody>
                 {operarios.map(op => (
@@ -156,12 +159,18 @@ export default function OperariosPage() {
                     <TableCell className="font-medium text-sm">{op.full_name ?? '—'}</TableCell>
                     <TableCell className="text-sm text-gray-500">{op.cargo ?? '—'}</TableCell>
                     <TableCell className="text-sm text-gray-500 font-mono">{op.email ?? '—'}</TableCell>
+                    <TableCell className="text-sm text-gray-500">
+                      {op.pago_monto ? `${cop(op.pago_monto)} / ${PERIODO_LABEL[op.pago_periodo ?? ''] ?? op.pago_periodo}` : '—'}
+                    </TableCell>
                     <TableCell>
                       <Badge className={op.activo ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}>
                         {op.activo ? 'Activo' : 'Inactivo'}
                       </Badge>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="flex gap-1.5">
+                      <Button size="sm" variant="outline" className="text-xs" onClick={() => setOperarioEditar(op)}>
+                        Editar
+                      </Button>
                       <Button size="sm" variant="outline" className="text-xs" onClick={() => toggleActivo(op)}>
                         {op.activo ? 'Desactivar' : 'Activar'}
                       </Button>
@@ -287,7 +296,16 @@ export default function OperariosPage() {
       )}
 
       {fincaActual && (
-        <InvitarOperarioModal open={modalOperario} onClose={() => setModalOperario(false)} fincaId={fincaActual.id} onCreated={fetchAll} />
+        <>
+          <InvitarOperarioModal open={modalOperario} onClose={() => setModalOperario(false)} fincaId={fincaActual.id} onCreated={fetchAll} />
+          <EditarOperarioModal
+            open={!!operarioEditar}
+            onClose={() => setOperarioEditar(null)}
+            fincaId={fincaActual.id}
+            operario={operarioEditar}
+            onUpdated={fetchAll}
+          />
+        </>
       )}
     </div>
   )

@@ -55,7 +55,7 @@ export default function NotificacionesPanel() {
     await Promise.all(tareas)
 
     if (especies.includes('aves_ponedoras')) {
-      const { data: lotes } = await supabase.from('lotes_aves').select('id, nombre').eq('finca_id', fincaActual.id).eq('estado', 'activo')
+      const { data: lotes } = await supabase.from('lotes_aves').select('id, nombre').eq('finca_id', fincaActual.id).in('estado', ['activo', 'preparacion'])
       for (const lote of lotes ?? []) {
         const [{ data: horarios }, { data: hoyProd }] = await Promise.all([
           supabase.from('horarios_recoleccion_aves').select('hora, descripcion').eq('lote_id', lote.id).eq('activo', true),

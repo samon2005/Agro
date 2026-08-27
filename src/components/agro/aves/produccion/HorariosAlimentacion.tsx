@@ -84,7 +84,7 @@ export default function HorariosAlimentacion({ loteId, fincaId }: Props) {
               <div key={h.id} className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-full pl-3 pr-1.5 py-1 text-sm">
                 <span className="font-semibold text-amber-800">{fmtHora(h.hora)}</span>
                 {h.descripcion && <span className="text-amber-600 text-xs">{h.descripcion}</span>}
-                {h.cantidad_kg && <span className="text-amber-600 text-xs">· {h.cantidad_kg} kg</span>}
+                {h.cantidad_kg && <span className="text-amber-600 text-xs">· porción: {h.cantidad_kg} kg</span>}
                 <button
                   type="button"
                   onClick={() => handleDelete(h.id)}
@@ -108,7 +108,7 @@ export default function HorariosAlimentacion({ loteId, fincaId }: Props) {
             <Input placeholder="Ej: Comida mañana" value={nuevo.descripcion} onChange={e => setNuevo(p => ({ ...p, descripcion: e.target.value }))} />
           </div>
           <div className="space-y-1 w-28">
-            <Label className="text-xs">Cant. (kg)</Label>
+            <Label className="text-xs">Porción (kg)</Label>
             <Input type="number" min="0" step="0.1" value={nuevo.cantidad_kg} onChange={e => setNuevo(p => ({ ...p, cantidad_kg: e.target.value }))} />
           </div>
           <Button type="submit" disabled={saving} size="sm" className="bg-amber-600 hover:bg-amber-700 text-white">

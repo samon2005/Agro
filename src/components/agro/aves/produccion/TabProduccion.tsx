@@ -11,6 +11,8 @@ import RegistrarProduccionModal from './RegistrarProduccionModal'
 import ConfigurarGalponModal from './ConfigurarGalponModal'
 import HorariosAlimentacion from './HorariosAlimentacion'
 import HorariosRecoleccion from './HorariosRecoleccion'
+import RevisionCalidadHuevo from './RevisionCalidadHuevo'
+import { toast } from 'sonner'
 import type { Database } from '@/types/database'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
@@ -114,6 +116,30 @@ export default function TabProduccion({ loteActual, onLoteUpdated }: Props) {
     ? (loteActual.aves_actuales / loteActual.area_galpon_m2).toFixed(1)
     : null
 
+  // ── Meta de huevos diaria ──
+  const metaHuevosDiaria = loteActual.meta_huevos_diaria ?? null
+  const cumplimientoMeta = hoy && metaHuevosDiaria
+    ? ((hoy.huevos_totales / metaHuevosDiaria) * 100).toFixed(0)
+    : null
+
+  // ── Estado del lote: preparación (levante) vs activo (en postura) ──
+  const semanasEnGalpon = Math.max(0, Math.floor(
+    (hoyDate.getTime() - new Date(loteActual.fecha_inicio + 'T00:00:00').getTime()) / (7 * MS_DIA)
+  ))
+
+  async function marcarInicioPostura() {
+    const hoyStr = new Date().toISOString().split('T')[0]
+    const { data, error } = await supabase
+      .from('lotes_aves')
+      .update({ estado: 'activo', fecha_inicio_postura: loteActual.fecha_inicio_postura ?? hoyStr })
+      .eq('id', loteActual.id)
+      .select()
+      .single()
+    if (error) { toast.error('Error al actualizar el lote'); return }
+    toast.success('Lote marcado como activo en producción')
+    onLoteUpdated(data)
+  }
+
   function formatDate(d: string) {
     return new Date(d + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })
   }
@@ -132,12 +158,33 @@ export default function TabProduccion({ loteActual, onLoteUpdated }: Props) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      {loteActual.estado === 'preparacion' && (
+        <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg border border-blue-200 bg-blue-50">
+          <div>
+            <p className="text-sm font-semibold text-blue-800">🐣 Lote en preparación (levante)</p>
+            <p className="text-xs text-blue-600 mt-0.5">
+              {semanasEnGalpon} semana{semanasEnGalpon === 1 ? '' : 's'} desde su entrada al galpón · aún no inicia postura
+            </p>
+          </div>
+          <Button size="sm" onClick={marcarInicioPostura} className="bg-blue-700 hover:bg-blue-800 text-white text-xs">
+            Marcar inicio de postura
+          </Button>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Card className="border-yellow-200 bg-yellow-50">
           <CardContent className="p-4">
-            <p className="text-xs text-yellow-700 font-medium">Huevos hoy</p>
+            <p className="text-xs text-yellow-700 font-medium">Huevos puestos hoy</p>
             <p className="text-2xl font-bold text-yellow-800">{hoy ? hoy.huevos_totales.toLocaleString('es-CO') : '—'}</p>
             <p className="text-xs text-yellow-600 mt-0.5">Comerciales: {hoy ? (hoy.huevos_totales - hoy.huevos_rotos - hoy.huevos_sucios - hoy.huevos_deformes).toLocaleString('es-CO') : '—'}</p>
+          </CardContent>
+        </Card>
+        <Card className={metaHuevosDiaria && hoy && hoy.huevos_totales < metaHuevosDiaria ? 'border-red-200 bg-red-50' : 'border-teal-200 bg-teal-50'}>
+          <CardContent className="p-4">
+            <p className={`text-xs font-medium ${metaHuevosDiaria && hoy && hoy.huevos_totales < metaHuevosDiaria ? 'text-red-700' : 'text-teal-700'}`}>Meta de huevos/día</p>
+            <p className={`text-2xl font-bold ${metaHuevosDiaria && hoy && hoy.huevos_totales < metaHuevosDiaria ? 'text-red-800' : 'text-teal-800'}`}>{metaHuevosDiaria ? metaHuevosDiaria.toLocaleString('es-CO') : '—'}</p>
+            <p className="text-xs mt-0.5 text-gray-500">{cumplimientoMeta ? `${cumplimientoMeta}% cumplido hoy` : metaHuevosDiaria ? 'Sin registro de hoy' : 'Configura la meta en "Configurar galpón"'}</p>
           </CardContent>
         </Card>
         <Card className={posturaHoy && Number(posturaHoy) < UMBRAL_POSTURA_OK ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50'}>
@@ -231,6 +278,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated }: Props) {
 
       <HorariosAlimentacion loteId={loteActual.id} fincaId={loteActual.finca_id} />
       <HorariosRecoleccion loteId={loteActual.id} fincaId={loteActual.finca_id} />
+      <RevisionCalidadHuevo loteId={loteActual.id} fincaId={loteActual.finca_id} />
 
       <Card>
         <CardHeader className="pb-2">

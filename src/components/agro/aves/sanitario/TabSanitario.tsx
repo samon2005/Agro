@@ -19,6 +19,7 @@ type Vacunacion = Database['public']['Tables']['vacunaciones_aves']['Row']
 type Medicacion = Database['public']['Tables']['medicaciones_aves']['Row']
 type EventoClinico = Database['public']['Tables']['eventos_clinicos_aves']['Row']
 type Desinfeccion = Database['public']['Tables']['desinfecciones_aves']['Row']
+type Recordatorio = Database['public']['Tables']['recordatorios_medicacion_aves']['Row']
 
 type SubTab = 'vacunas' | 'medicaciones' | 'eventos' | 'desinfecciones'
 
@@ -40,6 +41,7 @@ export default function TabSanitario({ loteActual }: Props) {
   const [medicaciones, setMedicaciones] = useState<Medicacion[]>([])
   const [eventos, setEventos] = useState<EventoClinico[]>([])
   const [desinfecciones, setDesinfecciones] = useState<Desinfeccion[]>([])
+  const [recordatorios, setRecordatorios] = useState<Recordatorio[]>([])
   const [loading, setLoading] = useState(true)
   const [modalVacuna, setModalVacuna] = useState(false)
   const [modalMed, setModalMed] = useState(false)
@@ -48,18 +50,25 @@ export default function TabSanitario({ loteActual }: Props) {
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
-    const [v, m, ev, d] = await Promise.all([
+    const [v, m, ev, d, r] = await Promise.all([
       supabase.from('vacunaciones_aves').select('*').eq('lote_id', loteActual.id).order('fecha_aplicacion', { ascending: false }),
       supabase.from('medicaciones_aves').select('*').eq('lote_id', loteActual.id).order('fecha_inicio', { ascending: false }),
       supabase.from('eventos_clinicos_aves').select('*').eq('lote_id', loteActual.id).order('fecha', { ascending: false }),
       supabase.from('desinfecciones_aves').select('*').eq('lote_id', loteActual.id).order('fecha', { ascending: false }),
+      supabase.from('recordatorios_medicacion_aves').select('*').eq('lote_id', loteActual.id).eq('completado', false).order('fecha'),
     ])
     setVacunas(v.data ?? [])
     setMedicaciones(m.data ?? [])
     setEventos(ev.data ?? [])
     setDesinfecciones(d.data ?? [])
+    setRecordatorios(r.data ?? [])
     setLoading(false)
   }, [loteActual.id, supabase])
+
+  async function completarRecordatorio(id: string) {
+    await supabase.from('recordatorios_medicacion_aves').update({ completado: true }).eq('id', id)
+    setRecordatorios(prev => prev.filter(r => r.id !== id))
+  }
 
   useEffect(() => { fetchAll() }, [fetchAll])
 
@@ -72,6 +81,10 @@ export default function TabSanitario({ loteActual }: Props) {
     retiroFin.setDate(retiroFin.getDate() + m.periodo_retiro_dias)
     return retiroFin >= hoy
   })
+
+  const medicamentoPorId = new Map(medicaciones.map(m => [m.id, m.medicamento]))
+  const hoyStr = hoy.toISOString().split('T')[0]
+  const recordatoriosVisibles = recordatorios.slice(0, 5)
 
   function fmt(d: string) {
     return new Date(d + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -114,6 +127,24 @@ export default function TabSanitario({ loteActual }: Props) {
         </div>
       )}
 
+      {recordatorios.length > 0 && (
+        <div className="p-3 bg-blue-50 border border-blue-300 rounded-lg space-y-2">
+          <p className="text-sm font-semibold text-blue-800">🔔 Recordatorios de tratamiento</p>
+          <div className="space-y-1.5">
+            {recordatoriosVisibles.map(r => (
+              <div key={r.id} className="flex items-center justify-between gap-2 text-sm">
+                <span className={cn(r.fecha <= hoyStr ? 'text-red-700 font-medium' : 'text-blue-700')}>
+                  {r.fecha <= hoyStr ? '⏰' : '📅'} Aplicar <strong>{medicamentoPorId.get(r.medicacion_id) ?? 'medicamento'}</strong> — {fmt(r.fecha)}{r.hora ? ` a las ${r.hora}` : ''}
+                </span>
+                <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => completarRecordatorio(r.id)}>
+                  ✓ Hecho
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Mini-tabs */}
       <div className="flex gap-2 border-b border-gray-200 pb-0">
         {subTabItems.map(item => (
@@ -151,7 +182,7 @@ export default function TabSanitario({ loteActual }: Props) {
                       <TableHead>Lote vacuna</TableHead>
                       <TableHead className="text-right">N° aves</TableHead>
                       <TableHead>Próxima dosis</TableHead>
-                      <TableHead>Veterinario</TableHead>
+                      <TableHead>Encargado</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -191,11 +222,13 @@ export default function TabSanitario({ loteActual }: Props) {
                       <TableHead>Motivo</TableHead>
                       <TableHead className="text-right">Retiro (días)</TableHead>
                       <TableHead>Liberación</TableHead>
+                      <TableHead>Estado</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {medicaciones.map(m => {
                       const activo = enRetiro.some(r => r.id === m.id)
+                      const sinRetiro = m.periodo_retiro_dias === 0
                       const liberacion = m.fecha_fin && m.periodo_retiro_dias
                         ? (() => { const d = new Date(m.fecha_fin); d.setDate(d.getDate() + m.periodo_retiro_dias!); return d })()
                         : null
@@ -203,15 +236,21 @@ export default function TabSanitario({ loteActual }: Props) {
                         <TableRow key={m.id} className={activo ? 'bg-amber-50' : ''}>
                           <TableCell className="text-sm">{fmt(m.fecha_inicio)}</TableCell>
                           <TableCell className="text-sm">{m.fecha_fin ? fmt(m.fecha_fin) : '—'}</TableCell>
-                          <TableCell className="font-medium text-sm">
-                            {m.medicamento}
-                            {activo && <Badge className="ml-2 text-[10px] bg-amber-100 text-amber-700 border-amber-300">En retiro</Badge>}
-                          </TableCell>
+                          <TableCell className="font-medium text-sm">{m.medicamento}</TableCell>
                           <TableCell className="text-sm text-gray-500">{m.principio_activo ?? '—'}</TableCell>
                           <TableCell className="text-sm text-gray-500">{m.motivo ?? '—'}</TableCell>
                           <TableCell className="text-right text-sm">{m.periodo_retiro_dias ?? '—'}</TableCell>
                           <TableCell className="text-sm font-medium text-amber-700">
-                            {liberacion ? liberacion.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }) : '—'}
+                            {sinRetiro ? '—' : liberacion ? liberacion.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }) : '—'}
+                          </TableCell>
+                          <TableCell>
+                            {activo ? (
+                              <Badge className="text-[10px] bg-amber-100 text-amber-700 border-amber-300">En retiro</Badge>
+                            ) : sinRetiro ? (
+                              <Badge className="text-[10px] bg-green-100 text-green-700 border-green-300">Comercializable</Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-[10px]">—</Badge>
+                            )}
                           </TableCell>
                         </TableRow>
                       )

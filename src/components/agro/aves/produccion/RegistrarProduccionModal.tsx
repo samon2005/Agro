@@ -26,11 +26,8 @@ const CAUSAS_MUERTE = [
   'Coccidiosis', 'Micoplasmosis', 'Accidente', 'Estrés calórico', 'Otra'
 ]
 
-export default function RegistrarProduccionModal({ open, onClose, loteId, fincaId, avesActuales, onCreated }: Props) {
-  const supabase = createClient()
-  const [loading, setLoading] = useState(false)
-  const [tiposAlimento, setTiposAlimento] = useState<TipoAlimento[]>([])
-  const [form, setForm] = useState({
+function defaultForm(avesActuales: number) {
+  return {
     fecha: new Date().toISOString().split('T')[0],
     aves_en_dia: String(avesActuales),
     huevos_totales: '',
@@ -42,11 +39,18 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
     muertes: '0',
     causa_muerte: '',
     observaciones: '',
-  })
+  }
+}
+
+export default function RegistrarProduccionModal({ open, onClose, loteId, fincaId, avesActuales, onCreated }: Props) {
+  const supabase = createClient()
+  const [loading, setLoading] = useState(false)
+  const [tiposAlimento, setTiposAlimento] = useState<TipoAlimento[]>([])
+  const [form, setForm] = useState(defaultForm(avesActuales))
 
   useEffect(() => {
-    setForm(prev => ({ ...prev, aves_en_dia: String(avesActuales) }))
-  }, [avesActuales])
+    if (open) setForm(defaultForm(avesActuales))
+  }, [open, avesActuales])
 
   useEffect(() => {
     if (!open) return
@@ -64,7 +68,7 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.huevos_totales) { toast.error('Ingresa los huevos producidos'); return }
+    if (!form.huevos_totales) { toast.error('Ingresa los huevos puestos'); return }
 
     setLoading(true)
     const { data: existing } = await supabase
@@ -131,7 +135,7 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
             </div>
             <div className="col-span-2 space-y-1">
               <div className="flex items-center justify-between">
-                <Label>Huevos producidos *</Label>
+                <Label>Huevos puestos *</Label>
                 {postura && (
                   <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${Number(postura) >= 80 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                     Postura: {postura}%

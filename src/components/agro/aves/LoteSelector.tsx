@@ -6,6 +6,13 @@ import type { Database } from '@/types/database'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 
+const ESTADO_LABEL: Record<string, string> = {
+  preparacion: 'en preparación',
+  activo: 'activo',
+  finalizado: 'finalizado',
+  vendido: 'vendido',
+}
+
 interface Props {
   lotes: LoteAves[]
   loteActual: LoteAves | null
@@ -43,7 +50,7 @@ export default function LoteSelector({ lotes, loteActual, onSelect, onNuevoLote,
         >
           🐔 {lote.nombre}
           {lote.estado !== 'activo' && (
-            <span className="ml-1 text-xs opacity-70">({lote.estado})</span>
+            <span className="ml-1 text-xs opacity-70">({ESTADO_LABEL[lote.estado] ?? lote.estado})</span>
           )}
         </button>
       ))}

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { useFinca } from '@/components/agro/FincaProvider'
 import RegistrarInventarioModal from '@/components/agro/RegistrarInventarioModal'
@@ -57,9 +58,15 @@ export default function InventarioPage() {
     }
     setConfirmandoId(null)
     setBorrandoId(id)
+    const item = items.find(i => i.id === id)
     const supabase = createClient()
-    await supabase.from('inventario').delete().eq('id', id)
-    setItems(prev => prev.filter(i => i.id !== id))
+    const { error } = await supabase.from('inventario').delete().eq('id', id)
+    if (error) {
+      toast.error('Error al eliminar el ítem')
+    } else {
+      setItems(prev => prev.filter(i => i.id !== id))
+      toast.success(`Ítem eliminado del inventario: ${item?.nombre ?? ''}`)
+    }
     setBorrandoId(null)
   }
 

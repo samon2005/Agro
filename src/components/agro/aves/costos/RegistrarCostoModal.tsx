@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { CurrencyInput } from '@/components/ui/currency-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 interface Props {
@@ -14,34 +15,46 @@ interface Props {
   onClose: () => void
   loteId: string
   fincaId: string
+  costosPredefinidos: Record<string, number>
   onCreated: () => void
 }
 
 const CATEGORIAS = [
   { value: 'pollitas', label: '🐣 Pollitas de levante' },
   { value: 'alimento', label: '🌾 Alimento / Concentrado' },
-  { value: 'agua', label: '💧 Agua / Servicios hídricos' },
-  { value: 'energia', label: '⚡ Energía eléctrica' },
-  { value: 'mano_obra', label: '👷 Mano de obra' },
+  { value: 'servicios_publicos', label: '💡 Servicios públicos (agua y energía)' },
   { value: 'mantenimiento', label: '🔧 Mantenimiento' },
-  { value: 'sanitario', label: '💉 Sanitario / Veterinario' },
+  { value: 'sanitario', label: '💉 Sanitario' },
   { value: 'otro', label: '📋 Otro' },
 ]
 
-export default function RegistrarCostoModal({ open, onClose, loteId, fincaId, onCreated }: Props) {
-  const supabase = createClient()
-  const [loading, setLoading] = useState(false)
-  const [form, setForm] = useState({
+function defaultForm() {
+  return {
     fecha: new Date().toISOString().split('T')[0],
     categoria: '',
     descripcion: '',
     monto: '',
     proveedor: '',
     observaciones: '',
-  })
+  }
+}
+
+export default function RegistrarCostoModal({ open, onClose, loteId, fincaId, costosPredefinidos, onCreated }: Props) {
+  const supabase = createClient()
+  const [loading, setLoading] = useState(false)
+  const [form, setForm] = useState(defaultForm)
+
+  useEffect(() => { if (open) setForm(defaultForm()) }, [open])
 
   function set(field: string, value: string | null) {
     setForm(prev => ({ ...prev, [field]: value ?? '' }))
+  }
+
+  function setCategoria(categoria: string | null) {
+    setForm(prev => {
+      const referencia = categoria ? costosPredefinidos[categoria] : undefined
+      return { ...prev, categoria: categoria ?? '', monto: prev.monto || (referencia ? String(referencia) : prev.monto) }
+    })
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -82,7 +95,7 @@ export default function RegistrarCostoModal({ open, onClose, loteId, fincaId, on
             </div>
             <div className="space-y-1">
               <Label>Categoría *</Label>
-              <Select value={form.categoria} onValueChange={v => set('categoria', v)}>
+              <Select value={form.categoria} onValueChange={setCategoria}>
                 <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
                 <SelectContent>{CATEGORIAS.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
               </Select>
@@ -92,8 +105,8 @@ export default function RegistrarCostoModal({ open, onClose, loteId, fincaId, on
               <Input placeholder="¿Qué se pagó?" value={form.descripcion} onChange={e => set('descripcion', e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label>Monto (COP) *</Label>
-              <Input type="number" min="0" step="100" placeholder="0" value={form.monto} onChange={e => set('monto', e.target.value)} />
+              <Label>Monto *</Label>
+              <CurrencyInput placeholder="0" value={form.monto} onValueChange={v => set('monto', v)} />
             </div>
             <div className="space-y-1">
               <Label>Proveedor</Label>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -27,20 +27,26 @@ const TIPOS = [
   { value: 'otro', label: '❓ Otro' },
 ]
 
-export default function RegistrarEventoClinicoModal({ open, onClose, loteId, fincaId, onCreated }: Props) {
-  const supabase = createClient()
-  const [loading, setLoading] = useState(false)
-  const [form, setForm] = useState({
+function defaultForm() {
+  return {
     fecha: new Date().toISOString().split('T')[0],
     tipo_evento: '',
     descripcion: '',
     aves_afectadas: '',
     aves_muertas: '0',
     accion_tomada: '',
-    veterinario: '',
+    encargado: '',
     resuelto: false,
     observaciones: '',
-  })
+  }
+}
+
+export default function RegistrarEventoClinicoModal({ open, onClose, loteId, fincaId, onCreated }: Props) {
+  const supabase = createClient()
+  const [loading, setLoading] = useState(false)
+  const [form, setForm] = useState(defaultForm)
+
+  useEffect(() => { if (open) setForm(defaultForm()) }, [open])
 
   function set(field: string, value: string | boolean | null) {
     setForm(prev => ({ ...prev, [field]: value ?? '' }))
@@ -61,7 +67,7 @@ export default function RegistrarEventoClinicoModal({ open, onClose, loteId, fin
       aves_afectadas: form.aves_afectadas ? Number(form.aves_afectadas) : null,
       aves_muertas: Number(form.aves_muertas) || 0,
       accion_tomada: form.accion_tomada || null,
-      veterinario: form.veterinario || null,
+      veterinario: form.encargado || null,
       resuelto: form.resuelto,
       observaciones: form.observaciones || null,
     })
@@ -108,8 +114,8 @@ export default function RegistrarEventoClinicoModal({ open, onClose, loteId, fin
               <Input placeholder="Tratamiento o manejo aplicado" value={form.accion_tomada} onChange={e => set('accion_tomada', e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label>Veterinario</Label>
-              <Input placeholder="Nombre" value={form.veterinario} onChange={e => set('veterinario', e.target.value)} />
+              <Label>Encargado</Label>
+              <Input placeholder="Nombre del encargado" value={form.encargado} onChange={e => set('encargado', e.target.value)} />
             </div>
             <div className="flex items-center gap-3 pt-6">
               <input

@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { CurrencyInput } from '@/components/ui/currency-input'
 import type { Database } from '@/types/database'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
@@ -26,6 +27,7 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated }
     fecha_inicio_postura: '',
     semanas_ciclo_postura: '',
     meta_postura_pct: '',
+    meta_huevos_diaria: '',
     precio_huevo: '',
     precio_gramo_alimento: '',
     peso_bulto_alimento_kg: '',
@@ -37,6 +39,7 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated }
       fecha_inicio_postura: lote.fecha_inicio_postura ?? '',
       semanas_ciclo_postura: lote.semanas_ciclo_postura != null ? String(lote.semanas_ciclo_postura) : '60',
       meta_postura_pct: lote.meta_postura_pct != null ? String(lote.meta_postura_pct) : '90',
+      meta_huevos_diaria: lote.meta_huevos_diaria != null ? String(lote.meta_huevos_diaria) : '',
       precio_huevo: lote.precio_huevo != null ? String(lote.precio_huevo) : '',
       precio_gramo_alimento: lote.precio_gramo_alimento != null ? String(lote.precio_gramo_alimento) : '',
       peso_bulto_alimento_kg: lote.peso_bulto_alimento_kg != null ? String(lote.peso_bulto_alimento_kg) : '40',
@@ -59,6 +62,7 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated }
       fecha_inicio_postura: form.fecha_inicio_postura || null,
       semanas_ciclo_postura: form.semanas_ciclo_postura ? Number(form.semanas_ciclo_postura) : null,
       meta_postura_pct: form.meta_postura_pct ? Number(form.meta_postura_pct) : null,
+      meta_huevos_diaria: form.meta_huevos_diaria ? Number(form.meta_huevos_diaria) : null,
       precio_huevo: form.precio_huevo ? Number(form.precio_huevo) : null,
       precio_gramo_alimento: form.precio_gramo_alimento ? Number(form.precio_gramo_alimento) : null,
       peso_bulto_alimento_kg: form.peso_bulto_alimento_kg ? Number(form.peso_bulto_alimento_kg) : null,
@@ -95,8 +99,9 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated }
               <Input disabled value={densidad ? `${densidad} aves/m²` : '—'} />
             </div>
             <div className="space-y-1">
-              <Label>Fecha inicio de postura</Label>
+              <Label>Fecha de inicio real de postura</Label>
               <Input type="date" value={form.fecha_inicio_postura} onChange={e => set('fecha_inicio_postura', e.target.value)} />
+              <p className="text-xs text-gray-400">Se usa para contar la semana de postura del lote</p>
             </div>
             <div className="space-y-1">
               <Label>Duración del ciclo (semanas)</Label>
@@ -107,8 +112,12 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated }
               <Input type="number" min="0" max="100" step="0.1" placeholder="Ej: 90" value={form.meta_postura_pct} onChange={e => set('meta_postura_pct', e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label>Precio de venta por huevo ($)</Label>
-              <Input type="number" min="0" step="1" placeholder="Ej: 450" value={form.precio_huevo} onChange={e => set('precio_huevo', e.target.value)} />
+              <Label>Meta de huevos puestos por día</Label>
+              <Input type="number" min="0" placeholder="Ej: 4500" value={form.meta_huevos_diaria} onChange={e => set('meta_huevos_diaria', e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label>Precio de venta por huevo</Label>
+              <CurrencyInput placeholder="Ej: 450" value={form.precio_huevo} onValueChange={v => set('precio_huevo', v)} />
             </div>
             <div className="space-y-1">
               <Label>Precio por gramo de alimento ($)</Label>

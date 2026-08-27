@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -21,20 +21,34 @@ interface Props {
 
 const LINEAS = ['Lohmann Brown', 'Isa Brown', 'Hy-Line Brown', 'Bovans Brown', 'Babcock B-380', 'Otra']
 
-export default function CrearLoteModal({ open, onClose, fincaId, onCreated }: Props) {
-  const supabase = createClient()
-  const [loading, setLoading] = useState(false)
-  const [form, setForm] = useState({
+function defaultForm() {
+  return {
     nombre: '',
     linea_genetica: '',
     fecha_inicio: new Date().toISOString().split('T')[0],
     aves_iniciales: '',
+    area_galpon_m2: '',
+    estado: 'preparacion',
     observaciones: '',
-  })
+  }
+}
+
+export default function CrearLoteModal({ open, onClose, fincaId, onCreated }: Props) {
+  const supabase = createClient()
+  const [loading, setLoading] = useState(false)
+  const [form, setForm] = useState(defaultForm)
+
+  useEffect(() => {
+    if (open) setForm(defaultForm())
+  }, [open])
 
   function set(field: string, value: string | null) {
     setForm(prev => ({ ...prev, [field]: value ?? '' }))
   }
+
+  const densidad = form.area_galpon_m2 && Number(form.area_galpon_m2) > 0 && form.aves_iniciales
+    ? (Number(form.aves_iniciales) / Number(form.area_galpon_m2)).toFixed(1)
+    : null
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -52,6 +66,8 @@ export default function CrearLoteModal({ open, onClose, fincaId, onCreated }: Pr
         fecha_inicio: form.fecha_inicio,
         aves_iniciales: aves,
         aves_actuales: aves,
+        area_galpon_m2: form.area_galpon_m2 ? Number(form.area_galpon_m2) : null,
+        estado: form.estado,
         observaciones: form.observaciones || null,
       })
       .select()
@@ -60,21 +76,20 @@ export default function CrearLoteModal({ open, onClose, fincaId, onCreated }: Pr
     setLoading(false)
     if (error) { toast.error('Error al crear el lote'); return }
     toast.success(`Lote "${data.nombre}" creado`)
-    setForm({ nombre: '', linea_genetica: '', fecha_inicio: new Date().toISOString().split('T')[0], aves_iniciales: '', observaciones: '' })
     onCreated(data)
     onClose()
   }
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>🐔 Nuevo Lote de Aves Ponedoras</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2 space-y-1">
-              <Label>Nombre del lote *</Label>
+              <Label>Nombre del lote / galpón *</Label>
               <Input placeholder="Ej: Lote A - Galpón 1" value={form.nombre} onChange={e => set('nombre', e.target.value)} />
             </div>
             <div className="space-y-1">
@@ -87,12 +102,30 @@ export default function CrearLoteModal({ open, onClose, fincaId, onCreated }: Pr
               </Select>
             </div>
             <div className="space-y-1">
-              <Label>Fecha de inicio</Label>
+              <Label>Fecha de entrada al galpón</Label>
               <Input type="date" value={form.fecha_inicio} onChange={e => set('fecha_inicio', e.target.value)} />
             </div>
-            <div className="col-span-2 space-y-1">
+            <div className="space-y-1">
               <Label>Número de aves iniciales *</Label>
               <Input type="number" min="1" placeholder="Ej: 5000" value={form.aves_iniciales} onChange={e => set('aves_iniciales', e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label>Área del galpón (m²)</Label>
+              <Input type="number" min="0" step="0.1" placeholder="Ej: 300" value={form.area_galpon_m2} onChange={e => set('area_galpon_m2', e.target.value)} />
+            </div>
+            <div className="col-span-2 space-y-1">
+              <Label>Densidad estimada</Label>
+              <Input disabled value={densidad ? `${densidad} aves/m²` : '—'} />
+            </div>
+            <div className="col-span-2 space-y-1">
+              <Label>Estado inicial</Label>
+              <Select value={form.estado} onValueChange={v => set('estado', v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="preparacion">En preparación (levante, aún sin postura)</SelectItem>
+                  <SelectItem value="activo">Activo (ya está en producción de huevo)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="col-span-2 space-y-1">
               <Label>Observaciones</Label>
