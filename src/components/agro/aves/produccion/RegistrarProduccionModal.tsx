@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { Database } from '@/types/database'
 
-type TipoAlimento = Database['public']['Tables']['tipos_alimento_aves']['Row']
+type ProduccionDiaria = Database['public']['Tables']['produccion_diaria_aves']['Row']
 
 interface Props {
   open: boolean
@@ -18,6 +18,8 @@ interface Props {
   loteId: string
   fincaId: string
   avesActuales: number
+  metaPostura?: number
+  registroExistente?: ProduccionDiaria | null
   onCreated: () => void
 }
 
@@ -26,54 +28,56 @@ const CAUSAS_MUERTE = [
   'Coccidiosis', 'Micoplasmosis', 'Accidente', 'Estrés calórico', 'Otra'
 ]
 
-function defaultForm(avesActuales: number) {
+function defaultForm(avesActuales: number, r?: ProduccionDiaria | null) {
   return {
-    fecha: new Date().toISOString().split('T')[0],
-    aves_en_dia: String(avesActuales),
-    huevos_totales: '',
-    huevos_rotos: '0',
-    huevos_sucios: '0',
-    huevos_deformes: '0',
-    alimento_kg: '',
-    tipo_alimento_id: '',
-    muertes: '0',
-    causa_muerte: '',
-    observaciones: '',
+    fecha: r?.fecha ?? new Date().toISOString().split('T')[0],
+    aves_en_dia: r ? String(r.aves_en_dia ?? '') : String(avesActuales),
+    huevos_b: r ? String(r.huevos_b) : '',
+    huevos_a: r ? String(r.huevos_a) : '',
+    huevos_aa: r ? String(r.huevos_aa) : '',
+    huevos_aaa: r ? String(r.huevos_aaa) : '',
+    huevos_jumbo: r ? String(r.huevos_jumbo) : '',
+    huevos_rotos: r ? String(r.huevos_rotos) : '0',
+    huevos_sucios: r ? String(r.huevos_sucios) : '0',
+    huevos_deformes: r ? String(r.huevos_deformes) : '0',
+    muertes: r ? String(r.muertes) : '0',
+    causa_muerte: r?.causa_muerte ?? '',
+    observaciones: r?.observaciones ?? '',
   }
 }
 
-export default function RegistrarProduccionModal({ open, onClose, loteId, fincaId, avesActuales, onCreated }: Props) {
+export default function RegistrarProduccionModal({ open, onClose, loteId, fincaId, avesActuales, metaPostura = 90, registroExistente, onCreated }: Props) {
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
-  const [tiposAlimento, setTiposAlimento] = useState<TipoAlimento[]>([])
-  const [form, setForm] = useState(defaultForm(avesActuales))
+  const [form, setForm] = useState(() => defaultForm(avesActuales, registroExistente))
 
   useEffect(() => {
-    if (open) setForm(defaultForm(avesActuales))
-  }, [open, avesActuales])
-
-  useEffect(() => {
-    if (!open) return
-    supabase.from('tipos_alimento_aves').select('*').eq('finca_id', fincaId).eq('activo', true).order('nombre')
-      .then(({ data }) => setTiposAlimento(data ?? []))
-  }, [open, fincaId, supabase])
+    if (open) setForm(defaultForm(avesActuales, registroExistente))
+  }, [open, avesActuales, registroExistente])
 
   function set(field: string, value: string | null) {
     setForm(prev => ({ ...prev, [field]: value ?? '' }))
   }
 
-  const postura = form.aves_en_dia && form.huevos_totales && Number(form.aves_en_dia) > 0
-    ? ((Number(form.huevos_totales) / Number(form.aves_en_dia)) * 100).toFixed(1)
+  const totalHuevos = (Number(form.huevos_b) || 0) + (Number(form.huevos_a) || 0) + (Number(form.huevos_aa) || 0) + (Number(form.huevos_aaa) || 0) + (Number(form.huevos_jumbo) || 0)
+
+  const postura = form.aves_en_dia && totalHuevos > 0 && Number(form.aves_en_dia) > 0
+    ? ((totalHuevos / Number(form.aves_en_dia)) * 100).toFixed(1)
     : null
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.huevos_totales) { toast.error('Ingresa los huevos puestos'); return }
+
+    const defectuosos = (Number(form.huevos_rotos) || 0) + (Number(form.huevos_sucios) || 0) + (Number(form.huevos_deformes) || 0)
+    if (defectuosos > totalHuevos) {
+      toast.error('Rotos + sucios + deformes no puede superar el total de huevos puestos')
+      return
+    }
 
     setLoading(true)
     const { data: existing } = await supabase
       .from('produccion_diaria_aves')
-      .select('id')
+      .select('id, muertes')
       .eq('lote_id', loteId)
       .eq('fecha', form.fecha)
       .maybeSingle()
@@ -82,13 +86,16 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
       lote_id: loteId,
       finca_id: fincaId,
       fecha: form.fecha,
-      huevos_totales: Number(form.huevos_totales),
+      huevos_totales: totalHuevos,
+      huevos_b: Number(form.huevos_b) || 0,
+      huevos_a: Number(form.huevos_a) || 0,
+      huevos_aa: Number(form.huevos_aa) || 0,
+      huevos_aaa: Number(form.huevos_aaa) || 0,
+      huevos_jumbo: Number(form.huevos_jumbo) || 0,
       huevos_rotos: Number(form.huevos_rotos) || 0,
       huevos_sucios: Number(form.huevos_sucios) || 0,
       huevos_deformes: Number(form.huevos_deformes) || 0,
       aves_en_dia: Number(form.aves_en_dia) || null,
-      alimento_kg: Number(form.alimento_kg) || 0,
-      tipo_alimento_id: form.tipo_alimento_id || null,
       muertes: Number(form.muertes) || 0,
       causa_muerte: Number(form.muertes) > 0 ? (form.causa_muerte || null) : null,
       observaciones: form.observaciones || null,
@@ -103,10 +110,11 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
       error = res.error
     }
 
-    if (!error && Number(form.muertes) > 0) {
+    const muertesDelta = (Number(form.muertes) || 0) - (existing?.muertes ?? 0)
+    if (!error && muertesDelta !== 0) {
       await supabase
         .from('lotes_aves')
-        .update({ aves_actuales: Math.max(0, avesActuales - Number(form.muertes)) })
+        .update({ aves_actuales: Math.max(0, avesActuales - muertesDelta) })
         .eq('id', loteId)
     }
 
@@ -121,7 +129,7 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>🥚 Registrar Producción Diaria</DialogTitle>
+          <DialogTitle>{registroExistente ? '✏️ Editar Producción del Día' : '🥚 Registrar Producción Diaria'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -133,17 +141,40 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
               <Label>Aves en producción</Label>
               <Input type="number" min="0" value={form.aves_en_dia} onChange={e => set('aves_en_dia', e.target.value)} />
             </div>
-            <div className="col-span-2 space-y-1">
-              <div className="flex items-center justify-between">
-                <Label>Huevos puestos *</Label>
-                {postura && (
-                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${Number(postura) >= 80 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                    Postura: {postura}%
-                  </span>
-                )}
-              </div>
-              <Input type="number" min="0" placeholder="Total de huevos" value={form.huevos_totales} onChange={e => set('huevos_totales', e.target.value)} />
+          </div>
+
+          <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200 space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-yellow-700">Huevos puestos por tamaño</p>
+              {postura && (
+                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${Number(postura) >= metaPostura ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                  Postura: {postura}%
+                </span>
+              )}
             </div>
+            <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">B</Label>
+                <Input type="number" min="0" placeholder="0" value={form.huevos_b} onChange={e => set('huevos_b', e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">A</Label>
+                <Input type="number" min="0" placeholder="0" value={form.huevos_a} onChange={e => set('huevos_a', e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">AA</Label>
+                <Input type="number" min="0" placeholder="0" value={form.huevos_aa} onChange={e => set('huevos_aa', e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">AAA</Label>
+                <Input type="number" min="0" placeholder="0" value={form.huevos_aaa} onChange={e => set('huevos_aaa', e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">JUMBO</Label>
+                <Input type="number" min="0" placeholder="0" value={form.huevos_jumbo} onChange={e => set('huevos_jumbo', e.target.value)} />
+              </div>
+            </div>
+            <p className="text-xs text-yellow-700">Total del día: <span className="font-semibold">{totalHuevos.toLocaleString('es-CO')}</span></p>
           </div>
 
           <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
@@ -164,26 +195,9 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <Label>Alimento consumido (kg)</Label>
-              <Input type="number" min="0" step="0.1" placeholder="0.0" value={form.alimento_kg} onChange={e => set('alimento_kg', e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>Tipo de alimento</Label>
-              <Select value={form.tipo_alimento_id} onValueChange={v => set('tipo_alimento_id', v)}>
-                <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
-                <SelectContent>
-                  {tiposAlimento.length === 0
-                    ? <div className="px-2 py-1.5 text-xs text-gray-400">Regístralos en Alimento</div>
-                    : tiposAlimento.map(t => <SelectItem key={t.id} value={t.id}>{t.nombre}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label>Muertes</Label>
-              <Input type="number" min="0" value={form.muertes} onChange={e => set('muertes', e.target.value)} />
-            </div>
+          <div className="space-y-1">
+            <Label>Muertes</Label>
+            <Input type="number" min="0" value={form.muertes} onChange={e => set('muertes', e.target.value)} />
           </div>
 
           {Number(form.muertes) > 0 && (

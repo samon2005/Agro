@@ -31,7 +31,6 @@ export default function RegistrarLogEquipoModal({ open, onClose, equipoId, equip
   const [form, setForm] = useState({
     fecha: new Date().toISOString().split('T')[0],
     estado_registrado: 'operativo',
-    horas_dia: '',
     alerta: false,
     descripcion_alerta: '',
   })
@@ -50,7 +49,6 @@ export default function RegistrarLogEquipoModal({ open, onClose, equipoId, equip
       finca_id: fincaId,
       fecha: form.fecha,
       estado_registrado: form.estado_registrado,
-      horas_dia: form.horas_dia ? Number(form.horas_dia) : null,
       alerta: form.alerta,
       descripcion_alerta: form.alerta ? form.descripcion_alerta : null,
       fuente: 'manual',
@@ -85,10 +83,6 @@ export default function RegistrarLogEquipoModal({ open, onClose, equipoId, equip
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>{ESTADOS.map(e => <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>)}</SelectContent>
               </Select>
-            </div>
-            <div className="space-y-1">
-              <Label>Tiempo de uso hoy (horas)</Label>
-              <Input type="number" min="0" step="0.5" placeholder="0" value={form.horas_dia} onChange={e => set('horas_dia', e.target.value)} />
             </div>
             <div className="flex items-center gap-3 pt-6">
               <input type="checkbox" id="alerta" checked={form.alerta} onChange={e => set('alerta', e.target.checked)} className="h-4 w-4" />

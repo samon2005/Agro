@@ -8,12 +8,17 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { CurrencyInput } from '@/components/ui/currency-input'
+import type { Database } from '@/types/database'
+
+type Equipo = Database['public']['Tables']['equipos_aves']['Row']
 
 interface Props {
   open: boolean
   onClose: () => void
   loteId: string
   fincaId: string
+  equipoExistente?: Equipo | null
   onCreated: () => void
 }
 
@@ -31,27 +36,30 @@ const ESTADOS = [
   { value: 'mantenimiento', label: '🔧 En mantenimiento' },
   { value: 'falla', label: '❌ Con falla' },
   { value: 'inactivo', label: '⏸️ Inactivo' },
+  { value: 'planificado', label: '🗓️ Planificado (futuro)' },
 ]
 
-function defaultForm() {
+function defaultForm(equipo?: Equipo | null) {
   return {
-    tipo: '',
-    marca: '',
-    numero_serie: '',
-    apodo: '',
-    estado: 'operativo',
-    ultima_revision: '',
-    proximo_mantenimiento: '',
-    observaciones: '',
+    tipo: equipo?.tipo ?? '',
+    marca: equipo?.marca ?? '',
+    numero_serie: equipo?.numero_serie ?? '',
+    apodo: equipo?.nombre ?? '',
+    estado: equipo?.estado ?? 'operativo',
+    ultima_revision: equipo?.ultima_revision ?? '',
+    proximo_mantenimiento: equipo?.proximo_mantenimiento ?? '',
+    costo_compra: equipo?.costo_compra != null ? String(equipo.costo_compra) : '',
+    fecha_compra: equipo?.fecha_compra ?? '',
+    observaciones: equipo?.observaciones ?? '',
   }
 }
 
-export default function CrearEquipoModal({ open, onClose, loteId, fincaId, onCreated }: Props) {
+export default function CrearEquipoModal({ open, onClose, loteId, fincaId, equipoExistente, onCreated }: Props) {
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
-  const [form, setForm] = useState(defaultForm)
+  const [form, setForm] = useState(() => defaultForm(equipoExistente))
 
-  useEffect(() => { if (open) setForm(defaultForm()) }, [open])
+  useEffect(() => { if (open) setForm(defaultForm(equipoExistente)) }, [open, equipoExistente])
 
   function set(field: string, value: string | null) {
     setForm(prev => ({ ...prev, [field]: value ?? '' }))
@@ -60,25 +68,40 @@ export default function CrearEquipoModal({ open, onClose, loteId, fincaId, onCre
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!form.tipo) { toast.error('Selecciona el tipo de equipo'); return }
-    if (!form.numero_serie.trim()) { toast.error('Ingresa el N° de serie o un diferenciador del equipo'); return }
 
     setLoading(true)
     const tipoLabel = TIPOS.find(t => t.value === form.tipo)?.label.replace(/^\S+\s/, '') ?? form.tipo
-    const { error } = await supabase.from('equipos_aves').insert({
-      lote_id: loteId,
-      finca_id: fincaId,
-      nombre: form.apodo.trim() || `${tipoLabel} ${form.numero_serie.trim()}`,
+    const payload = {
+      nombre: form.apodo.trim() || (form.numero_serie.trim() ? `${tipoLabel} ${form.numero_serie.trim()}` : tipoLabel),
       tipo: form.tipo,
       marca: form.marca || null,
-      numero_serie: form.numero_serie.trim(),
+      numero_serie: form.numero_serie.trim() || null,
       estado: form.estado,
       ultima_revision: form.ultima_revision || null,
       proximo_mantenimiento: form.proximo_mantenimiento || null,
+      costo_compra: form.costo_compra ? Number(form.costo_compra) : null,
+      fecha_compra: form.fecha_compra || null,
       observaciones: form.observaciones || null,
-    })
+    }
+    const { data: equipo, error } = equipoExistente
+      ? await supabase.from('equipos_aves').update(payload).eq('id', equipoExistente.id).select().single()
+      : await supabase.from('equipos_aves').insert({ ...payload, lote_id: loteId, finca_id: fincaId }).select().single()
+
+    if (!error && equipo && !equipoExistente && form.costo_compra && Number(form.costo_compra) > 0) {
+      await supabase.from('costos_lote_aves').insert({
+        lote_id: loteId,
+        finca_id: fincaId,
+        fecha: form.fecha_compra || new Date().toISOString().split('T')[0],
+        categoria: 'equipos',
+        descripcion: `Equipo: ${equipo.nombre}`,
+        monto: Number(form.costo_compra),
+        equipo_id: equipo.id,
+      })
+    }
+
     setLoading(false)
-    if (error) { toast.error('Error al crear equipo'); return }
-    toast.success('Equipo registrado')
+    if (error) { toast.error(equipoExistente ? 'Error al actualizar equipo' : 'Error al crear equipo'); return }
+    toast.success(equipoExistente ? 'Equipo actualizado' : 'Equipo registrado')
     onCreated()
     onClose()
   }
@@ -87,7 +110,7 @@ export default function CrearEquipoModal({ open, onClose, loteId, fincaId, onCre
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>⚙️ Registrar Equipo</DialogTitle>
+          <DialogTitle>{equipoExistente ? '✏️ Editar Equipo' : '⚙️ Registrar Equipo'}</DialogTitle>
           <p className="text-sm text-gray-500">Comederos y bebederos se manejan desde Inventario, no como equipo con mantenimiento</p>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -100,7 +123,7 @@ export default function CrearEquipoModal({ open, onClose, loteId, fincaId, onCre
               </Select>
             </div>
             <div className="space-y-1">
-              <Label>N° de serie / diferenciador *</Label>
+              <Label>N° de serie / diferenciador</Label>
               <Input placeholder="Ej: VN-2024-001" value={form.numero_serie} onChange={e => set('numero_serie', e.target.value)} />
             </div>
             <div className="space-y-1">
@@ -126,6 +149,15 @@ export default function CrearEquipoModal({ open, onClose, loteId, fincaId, onCre
               <Label>Próximo mantenimiento</Label>
               <Input type="date" value={form.proximo_mantenimiento} onChange={e => set('proximo_mantenimiento', e.target.value)} />
             </div>
+            <div className="space-y-1">
+              <Label>Costo de compra</Label>
+              <CurrencyInput placeholder="Ej: 250000" value={form.costo_compra} onValueChange={v => set('costo_compra', v)} />
+            </div>
+            <div className="space-y-1">
+              <Label>Fecha de compra</Label>
+              <Input type="date" value={form.fecha_compra} onChange={e => set('fecha_compra', e.target.value)} />
+              <p className="text-xs text-gray-400">Puede ser pasada (equipo antiguo) o futura (compra planificada)</p>
+            </div>
             <div className="col-span-2 space-y-1">
               <Label>Observaciones</Label>
               <Input placeholder="Notas del equipo..." value={form.observaciones} onChange={e => set('observaciones', e.target.value)} />
@@ -134,7 +166,7 @@ export default function CrearEquipoModal({ open, onClose, loteId, fincaId, onCre
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
             <Button type="submit" disabled={loading} className="bg-green-700 hover:bg-green-800 text-white">
-              {loading ? 'Guardando...' : 'Registrar'}
+              {loading ? 'Guardando...' : equipoExistente ? 'Guardar cambios' : 'Registrar'}
             </Button>
           </DialogFooter>
         </form>

@@ -8,13 +8,17 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import type { Database } from '@/types/database'
+
+type EventoClinico = Database['public']['Tables']['eventos_clinicos_aves']['Row']
 
 interface Props {
   open: boolean
   onClose: () => void
   loteId: string
   fincaId: string
-  onCreated: () => void
+  eventoExistente?: EventoClinico | null
+  onCreated: (eventoId: string) => void
 }
 
 const TIPOS = [
@@ -27,28 +31,27 @@ const TIPOS = [
   { value: 'otro', label: '❓ Otro' },
 ]
 
-function defaultForm() {
+function defaultForm(evento?: EventoClinico | null) {
   return {
-    fecha: new Date().toISOString().split('T')[0],
-    tipo_evento: '',
-    descripcion: '',
-    aves_afectadas: '',
-    aves_muertas: '0',
-    accion_tomada: '',
-    encargado: '',
-    resuelto: false,
-    observaciones: '',
+    fecha: evento?.fecha ?? new Date().toISOString().split('T')[0],
+    tipo_evento: evento?.tipo_evento ?? '',
+    descripcion: evento?.descripcion ?? '',
+    aves_afectadas: evento?.aves_afectadas != null ? String(evento.aves_afectadas) : '',
+    aves_muertas: evento?.aves_muertas != null ? String(evento.aves_muertas) : '0',
+    accion_tomada: evento?.accion_tomada ?? '',
+    encargado: evento?.veterinario ?? '',
+    observaciones: evento?.observaciones ?? '',
   }
 }
 
-export default function RegistrarEventoClinicoModal({ open, onClose, loteId, fincaId, onCreated }: Props) {
+export default function RegistrarEventoClinicoModal({ open, onClose, loteId, fincaId, eventoExistente, onCreated }: Props) {
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
-  const [form, setForm] = useState(defaultForm)
+  const [form, setForm] = useState(() => defaultForm(eventoExistente))
 
-  useEffect(() => { if (open) setForm(defaultForm()) }, [open])
+  useEffect(() => { if (open) setForm(defaultForm(eventoExistente)) }, [open, eventoExistente])
 
-  function set(field: string, value: string | boolean | null) {
+  function set(field: string, value: string | null) {
     setForm(prev => ({ ...prev, [field]: value ?? '' }))
   }
 
@@ -58,9 +61,7 @@ export default function RegistrarEventoClinicoModal({ open, onClose, loteId, fin
     if (!form.descripcion.trim()) { toast.error('Describe el evento clínico'); return }
 
     setLoading(true)
-    const { error } = await supabase.from('eventos_clinicos_aves').insert({
-      lote_id: loteId,
-      finca_id: fincaId,
+    const payload = {
       fecha: form.fecha,
       tipo_evento: form.tipo_evento,
       descripcion: form.descripcion.trim(),
@@ -68,13 +69,15 @@ export default function RegistrarEventoClinicoModal({ open, onClose, loteId, fin
       aves_muertas: Number(form.aves_muertas) || 0,
       accion_tomada: form.accion_tomada || null,
       veterinario: form.encargado || null,
-      resuelto: form.resuelto,
       observaciones: form.observaciones || null,
-    })
+    }
+    const { data, error } = eventoExistente
+      ? await supabase.from('eventos_clinicos_aves').update(payload).eq('id', eventoExistente.id).select('id').single()
+      : await supabase.from('eventos_clinicos_aves').insert({ ...payload, lote_id: loteId, finca_id: fincaId }).select('id').single()
     setLoading(false)
-    if (error) { toast.error('Error al registrar evento'); return }
-    toast.success('Evento clínico registrado')
-    onCreated()
+    if (error || !data) { toast.error(eventoExistente ? 'Error al actualizar evento' : 'Error al registrar evento'); return }
+    toast.success(eventoExistente ? 'Evento actualizado' : 'Evento clínico registrado')
+    onCreated(data.id)
     onClose()
   }
 
@@ -82,7 +85,7 @@ export default function RegistrarEventoClinicoModal({ open, onClose, loteId, fin
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>🏥 Registrar Evento Clínico</DialogTitle>
+          <DialogTitle>{eventoExistente ? '✏️ Editar Evento Clínico' : '🏥 Registrar Evento Clínico'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -117,16 +120,6 @@ export default function RegistrarEventoClinicoModal({ open, onClose, loteId, fin
               <Label>Encargado</Label>
               <Input placeholder="Nombre del encargado" value={form.encargado} onChange={e => set('encargado', e.target.value)} />
             </div>
-            <div className="flex items-center gap-3 pt-6">
-              <input
-                type="checkbox"
-                id="resuelto"
-                checked={form.resuelto}
-                onChange={e => set('resuelto', e.target.checked)}
-                className="h-4 w-4 rounded border-gray-300 text-green-600"
-              />
-              <Label htmlFor="resuelto" className="cursor-pointer">Evento resuelto</Label>
-            </div>
             <div className="col-span-2 space-y-1">
               <Label>Observaciones</Label>
               <Input placeholder="Notas adicionales..." value={form.observaciones} onChange={e => set('observaciones', e.target.value)} />
@@ -135,7 +128,7 @@ export default function RegistrarEventoClinicoModal({ open, onClose, loteId, fin
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
             <Button type="submit" disabled={loading} className="bg-green-700 hover:bg-green-800 text-white">
-              {loading ? 'Guardando...' : 'Registrar'}
+              {loading ? 'Guardando...' : eventoExistente ? 'Guardar cambios' : 'Registrar'}
             </Button>
           </DialogFooter>
         </form>

@@ -28,7 +28,11 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated }
     semanas_ciclo_postura: '',
     meta_postura_pct: '',
     meta_huevos_diaria: '',
-    precio_huevo: '',
+    precio_huevo_b: '',
+    precio_huevo_a: '',
+    precio_huevo_aa: '',
+    precio_huevo_aaa: '',
+    precio_huevo_jumbo: '',
     precio_gramo_alimento: '',
     peso_bulto_alimento_kg: '',
   })
@@ -40,7 +44,11 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated }
       semanas_ciclo_postura: lote.semanas_ciclo_postura != null ? String(lote.semanas_ciclo_postura) : '60',
       meta_postura_pct: lote.meta_postura_pct != null ? String(lote.meta_postura_pct) : '90',
       meta_huevos_diaria: lote.meta_huevos_diaria != null ? String(lote.meta_huevos_diaria) : '',
-      precio_huevo: lote.precio_huevo != null ? String(lote.precio_huevo) : '',
+      precio_huevo_b: lote.precio_huevo_b != null ? String(lote.precio_huevo_b) : '',
+      precio_huevo_a: lote.precio_huevo_a != null ? String(lote.precio_huevo_a) : '',
+      precio_huevo_aa: lote.precio_huevo_aa != null ? String(lote.precio_huevo_aa) : '',
+      precio_huevo_aaa: lote.precio_huevo_aaa != null ? String(lote.precio_huevo_aaa) : '',
+      precio_huevo_jumbo: lote.precio_huevo_jumbo != null ? String(lote.precio_huevo_jumbo) : '',
       precio_gramo_alimento: lote.precio_gramo_alimento != null ? String(lote.precio_gramo_alimento) : '',
       peso_bulto_alimento_kg: lote.peso_bulto_alimento_kg != null ? String(lote.peso_bulto_alimento_kg) : '40',
     })
@@ -63,7 +71,11 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated }
       semanas_ciclo_postura: form.semanas_ciclo_postura ? Number(form.semanas_ciclo_postura) : null,
       meta_postura_pct: form.meta_postura_pct ? Number(form.meta_postura_pct) : null,
       meta_huevos_diaria: form.meta_huevos_diaria ? Number(form.meta_huevos_diaria) : null,
-      precio_huevo: form.precio_huevo ? Number(form.precio_huevo) : null,
+      precio_huevo_b: form.precio_huevo_b ? Number(form.precio_huevo_b) : null,
+      precio_huevo_a: form.precio_huevo_a ? Number(form.precio_huevo_a) : null,
+      precio_huevo_aa: form.precio_huevo_aa ? Number(form.precio_huevo_aa) : null,
+      precio_huevo_aaa: form.precio_huevo_aaa ? Number(form.precio_huevo_aaa) : null,
+      precio_huevo_jumbo: form.precio_huevo_jumbo ? Number(form.precio_huevo_jumbo) : null,
       precio_gramo_alimento: form.precio_gramo_alimento ? Number(form.precio_gramo_alimento) : null,
       peso_bulto_alimento_kg: form.peso_bulto_alimento_kg ? Number(form.peso_bulto_alimento_kg) : null,
     }
@@ -115,10 +127,35 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated }
               <Label>Meta de huevos puestos por día</Label>
               <Input type="number" min="0" placeholder="Ej: 4500" value={form.meta_huevos_diaria} onChange={e => set('meta_huevos_diaria', e.target.value)} />
             </div>
-            <div className="space-y-1">
-              <Label>Precio de venta por huevo</Label>
-              <CurrencyInput placeholder="Ej: 450" value={form.precio_huevo} onValueChange={v => set('precio_huevo', v)} />
+          </div>
+
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-gray-700">Precio de venta por tamaño de huevo</p>
+            <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">B</Label>
+                <CurrencyInput placeholder="$" value={form.precio_huevo_b} onValueChange={v => set('precio_huevo_b', v)} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">A</Label>
+                <CurrencyInput placeholder="$" value={form.precio_huevo_a} onValueChange={v => set('precio_huevo_a', v)} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">AA</Label>
+                <CurrencyInput placeholder="$" value={form.precio_huevo_aa} onValueChange={v => set('precio_huevo_aa', v)} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">AAA</Label>
+                <CurrencyInput placeholder="$" value={form.precio_huevo_aaa} onValueChange={v => set('precio_huevo_aaa', v)} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">JUMBO</Label>
+                <CurrencyInput placeholder="$" value={form.precio_huevo_jumbo} onValueChange={v => set('precio_huevo_jumbo', v)} />
+              </div>
             </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <Label>Precio por gramo de alimento ($)</Label>
               <Input type="number" min="0" step="0.1" placeholder="Ej: 2.5" value={form.precio_gramo_alimento} onChange={e => set('precio_gramo_alimento', e.target.value)} />

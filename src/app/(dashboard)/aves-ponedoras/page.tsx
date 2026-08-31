@@ -14,6 +14,7 @@ import TabAmbiental from '@/components/agro/aves/ambiental/TabAmbiental'
 import TabSanitario from '@/components/agro/aves/sanitario/TabSanitario'
 import TabCostos from '@/components/agro/aves/costos/TabCostos'
 import TabEquipos from '@/components/agro/aves/equipos/TabEquipos'
+import { calcularFechaLiberacion } from '@/lib/sanitario'
 import type { Database } from '@/types/database'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
@@ -95,9 +96,7 @@ export default function AvesPonedorasPage() {
       const hoy = new Date()
       const medEnRetiro = (meds ?? []).filter(m => {
         if (!m.periodo_retiro_dias || !m.fecha_fin) return false
-        const fin = new Date(m.fecha_fin)
-        fin.setDate(fin.getDate() + m.periodo_retiro_dias)
-        return fin >= hoy
+        return calcularFechaLiberacion(m.fecha_fin, m.periodo_retiro_dias) >= hoy
       })
       if (medEnRetiro.length > 0)
         nuevasAlertas.push({ tipo: 'warning', mensaje: `Período de retiro activo: ${medEnRetiro.map(m => m.medicamento).join(', ')}` })
@@ -130,7 +129,7 @@ export default function AvesPonedorasPage() {
       {/* Encabezado */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">🐔 Aves Ponedoras</h1>
+          <h1 className="text-2xl font-bold text-gray-900">🐔 Galpones</h1>
           <p className="text-sm text-gray-500">{fincaActual.nombre} · Gestión integral de lotes</p>
         </div>
         <button

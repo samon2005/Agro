@@ -9,12 +9,18 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { CurrencyInput } from '@/components/ui/currency-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { calcularFechaLiberacion } from '@/lib/sanitario'
+import type { Database } from '@/types/database'
+
+type Medicacion = Database['public']['Tables']['medicaciones_aves']['Row']
 
 interface Props {
   open: boolean
   onClose: () => void
   loteId: string
   fincaId: string
+  eventoClinicoId?: string | null
+  medicacionExistente?: Medicacion | null
   onCreated: () => void
 }
 
@@ -29,31 +35,37 @@ const UNIDAD_POR_VIA: Record<string, string> = {
   'Spray': 'mL / L',
 }
 
-function defaultForm() {
+function defaultForm(med?: Medicacion | null) {
+  const [dosisValor, dosisUnidad] = med?.dosis ? splitDosis(med.dosis) : ['', '']
   return {
-    fecha_inicio: new Date().toISOString().split('T')[0],
-    fecha_fin: '',
-    medicamento: '',
-    principio_activo: '',
-    via_administracion: '',
-    dosis_valor: '',
-    dosis_unidad: '',
-    periodo_retiro_dias: '',
-    motivo: '',
-    costo: '',
-    encargado: '',
+    fecha_inicio: med?.fecha_inicio ?? new Date().toISOString().split('T')[0],
+    fecha_fin: med?.fecha_fin ?? '',
+    medicamento: med?.medicamento ?? '',
+    principio_activo: med?.principio_activo ?? '',
+    via_administracion: med?.via_administracion ?? '',
+    dosis_valor: dosisValor,
+    dosis_unidad: dosisUnidad,
+    periodo_retiro_dias: med?.periodo_retiro_dias != null ? String(med.periodo_retiro_dias) : '',
+    motivo: med?.motivo ?? '',
+    costo: med?.costo != null ? String(med.costo) : '',
+    encargado: med?.veterinario ?? '',
     frecuencia_dias: '',
     hora_aplicacion: '',
-    observaciones: '',
+    observaciones: med?.observaciones ?? '',
   }
 }
 
-export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaId, onCreated }: Props) {
+function splitDosis(dosis: string): [string, string] {
+  const match = dosis.match(/^(\S+)\s*(.*)$/)
+  return match ? [match[1], match[2]] : ['', dosis]
+}
+
+export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaId, eventoClinicoId, medicacionExistente, onCreated }: Props) {
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
-  const [form, setForm] = useState(defaultForm)
+  const [form, setForm] = useState(() => defaultForm(medicacionExistente))
 
-  useEffect(() => { if (open) setForm(defaultForm()) }, [open])
+  useEffect(() => { if (open) setForm(defaultForm(medicacionExistente)) }, [open, medicacionExistente])
 
   function set(field: string, value: string | null) {
     setForm(prev => ({ ...prev, [field]: value ?? '' }))
@@ -64,11 +76,7 @@ export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaI
   }
 
   const retiro = form.fecha_fin && form.periodo_retiro_dias && Number(form.periodo_retiro_dias) > 0
-    ? (() => {
-        const fin = new Date(form.fecha_fin)
-        fin.setDate(fin.getDate() + Number(form.periodo_retiro_dias))
-        return fin.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
-      })()
+    ? calcularFechaLiberacion(form.fecha_fin, Number(form.periodo_retiro_dias)).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
     : null
 
   const sinRetiro = form.periodo_retiro_dias !== '' && Number(form.periodo_retiro_dias) === 0
@@ -79,9 +87,7 @@ export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaI
 
     setLoading(true)
     const dosis = [form.dosis_valor, form.dosis_unidad].filter(Boolean).join(' ') || null
-    const { data: medicacion, error } = await supabase.from('medicaciones_aves').insert({
-      lote_id: loteId,
-      finca_id: fincaId,
+    const payload = {
       fecha_inicio: form.fecha_inicio,
       fecha_fin: form.fecha_fin || null,
       medicamento: form.medicamento.trim(),
@@ -93,20 +99,23 @@ export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaI
       costo: form.costo ? Number(form.costo) : null,
       veterinario: form.encargado || null,
       observaciones: form.observaciones || null,
-    }).select().single()
+    }
+    const { data: medicacion, error } = medicacionExistente
+      ? await supabase.from('medicaciones_aves').update(payload).eq('id', medicacionExistente.id).select().single()
+      : await supabase.from('medicaciones_aves').insert({ ...payload, lote_id: loteId, finca_id: fincaId, evento_clinico_id: eventoClinicoId || null }).select().single()
 
-    if (!error && form.costo && Number(form.costo) > 0) {
+    if (!error && !medicacionExistente && form.costo && Number(form.costo) > 0) {
       await supabase.from('costos_lote_aves').insert({
         lote_id: loteId,
         finca_id: fincaId,
         fecha: form.fecha_inicio,
         categoria: 'sanitario',
-        descripcion: `Medicación: ${form.medicamento.trim()}`,
+        descripcion: `Tratamiento: ${form.medicamento.trim()}`,
         monto: Number(form.costo),
       })
     }
 
-    if (!error && medicacion && form.frecuencia_dias && Number(form.frecuencia_dias) > 0) {
+    if (!error && !medicacionExistente && medicacion && form.frecuencia_dias && Number(form.frecuencia_dias) > 0) {
       const inicio = new Date(form.fecha_inicio)
       const fin = form.fecha_fin ? new Date(form.fecha_fin) : inicio
       const paso = Number(form.frecuencia_dias)
@@ -128,8 +137,8 @@ export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaI
     }
 
     setLoading(false)
-    if (error) { toast.error('Error al registrar medicación'); return }
-    toast.success(form.frecuencia_dias ? 'Medicación registrada con recordatorios' : 'Medicación registrada')
+    if (error) { toast.error(medicacionExistente ? 'Error al actualizar el tratamiento' : 'Error al registrar el tratamiento'); return }
+    toast.success(medicacionExistente ? 'Tratamiento actualizado' : form.frecuencia_dias ? 'Tratamiento registrado con recordatorios' : 'Tratamiento registrado')
     onCreated()
     onClose()
   }
@@ -138,7 +147,7 @@ export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaI
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>💊 Registrar Medicación</DialogTitle>
+          <DialogTitle>{medicacionExistente ? '✏️ Editar Tratamiento' : '💊 Registrar Tratamiento'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -188,7 +197,7 @@ export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaI
             )}
             {form.frecuencia_dias && form.fecha_fin && (
               <div className="col-span-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-700">
-                🔔 Se crearán recordatorios en la app cada {form.frecuencia_dias} día(s) hasta el fin del tratamiento para no olvidar seguir aplicando el medicamento.
+                🔔 Se crearán recordatorios en la app cada {form.frecuencia_dias} día(s) hasta el fin del tratamiento para no olvidar seguir aplicándolo.
               </div>
             )}
             {sinRetiro && (
@@ -221,7 +230,7 @@ export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaI
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
             <Button type="submit" disabled={loading} className="bg-green-700 hover:bg-green-800 text-white">
-              {loading ? 'Guardando...' : 'Registrar'}
+              {loading ? 'Guardando...' : medicacionExistente ? 'Guardar cambios' : 'Registrar'}
             </Button>
           </DialogFooter>
         </form>

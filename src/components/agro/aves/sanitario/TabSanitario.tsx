@@ -8,6 +8,8 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
+import { calcularFechaLiberacion } from '@/lib/sanitario'
 import RegistrarVacunacionModal from './RegistrarVacunacionModal'
 import RegistrarMedicacionModal from './RegistrarMedicacionModal'
 import RegistrarEventoClinicoModal from './RegistrarEventoClinicoModal'
@@ -47,6 +49,12 @@ export default function TabSanitario({ loteActual }: Props) {
   const [modalMed, setModalMed] = useState(false)
   const [modalEvento, setModalEvento] = useState(false)
   const [modalDesinfeccion, setModalDesinfeccion] = useState(false)
+  const [eventoClinicoIdActivo, setEventoClinicoIdActivo] = useState<string | null>(null)
+  const [vacunaEditar, setVacunaEditar] = useState<Vacunacion | null>(null)
+  const [medEditar, setMedEditar] = useState<Medicacion | null>(null)
+  const [eventoEditar, setEventoEditar] = useState<EventoClinico | null>(null)
+  const [desinfeccionEditar, setDesinfeccionEditar] = useState<Desinfeccion | null>(null)
+  const [confirmandoEliminar, setConfirmandoEliminar] = useState<string | null>(null)
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
@@ -70,6 +78,16 @@ export default function TabSanitario({ loteActual }: Props) {
     setRecordatorios(prev => prev.filter(r => r.id !== id))
   }
 
+  async function eliminar(tabla: 'vacunaciones_aves' | 'medicaciones_aves' | 'eventos_clinicos_aves' | 'desinfecciones_aves', id: string) {
+    const key = `${tabla}-${id}`
+    if (confirmandoEliminar !== key) { setConfirmandoEliminar(key); return }
+    setConfirmandoEliminar(null)
+    const { error } = await supabase.from(tabla).delete().eq('id', id)
+    if (error) { toast.error('Error al eliminar el registro'); return }
+    toast.success('Registro eliminado')
+    fetchAll()
+  }
+
   useEffect(() => { fetchAll() }, [fetchAll])
 
   const hoy = new Date()
@@ -77,10 +95,10 @@ export default function TabSanitario({ loteActual }: Props) {
 
   const enRetiro = medicaciones.filter(m => {
     if (!m.periodo_retiro_dias || !m.fecha_fin) return false
-    const retiroFin = new Date(m.fecha_fin)
-    retiroFin.setDate(retiroFin.getDate() + m.periodo_retiro_dias)
-    return retiroFin >= hoy
+    return calcularFechaLiberacion(m.fecha_fin, m.periodo_retiro_dias) >= hoy
   })
+
+  const eventosConTratamiento = new Set(medicaciones.filter(m => m.evento_clinico_id).map(m => m.evento_clinico_id))
 
   const medicamentoPorId = new Map(medicaciones.map(m => [m.id, m.medicamento]))
   const hoyStr = hoy.toISOString().split('T')[0]
@@ -100,7 +118,7 @@ export default function TabSanitario({ loteActual }: Props) {
 
   const subTabItems: { id: SubTab; label: string; count: number }[] = [
     { id: 'vacunas', label: '💉 Vacunaciones', count: vacunas.length },
-    { id: 'medicaciones', label: '💊 Medicaciones', count: medicaciones.length },
+    { id: 'medicaciones', label: '💊 Tratamientos', count: medicaciones.length },
     { id: 'eventos', label: '🏥 Eventos Clínicos', count: eventos.length },
     { id: 'desinfecciones', label: '🧴 Desinfección', count: desinfecciones.length },
   ]
@@ -110,18 +128,17 @@ export default function TabSanitario({ loteActual }: Props) {
       <div className="flex items-center justify-between">
         <h2 className="text-base font-semibold text-gray-800">Sanitario y Bioseguridad</h2>
         <div>
-          {subTab === 'vacunas' && <Button onClick={() => setModalVacuna(true)} className="bg-green-700 hover:bg-green-800 text-white text-sm">+ Registrar vacuna</Button>}
-          {subTab === 'medicaciones' && <Button onClick={() => setModalMed(true)} className="bg-green-700 hover:bg-green-800 text-white text-sm">+ Registrar medicación</Button>}
-          {subTab === 'eventos' && <Button onClick={() => setModalEvento(true)} className="bg-green-700 hover:bg-green-800 text-white text-sm">+ Registrar evento</Button>}
-          {subTab === 'desinfecciones' && <Button onClick={() => setModalDesinfeccion(true)} className="bg-green-700 hover:bg-green-800 text-white text-sm">+ Registrar desinfección</Button>}
+          {subTab === 'vacunas' && <Button onClick={() => { setVacunaEditar(null); setModalVacuna(true) }} className="bg-green-700 hover:bg-green-800 text-white text-sm">+ Registrar vacuna</Button>}
+          {subTab === 'medicaciones' && <Button onClick={() => { setEventoClinicoIdActivo(null); setMedEditar(null); setModalMed(true) }} className="bg-green-700 hover:bg-green-800 text-white text-sm">+ Registrar tratamiento</Button>}
+          {subTab === 'eventos' && <Button onClick={() => { setEventoEditar(null); setModalEvento(true) }} className="bg-green-700 hover:bg-green-800 text-white text-sm">+ Registrar evento</Button>}
+          {subTab === 'desinfecciones' && <Button onClick={() => { setDesinfeccionEditar(null); setModalDesinfeccion(true) }} className="bg-green-700 hover:bg-green-800 text-white text-sm">+ Registrar desinfección</Button>}
         </div>
       </div>
 
       {enRetiro.length > 0 && (
         <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg text-sm text-amber-800">
           ⚠️ <strong>Período de retiro activo:</strong> {enRetiro.map(m => {
-            const fin = new Date(m.fecha_fin!)
-            fin.setDate(fin.getDate() + m.periodo_retiro_dias!)
+            const fin = calcularFechaLiberacion(m.fecha_fin!, m.periodo_retiro_dias!)
             return `${m.medicamento} (hasta ${fin.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })})`
           }).join(', ')} — Huevos no comercializables
         </div>
@@ -181,8 +198,9 @@ export default function TabSanitario({ loteActual }: Props) {
                       <TableHead>Vía</TableHead>
                       <TableHead>Lote vacuna</TableHead>
                       <TableHead className="text-right">N° aves</TableHead>
-                      <TableHead>Próxima dosis</TableHead>
+                      <TableHead>Próxima vacunación</TableHead>
                       <TableHead>Encargado</TableHead>
+                      <TableHead></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -201,6 +219,18 @@ export default function TabSanitario({ loteActual }: Props) {
                           ) : '—'}
                         </TableCell>
                         <TableCell className="text-sm text-gray-500">{v.veterinario ?? '—'}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center justify-end gap-1">
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={() => { setVacunaEditar(v); setModalVacuna(true) }}>✏️</Button>
+                            <Button
+                              size="sm" variant="ghost"
+                              className={confirmandoEliminar === `vacunaciones_aves-${v.id}` ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
+                              onClick={() => eliminar('vacunaciones_aves', v.id)}
+                            >
+                              {confirmandoEliminar === `vacunaciones_aves-${v.id}` ? '¿Confirmar?' : '🗑️'}
+                            </Button>
+                          </div>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -209,7 +239,7 @@ export default function TabSanitario({ loteActual }: Props) {
             )
           ) : subTab === 'medicaciones' ? (
             medicaciones.length === 0 ? (
-              <EmptyState emoji="💊" label="Sin medicaciones registradas" action={() => setModalMed(true)} actionLabel="+ Registrar medicación" />
+              <EmptyState emoji="💊" label="Sin tratamientos registrados" action={() => { setEventoClinicoIdActivo(null); setModalMed(true) }} actionLabel="+ Registrar tratamiento" />
             ) : (
               <div className="overflow-x-auto">
                 <Table>
@@ -223,6 +253,7 @@ export default function TabSanitario({ loteActual }: Props) {
                       <TableHead className="text-right">Retiro (días)</TableHead>
                       <TableHead>Liberación</TableHead>
                       <TableHead>Estado</TableHead>
+                      <TableHead></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -230,7 +261,7 @@ export default function TabSanitario({ loteActual }: Props) {
                       const activo = enRetiro.some(r => r.id === m.id)
                       const sinRetiro = m.periodo_retiro_dias === 0
                       const liberacion = m.fecha_fin && m.periodo_retiro_dias
-                        ? (() => { const d = new Date(m.fecha_fin); d.setDate(d.getDate() + m.periodo_retiro_dias!); return d })()
+                        ? calcularFechaLiberacion(m.fecha_fin, m.periodo_retiro_dias)
                         : null
                       return (
                         <TableRow key={m.id} className={activo ? 'bg-amber-50' : ''}>
@@ -251,6 +282,18 @@ export default function TabSanitario({ loteActual }: Props) {
                             ) : (
                               <Badge variant="outline" className="text-[10px]">—</Badge>
                             )}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center justify-end gap-1">
+                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={() => { setEventoClinicoIdActivo(m.evento_clinico_id); setMedEditar(m); setModalMed(true) }}>✏️</Button>
+                              <Button
+                                size="sm" variant="ghost"
+                                className={confirmandoEliminar === `medicaciones_aves-${m.id}` ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
+                                onClick={() => eliminar('medicaciones_aves', m.id)}
+                              >
+                                {confirmandoEliminar === `medicaciones_aves-${m.id}` ? '¿Confirmar?' : '🗑️'}
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       )
@@ -274,24 +317,46 @@ export default function TabSanitario({ loteActual }: Props) {
                       <TableHead className="text-right">Muertas</TableHead>
                       <TableHead>Acción</TableHead>
                       <TableHead>Estado</TableHead>
+                      <TableHead></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {eventos.map(ev => (
-                      <TableRow key={ev.id} className={!ev.resuelto ? 'bg-red-50' : ''}>
-                        <TableCell className="text-sm">{fmt(ev.fecha)}</TableCell>
-                        <TableCell className="text-sm">{TIPO_LABELS[ev.tipo_evento] ?? ev.tipo_evento}</TableCell>
-                        <TableCell className="text-sm max-w-[200px] truncate">{ev.descripcion}</TableCell>
-                        <TableCell className="text-right text-sm">{ev.aves_afectadas ?? '—'}</TableCell>
-                        <TableCell className="text-right text-sm text-red-600">{ev.aves_muertas || '—'}</TableCell>
-                        <TableCell className="text-sm text-gray-500 max-w-[150px] truncate">{ev.accion_tomada ?? '—'}</TableCell>
-                        <TableCell>
-                          <Badge className={ev.resuelto ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}>
-                            {ev.resuelto ? 'Resuelto' : 'Activo'}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {eventos.map(ev => {
+                      const tieneTratamiento = eventosConTratamiento.has(ev.id)
+                      return (
+                        <TableRow key={ev.id}>
+                          <TableCell className="text-sm">{fmt(ev.fecha)}</TableCell>
+                          <TableCell className="text-sm">{TIPO_LABELS[ev.tipo_evento] ?? ev.tipo_evento}</TableCell>
+                          <TableCell className="text-sm max-w-[200px] truncate">{ev.descripcion}</TableCell>
+                          <TableCell className="text-right text-sm">{ev.aves_afectadas ?? '—'}</TableCell>
+                          <TableCell className="text-right text-sm text-red-600">{ev.aves_muertas || '—'}</TableCell>
+                          <TableCell className="text-sm text-gray-500 max-w-[150px] truncate">{ev.accion_tomada ?? '—'}</TableCell>
+                          <TableCell>
+                            <Badge className={tieneTratamiento ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}>
+                              {tieneTratamiento ? 'En tratamiento' : 'Sin tratamiento'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                size="sm" variant="outline" className="text-xs h-7"
+                                onClick={() => { setEventoClinicoIdActivo(ev.id); setMedEditar(null); setModalMed(true) }}
+                              >
+                                + Tratamiento
+                              </Button>
+                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={() => { setEventoEditar(ev); setModalEvento(true) }}>✏️</Button>
+                              <Button
+                                size="sm" variant="ghost"
+                                className={confirmandoEliminar === `eventos_clinicos_aves-${ev.id}` ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
+                                onClick={() => eliminar('eventos_clinicos_aves', ev.id)}
+                              >
+                                {confirmandoEliminar === `eventos_clinicos_aves-${ev.id}` ? '¿Confirmar?' : '🗑️'}
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
                   </TableBody>
                 </Table>
               </div>
@@ -310,6 +375,7 @@ export default function TabSanitario({ loteActual }: Props) {
                       <TableHead>Dosis</TableHead>
                       <TableHead>Responsable</TableHead>
                       <TableHead className="text-right">Costo</TableHead>
+                      <TableHead></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -321,6 +387,18 @@ export default function TabSanitario({ loteActual }: Props) {
                         <TableCell className="text-sm text-gray-500">{d.dosis ?? '—'}</TableCell>
                         <TableCell className="text-sm text-gray-500">{d.responsable ?? '—'}</TableCell>
                         <TableCell className="text-right text-sm">{d.costo ? cop(d.costo) : '—'}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center justify-end gap-1">
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={() => { setDesinfeccionEditar(d); setModalDesinfeccion(true) }}>✏️</Button>
+                            <Button
+                              size="sm" variant="ghost"
+                              className={confirmandoEliminar === `desinfecciones_aves-${d.id}` ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
+                              onClick={() => eliminar('desinfecciones_aves', d.id)}
+                            >
+                              {confirmandoEliminar === `desinfecciones_aves-${d.id}` ? '¿Confirmar?' : '🗑️'}
+                            </Button>
+                          </div>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -331,10 +409,42 @@ export default function TabSanitario({ loteActual }: Props) {
         </CardContent>
       </Card>
 
-      <RegistrarVacunacionModal open={modalVacuna} onClose={() => setModalVacuna(false)} loteId={loteActual.id} fincaId={loteActual.finca_id} onCreated={fetchAll} />
-      <RegistrarMedicacionModal open={modalMed} onClose={() => setModalMed(false)} loteId={loteActual.id} fincaId={loteActual.finca_id} onCreated={fetchAll} />
-      <RegistrarEventoClinicoModal open={modalEvento} onClose={() => setModalEvento(false)} loteId={loteActual.id} fincaId={loteActual.finca_id} onCreated={fetchAll} />
-      <RegistrarDesinfeccionModal open={modalDesinfeccion} onClose={() => setModalDesinfeccion(false)} loteId={loteActual.id} fincaId={loteActual.finca_id} onCreated={fetchAll} />
+      <RegistrarVacunacionModal
+        open={modalVacuna}
+        onClose={() => { setModalVacuna(false); setVacunaEditar(null) }}
+        loteId={loteActual.id}
+        fincaId={loteActual.finca_id}
+        vacunacionExistente={vacunaEditar}
+        onCreated={fetchAll}
+      />
+      <RegistrarMedicacionModal
+        open={modalMed}
+        onClose={() => { setModalMed(false); setEventoClinicoIdActivo(null); setMedEditar(null) }}
+        loteId={loteActual.id}
+        fincaId={loteActual.finca_id}
+        eventoClinicoId={eventoClinicoIdActivo}
+        medicacionExistente={medEditar}
+        onCreated={fetchAll}
+      />
+      <RegistrarEventoClinicoModal
+        open={modalEvento}
+        onClose={() => { setModalEvento(false); setEventoEditar(null) }}
+        loteId={loteActual.id}
+        fincaId={loteActual.finca_id}
+        eventoExistente={eventoEditar}
+        onCreated={eventoId => {
+          fetchAll()
+          if (!eventoEditar) { setEventoClinicoIdActivo(eventoId); setMedEditar(null); setSubTab('medicaciones'); setModalMed(true) }
+        }}
+      />
+      <RegistrarDesinfeccionModal
+        open={modalDesinfeccion}
+        onClose={() => { setModalDesinfeccion(false); setDesinfeccionEditar(null) }}
+        loteId={loteActual.id}
+        fincaId={loteActual.finca_id}
+        desinfeccionExistente={desinfeccionEditar}
+        onCreated={fetchAll}
+      />
     </div>
   )
 }

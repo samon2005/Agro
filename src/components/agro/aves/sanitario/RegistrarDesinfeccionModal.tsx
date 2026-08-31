@@ -8,33 +8,37 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { CurrencyInput } from '@/components/ui/currency-input'
+import type { Database } from '@/types/database'
+
+type Desinfeccion = Database['public']['Tables']['desinfecciones_aves']['Row']
 
 interface Props {
   open: boolean
   onClose: () => void
   loteId: string
   fincaId: string
+  desinfeccionExistente?: Desinfeccion | null
   onCreated: () => void
 }
 
-function defaultForm() {
+function defaultForm(d?: Desinfeccion | null) {
   return {
-    fecha: new Date().toISOString().split('T')[0],
-    producto: '',
-    previene: '',
-    dosis: '',
-    responsable: '',
-    costo: '',
-    observaciones: '',
+    fecha: d?.fecha ?? new Date().toISOString().split('T')[0],
+    producto: d?.producto ?? '',
+    previene: d?.previene ?? '',
+    dosis: d?.dosis ?? '',
+    responsable: d?.responsable ?? '',
+    costo: d?.costo != null ? String(d.costo) : '',
+    observaciones: d?.observaciones ?? '',
   }
 }
 
-export default function RegistrarDesinfeccionModal({ open, onClose, loteId, fincaId, onCreated }: Props) {
+export default function RegistrarDesinfeccionModal({ open, onClose, loteId, fincaId, desinfeccionExistente, onCreated }: Props) {
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
-  const [form, setForm] = useState(defaultForm)
+  const [form, setForm] = useState(() => defaultForm(desinfeccionExistente))
 
-  useEffect(() => { if (open) setForm(defaultForm()) }, [open])
+  useEffect(() => { if (open) setForm(defaultForm(desinfeccionExistente)) }, [open, desinfeccionExistente])
 
   function set(field: string, value: string) {
     setForm(prev => ({ ...prev, [field]: value }))
@@ -45,9 +49,7 @@ export default function RegistrarDesinfeccionModal({ open, onClose, loteId, finc
     if (!form.producto.trim()) { toast.error('Ingresa el producto usado'); return }
 
     setLoading(true)
-    const { error } = await supabase.from('desinfecciones_aves').insert({
-      lote_id: loteId,
-      finca_id: fincaId,
+    const payload = {
       fecha: form.fecha,
       producto: form.producto.trim(),
       previene: form.previene || null,
@@ -55,9 +57,12 @@ export default function RegistrarDesinfeccionModal({ open, onClose, loteId, finc
       responsable: form.responsable || null,
       costo: form.costo ? Number(form.costo) : null,
       observaciones: form.observaciones || null,
-    })
+    }
+    const { error } = desinfeccionExistente
+      ? await supabase.from('desinfecciones_aves').update(payload).eq('id', desinfeccionExistente.id)
+      : await supabase.from('desinfecciones_aves').insert({ ...payload, lote_id: loteId, finca_id: fincaId })
 
-    if (!error && form.costo && Number(form.costo) > 0) {
+    if (!error && !desinfeccionExistente && form.costo && Number(form.costo) > 0) {
       await supabase.from('costos_lote_aves').insert({
         lote_id: loteId,
         finca_id: fincaId,
@@ -69,8 +74,8 @@ export default function RegistrarDesinfeccionModal({ open, onClose, loteId, finc
     }
 
     setLoading(false)
-    if (error) { toast.error('Error al registrar la desinfección'); return }
-    toast.success('Desinfección registrada')
+    if (error) { toast.error(desinfeccionExistente ? 'Error al actualizar la desinfección' : 'Error al registrar la desinfección'); return }
+    toast.success(desinfeccionExistente ? 'Desinfección actualizada' : 'Desinfección registrada')
     onCreated()
     onClose()
   }
@@ -79,7 +84,7 @@ export default function RegistrarDesinfeccionModal({ open, onClose, loteId, finc
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>🧴 Registrar Desinfección</DialogTitle>
+          <DialogTitle>{desinfeccionExistente ? '✏️ Editar Desinfección' : '🧴 Registrar Desinfección'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -115,7 +120,7 @@ export default function RegistrarDesinfeccionModal({ open, onClose, loteId, finc
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
             <Button type="submit" disabled={loading} className="bg-green-700 hover:bg-green-800 text-white">
-              {loading ? 'Guardando...' : 'Registrar'}
+              {loading ? 'Guardando...' : desinfeccionExistente ? 'Guardar cambios' : 'Registrar'}
             </Button>
           </DialogFooter>
         </form>

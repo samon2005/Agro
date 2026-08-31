@@ -9,52 +9,40 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { CurrencyInput } from '@/components/ui/currency-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { CATEGORIAS_COSTO } from '@/lib/costos'
+import type { Database } from '@/types/database'
+
+type Costo = Database['public']['Tables']['costos_lote_aves']['Row']
 
 interface Props {
   open: boolean
   onClose: () => void
   loteId: string
   fincaId: string
-  costosPredefinidos: Record<string, number>
+  costoExistente?: Costo | null
   onCreated: () => void
 }
 
-const CATEGORIAS = [
-  { value: 'pollitas', label: '🐣 Pollitas de levante' },
-  { value: 'alimento', label: '🌾 Alimento / Concentrado' },
-  { value: 'servicios_publicos', label: '💡 Servicios públicos (agua y energía)' },
-  { value: 'mantenimiento', label: '🔧 Mantenimiento' },
-  { value: 'sanitario', label: '💉 Sanitario' },
-  { value: 'otro', label: '📋 Otro' },
-]
-
-function defaultForm() {
+function defaultForm(costo?: Costo | null) {
   return {
-    fecha: new Date().toISOString().split('T')[0],
-    categoria: '',
-    descripcion: '',
-    monto: '',
-    proveedor: '',
-    observaciones: '',
+    fecha: costo?.fecha ?? new Date().toISOString().split('T')[0],
+    categoria: costo?.categoria ?? '',
+    descripcion: costo?.descripcion ?? '',
+    monto: costo ? String(costo.monto) : '',
+    proveedor: costo?.proveedor ?? '',
+    observaciones: costo?.observaciones ?? '',
   }
 }
 
-export default function RegistrarCostoModal({ open, onClose, loteId, fincaId, costosPredefinidos, onCreated }: Props) {
+export default function RegistrarCostoModal({ open, onClose, loteId, fincaId, costoExistente, onCreated }: Props) {
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
-  const [form, setForm] = useState(defaultForm)
+  const [form, setForm] = useState(() => defaultForm(costoExistente))
 
-  useEffect(() => { if (open) setForm(defaultForm()) }, [open])
+  useEffect(() => { if (open) setForm(defaultForm(costoExistente)) }, [open, costoExistente])
 
   function set(field: string, value: string | null) {
     setForm(prev => ({ ...prev, [field]: value ?? '' }))
-  }
-
-  function setCategoria(categoria: string | null) {
-    setForm(prev => {
-      const referencia = categoria ? costosPredefinidos[categoria] : undefined
-      return { ...prev, categoria: categoria ?? '', monto: prev.monto || (referencia ? String(referencia) : prev.monto) }
-    })
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -64,19 +52,20 @@ export default function RegistrarCostoModal({ open, onClose, loteId, fincaId, co
     if (!form.monto || Number(form.monto) <= 0) { toast.error('Ingresa el monto'); return }
 
     setLoading(true)
-    const { error } = await supabase.from('costos_lote_aves').insert({
-      lote_id: loteId,
-      finca_id: fincaId,
+    const payload = {
       fecha: form.fecha,
       categoria: form.categoria,
       descripcion: form.descripcion.trim(),
       monto: Number(form.monto),
       proveedor: form.proveedor || null,
       observaciones: form.observaciones || null,
-    })
+    }
+    const { error } = costoExistente
+      ? await supabase.from('costos_lote_aves').update(payload).eq('id', costoExistente.id)
+      : await supabase.from('costos_lote_aves').insert({ ...payload, lote_id: loteId, finca_id: fincaId })
     setLoading(false)
-    if (error) { toast.error('Error al registrar costo'); return }
-    toast.success('Costo registrado')
+    if (error) { toast.error(costoExistente ? 'Error al actualizar costo' : 'Error al registrar costo'); return }
+    toast.success(costoExistente ? 'Costo actualizado' : 'Costo registrado')
     onCreated()
     onClose()
   }
@@ -85,7 +74,7 @@ export default function RegistrarCostoModal({ open, onClose, loteId, fincaId, co
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>💰 Registrar Costo Operativo</DialogTitle>
+          <DialogTitle>{costoExistente ? '✏️ Editar Costo' : '💰 Registrar Costo Operativo'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -95,9 +84,9 @@ export default function RegistrarCostoModal({ open, onClose, loteId, fincaId, co
             </div>
             <div className="space-y-1">
               <Label>Categoría *</Label>
-              <Select value={form.categoria} onValueChange={setCategoria}>
+              <Select value={form.categoria} onValueChange={v => set('categoria', v)}>
                 <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
-                <SelectContent>{CATEGORIAS.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
+                <SelectContent>{CATEGORIAS_COSTO.map(c => <SelectItem key={c.value} value={c.value}>{c.emoji} {c.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="col-span-2 space-y-1">
@@ -120,7 +109,7 @@ export default function RegistrarCostoModal({ open, onClose, loteId, fincaId, co
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
             <Button type="submit" disabled={loading} className="bg-green-700 hover:bg-green-800 text-white">
-              {loading ? 'Guardando...' : 'Registrar'}
+              {loading ? 'Guardando...' : costoExistente ? 'Guardar cambios' : 'Registrar'}
             </Button>
           </DialogFooter>
         </form>

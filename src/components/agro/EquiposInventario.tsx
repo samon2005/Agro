@@ -66,6 +66,7 @@ export default function EquiposInventario({ fincaId, especies }: { fincaId: stri
   const [filtroEstado, setFiltroEstado] = useState<string>('todos')
   const [borrando, setBorrando] = useState<string | null>(null)
   const [confirmando, setConfirmando] = useState<string | null>(null)
+  const [categoriaSeleccionada, setCategoriaSeleccionada] = useState<string | null>(null)
   const especiesKey = especies.join(',')
 
   const fetchEquipos = useCallback(async () => {
@@ -154,6 +155,10 @@ export default function EquiposInventario({ fincaId, especies }: { fincaId: stri
     }, {})
   ).sort((a, b) => tipoInfo(a.tipo).label.localeCompare(tipoInfo(b.tipo).label))
 
+  const equiposDeCategoria = categoriaSeleccionada
+    ? filtrados.filter(e => `${e.especie}-${e.tipo}` === categoriaSeleccionada)
+    : []
+
   if (loading) {
     return <div className="grid grid-cols-1 md:grid-cols-3 gap-3">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-32 rounded-xl" />)}</div>
   }
@@ -161,14 +166,14 @@ export default function EquiposInventario({ fincaId, especies }: { fincaId: stri
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap gap-3">
-        <Select value={filtroEspecie} onValueChange={(v: string | null) => setFiltroEspecie(v ?? 'todas')}>
+        <Select value={filtroEspecie} onValueChange={(v: string | null) => { setFiltroEspecie(v ?? 'todas'); setCategoriaSeleccionada(null) }}>
           <SelectTrigger className="w-44"><SelectValue placeholder="Especie" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="todas">Todas las especies</SelectItem>
             {especies.map(esp => <SelectItem key={esp} value={esp}>{ESPECIE_LABEL[esp].icon} {ESPECIE_LABEL[esp].label}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Select value={filtroEstado} onValueChange={(v: string | null) => setFiltroEstado(v ?? 'todos')}>
+        <Select value={filtroEstado} onValueChange={(v: string | null) => { setFiltroEstado(v ?? 'todos'); setCategoriaSeleccionada(null) }}>
           <SelectTrigger className="w-44"><SelectValue placeholder="Estado" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="todos">Todos los estados</SelectItem>
@@ -186,92 +191,90 @@ export default function EquiposInventario({ fincaId, especies }: { fincaId: stri
           <p className="text-lg font-semibold text-gray-700">Sin equipos registrados</p>
           <p className="text-sm text-gray-400 mt-1">Los equipos se registran desde la pestaña &quot;Equipos&quot; de cada especie (Aves, Cerdos, Pollo)</p>
         </div>
-      ) : (
-        <>
-          {/* Totales agrupados por tipo de equipo */}
-          <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Totales por tipo de equipo</p>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-              {grupos.map(g => {
-                const info = tipoInfo(g.tipo)
-                return (
-                  <Card key={`${g.especie}-${g.tipo}`} className="border-gray-200">
-                    <CardContent className="p-4 space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xl">{info.icon}</span>
+      ) : categoriaSeleccionada == null ? (
+        <div>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Categorías de equipo</p>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {grupos.map(g => {
+              const info = tipoInfo(g.tipo)
+              const esp = ESPECIE_LABEL[g.especie]
+              return (
+                <Card
+                  key={`${g.especie}-${g.tipo}`}
+                  className="border-gray-200 cursor-pointer hover:border-green-400 transition-colors"
+                  onClick={() => setCategoriaSeleccionada(`${g.especie}-${g.tipo}`)}
+                >
+                  <CardContent className="p-4 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">{info.icon}</span>
+                      <div>
                         <p className="font-semibold text-sm text-gray-800">{info.label}</p>
+                        <p className="text-xs text-gray-400">{esp.icon} {esp.label}</p>
                       </div>
-                      <p className="text-2xl font-bold text-gray-900">{g.total}</p>
-                      <div className="flex flex-wrap gap-1">
-                        {g.operativos > 0 && <Badge className="text-[10px] bg-green-100 text-green-700">{g.operativos} activos</Badge>}
-                        {g.falla > 0 && <Badge className="text-[10px] bg-red-100 text-red-700">{g.falla} con falla</Badge>}
-                        {g.mantenimiento > 0 && <Badge className="text-[10px] bg-yellow-100 text-yellow-700">{g.mantenimiento} en mtto.</Badge>}
-                        {g.inactivo > 0 && <Badge className="text-[10px] bg-gray-100 text-gray-500">{g.inactivo} inactivos</Badge>}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )
-              })}
-            </div>
+                    </div>
+                    <p className="text-2xl font-bold text-gray-900">{g.total}</p>
+                    <div className="flex flex-wrap gap-1">
+                      {g.operativos > 0 && <Badge className="text-[10px] bg-green-100 text-green-700">{g.operativos} activos</Badge>}
+                      {g.falla > 0 && <Badge className="text-[10px] bg-red-100 text-red-700">{g.falla} con falla</Badge>}
+                      {g.mantenimiento > 0 && <Badge className="text-[10px] bg-yellow-100 text-yellow-700">{g.mantenimiento} en mtto.</Badge>}
+                      {g.inactivo > 0 && <Badge className="text-[10px] bg-gray-100 text-gray-500">{g.inactivo} inactivos</Badge>}
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
           </div>
-
-          {/* Detalle individual */}
-          <div>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Detalle por equipo</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {filtrados.map(equipo => {
-                const cfg = estadoConfig(equipo.estado)
-                const mtoSt = mtoStatus(equipo.proximo_mantenimiento)
-                const esp = ESPECIE_LABEL[equipo.especie]
-                const info = tipoInfo(equipo.tipo)
-                return (
-                  <Card key={`${equipo.tabla}-${equipo.id}`} className={`border-2 ${cfg.cls}`}>
-                    <CardContent className="p-4 space-y-2">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="text-2xl">{info.icon}</span>
-                          <div>
-                            <p className="font-semibold text-sm text-gray-800 leading-tight">{info.label}</p>
-                            <p className="text-xs text-gray-400">
-                              {equipo.numero_serie ? `S/N: ${equipo.numero_serie}` : 'Sin serial'}
-                              {equipo.marca ? ` · ${equipo.marca}` : ''}
-                            </p>
-                            <p className="text-xs text-gray-400">{esp.icon} {esp.label} · 🏠 {lotesNombre[equipo.lote_id] ?? 'Galpón'}</p>
-                          </div>
-                        </div>
-                        <Badge className={`text-[10px] ${cfg.badge}`}>{cfg.label}</Badge>
-                      </div>
-
-                      <div className="text-xs text-gray-500">
-                        <span className="text-gray-400">Prox. mtto.: </span>
-                        <span className={mtoSt === 'vencido' ? 'text-red-600 font-medium' : mtoSt === 'pronto' ? 'text-amber-600 font-medium' : 'text-gray-700'}>
-                          {equipo.proximo_mantenimiento ? new Date(equipo.proximo_mantenimiento + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }) : '—'}
-                        </span>
-                        {mtoSt === 'vencido' && <Badge className="ml-1 text-[9px] bg-red-100 text-red-700">Vencido</Badge>}
-                        {mtoSt === 'pronto' && <Badge className="ml-1 text-[9px] bg-yellow-100 text-yellow-700">Pronto</Badge>}
-                      </div>
-
-                      <div className="flex gap-1.5">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className={confirmando === equipo.id ? 'w-full text-xs text-white bg-red-600 hover:bg-red-700 border-red-600' : 'w-full text-xs text-red-600 border-red-200 hover:bg-red-50'}
-                          disabled={borrando === equipo.id}
-                          onClick={() => eliminar(equipo)}
-                        >
-                          {borrando === equipo.id ? 'Eliminando...' : confirmando === equipo.id ? '¿Confirmar eliminación?' : '🗑️ Eliminar'}
-                        </Button>
-                        {confirmando === equipo.id && (
-                          <Button size="sm" variant="outline" className="text-xs" onClick={() => setConfirmando(null)}>Cancelar</Button>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )
-              })}
-            </div>
-          </div>
-        </>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <Button variant="outline" size="sm" className="text-xs" onClick={() => setCategoriaSeleccionada(null)}>
+            ← Todas las categorías
+          </Button>
+          {equiposDeCategoria.map(equipo => {
+            const cfg = estadoConfig(equipo.estado)
+            const mtoSt = mtoStatus(equipo.proximo_mantenimiento)
+            const esp = ESPECIE_LABEL[equipo.especie]
+            return (
+              <Card key={`${equipo.tabla}-${equipo.id}`} className={`border-2 ${cfg.cls}`}>
+                <CardContent className="p-4 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-[220px]">
+                    <div>
+                      <p className="font-semibold text-sm text-gray-800 leading-tight">{equipo.nombre}</p>
+                      <p className="text-xs text-gray-400">
+                        {equipo.numero_serie ? `S/N: ${equipo.numero_serie}` : 'Sin N° de serie'}
+                        {equipo.marca ? ` · ${equipo.marca}` : ''}
+                      </p>
+                      <p className="text-xs text-gray-400">{esp.icon} {esp.label} · 🏠 {lotesNombre[equipo.lote_id] ?? 'Galpón'}</p>
+                    </div>
+                  </div>
+                  <Badge className={`text-[10px] ${cfg.badge}`}>{cfg.label}</Badge>
+                  <div className="text-xs text-gray-500">
+                    <span className="text-gray-400">Prox. mtto.: </span>
+                    <span className={mtoSt === 'vencido' ? 'text-red-600 font-medium' : mtoSt === 'pronto' ? 'text-amber-600 font-medium' : 'text-gray-700'}>
+                      {equipo.proximo_mantenimiento ? new Date(equipo.proximo_mantenimiento + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }) : '—'}
+                    </span>
+                    {mtoSt === 'vencido' && <Badge className="ml-1 text-[9px] bg-red-100 text-red-700">Vencido</Badge>}
+                    {mtoSt === 'pronto' && <Badge className="ml-1 text-[9px] bg-yellow-100 text-yellow-700">Pronto</Badge>}
+                  </div>
+                  <div className="flex gap-1.5">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className={confirmando === equipo.id ? 'text-xs text-white bg-red-600 hover:bg-red-700 border-red-600' : 'text-xs text-red-600 border-red-200 hover:bg-red-50'}
+                      disabled={borrando === equipo.id}
+                      onClick={() => eliminar(equipo)}
+                    >
+                      {borrando === equipo.id ? 'Eliminando...' : confirmando === equipo.id ? '¿Confirmar eliminación?' : '🗑️ Eliminar'}
+                    </Button>
+                    {confirmando === equipo.id && (
+                      <Button size="sm" variant="outline" className="text-xs" onClick={() => setConfirmando(null)}>Cancelar</Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
       )}
     </div>
   )

@@ -13,6 +13,12 @@ const ESTADO_LABEL: Record<string, string> = {
   vendido: 'vendido',
 }
 
+const ESTADO_BADGE_CLASS: Record<string, string> = {
+  preparacion: 'bg-amber-100 text-amber-900 border-amber-300',
+  finalizado: 'bg-gray-200 text-gray-800 border-gray-300',
+  vendido: 'bg-blue-100 text-blue-900 border-blue-300',
+}
+
 interface Props {
   lotes: LoteAves[]
   loteActual: LoteAves | null
@@ -50,7 +56,14 @@ export default function LoteSelector({ lotes, loteActual, onSelect, onNuevoLote,
         >
           🐔 {lote.nombre}
           {lote.estado !== 'activo' && (
-            <span className="ml-1 text-xs opacity-70">({ESTADO_LABEL[lote.estado] ?? lote.estado})</span>
+            <span
+              className={cn(
+                'ml-1.5 px-1.5 py-0.5 rounded-full text-xs font-semibold border',
+                ESTADO_BADGE_CLASS[lote.estado] ?? 'bg-gray-200 text-gray-800 border-gray-300'
+              )}
+            >
+              {ESTADO_LABEL[lote.estado] ?? lote.estado}
+            </span>
           )}
         </button>
       ))}

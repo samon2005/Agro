@@ -9,12 +9,16 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { CurrencyInput } from '@/components/ui/currency-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import type { Database } from '@/types/database'
+
+type Vacunacion = Database['public']['Tables']['vacunaciones_aves']['Row']
 
 interface Props {
   open: boolean
   onClose: () => void
   loteId: string
   fincaId: string
+  vacunacionExistente?: Vacunacion | null
   onCreated: () => void
 }
 
@@ -31,33 +35,45 @@ const UNIDAD_POR_VIA: Record<string, string> = {
   'Intranasal': 'gota / ave',
 }
 
-function defaultForm() {
+function defaultForm(vac?: Vacunacion | null) {
+  const esComun = vac ? VACUNAS_COMUNES.includes(vac.vacuna) : true
+  const [dosisValor, dosisUnidad] = vac?.dosis ? splitDosis(vac.dosis) : ['', '']
   return {
-    fecha_aplicacion: new Date().toISOString().split('T')[0],
-    vacuna: '',
-    vacuna_otra: '',
-    lote_vacuna: '',
-    via_administracion: '',
-    dosis_valor: '',
-    dosis_unidad: '',
-    laboratorio: '',
-    numero_aves: '',
-    costo: '',
-    proxima_dosis: '',
-    encargado: '',
-    observaciones: '',
+    fecha_aplicacion: vac?.fecha_aplicacion ?? new Date().toISOString().split('T')[0],
+    vacuna: vac ? (esComun ? vac.vacuna : 'Otra') : '',
+    vacuna_otra: vac && !esComun ? vac.vacuna : '',
+    lote_vacuna: vac?.lote_vacuna ?? '',
+    via_administracion: vac?.via_administracion ?? '',
+    dosis_valor: dosisValor,
+    dosis_unidad: dosisUnidad,
+    laboratorio: vac?.laboratorio ?? '',
+    numero_aves: vac?.numero_aves != null ? String(vac.numero_aves) : '',
+    costo: vac?.costo != null ? String(vac.costo) : '',
+    proxima_dosis: vac?.proxima_dosis ?? '',
+    sin_proxima: false,
+    encargado: vac?.veterinario ?? '',
+    observaciones: vac?.observaciones ?? '',
   }
 }
 
-export default function RegistrarVacunacionModal({ open, onClose, loteId, fincaId, onCreated }: Props) {
+function splitDosis(dosis: string): [string, string] {
+  const match = dosis.match(/^(\S+)\s*(.*)$/)
+  return match ? [match[1], match[2]] : ['', dosis]
+}
+
+export default function RegistrarVacunacionModal({ open, onClose, loteId, fincaId, vacunacionExistente, onCreated }: Props) {
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
-  const [form, setForm] = useState(defaultForm)
+  const [form, setForm] = useState(() => defaultForm(vacunacionExistente))
 
-  useEffect(() => { if (open) setForm(defaultForm()) }, [open])
+  useEffect(() => { if (open) setForm(defaultForm(vacunacionExistente)) }, [open, vacunacionExistente])
 
   function set(field: string, value: string | null) {
     setForm(prev => ({ ...prev, [field]: value ?? '' }))
+  }
+
+  function setSinProxima(checked: boolean) {
+    setForm(prev => ({ ...prev, sin_proxima: checked, proxima_dosis: checked ? '' : prev.proxima_dosis }))
   }
 
   function setVia(via: string | null) {
@@ -71,9 +87,7 @@ export default function RegistrarVacunacionModal({ open, onClose, loteId, fincaI
 
     setLoading(true)
     const dosis = [form.dosis_valor, form.dosis_unidad].filter(Boolean).join(' ') || null
-    const { error } = await supabase.from('vacunaciones_aves').insert({
-      lote_id: loteId,
-      finca_id: fincaId,
+    const payload = {
       fecha_aplicacion: form.fecha_aplicacion,
       vacuna: vacunaFinal.trim(),
       lote_vacuna: form.lote_vacuna || null,
@@ -85,9 +99,12 @@ export default function RegistrarVacunacionModal({ open, onClose, loteId, fincaI
       proxima_dosis: form.proxima_dosis || null,
       veterinario: form.encargado || null,
       observaciones: form.observaciones || null,
-    })
+    }
+    const { error } = vacunacionExistente
+      ? await supabase.from('vacunaciones_aves').update(payload).eq('id', vacunacionExistente.id)
+      : await supabase.from('vacunaciones_aves').insert({ ...payload, lote_id: loteId, finca_id: fincaId })
 
-    if (!error && form.costo && Number(form.costo) > 0) {
+    if (!error && !vacunacionExistente && form.costo && Number(form.costo) > 0) {
       await supabase.from('costos_lote_aves').insert({
         lote_id: loteId,
         finca_id: fincaId,
@@ -99,8 +116,8 @@ export default function RegistrarVacunacionModal({ open, onClose, loteId, fincaI
     }
 
     setLoading(false)
-    if (error) { toast.error('Error al registrar vacunación'); return }
-    toast.success('Vacunación registrada')
+    if (error) { toast.error(vacunacionExistente ? 'Error al actualizar vacunación' : 'Error al registrar vacunación'); return }
+    toast.success(vacunacionExistente ? 'Vacunación actualizada' : 'Vacunación registrada')
     onCreated()
     onClose()
   }
@@ -109,7 +126,7 @@ export default function RegistrarVacunacionModal({ open, onClose, loteId, fincaI
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>💉 Registrar Vacunación</DialogTitle>
+          <DialogTitle>{vacunacionExistente ? '✏️ Editar Vacunación' : '💉 Registrar Vacunación'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -161,8 +178,12 @@ export default function RegistrarVacunacionModal({ open, onClose, loteId, fincaI
               <CurrencyInput placeholder="0" value={form.costo} onValueChange={v => set('costo', v)} />
             </div>
             <div className="space-y-1">
-              <Label>Próxima dosis</Label>
-              <Input type="date" value={form.proxima_dosis} onChange={e => set('proxima_dosis', e.target.value)} />
+              <Label>Próxima vacunación</Label>
+              <Input type="date" disabled={form.sin_proxima} value={form.proxima_dosis} onChange={e => set('proxima_dosis', e.target.value)} />
+              <label className="flex items-center gap-1.5 text-xs text-gray-500 pt-0.5 cursor-pointer">
+                <input type="checkbox" checked={form.sin_proxima} onChange={e => setSinProxima(e.target.checked)} className="h-3.5 w-3.5 rounded border-gray-300 text-green-600" />
+                No hay próxima vacunación programada
+              </label>
             </div>
             <div className="space-y-1">
               <Label>Encargado</Label>
@@ -176,7 +197,7 @@ export default function RegistrarVacunacionModal({ open, onClose, loteId, fincaI
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
             <Button type="submit" disabled={loading} className="bg-green-700 hover:bg-green-800 text-white">
-              {loading ? 'Guardando...' : 'Registrar'}
+              {loading ? 'Guardando...' : vacunacionExistente ? 'Guardar cambios' : 'Registrar'}
             </Button>
           </DialogFooter>
         </form>

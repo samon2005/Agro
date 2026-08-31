@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { semanaDePostura } from '@/lib/postura'
 import type { Database } from '@/types/database'
 
 type Requerimientos = Database['public']['Tables']['requerimientos_nutricionales_aves']['Row']
@@ -17,6 +18,8 @@ interface Props {
   loteId: string
   fincaId: string
   actual: Requerimientos | null
+  historial: Requerimientos[]
+  fechaInicioPostura: string | null
   onUpdated: () => void
 }
 
@@ -36,14 +39,16 @@ const DEFAULTS = {
   prod_proteina_g: 4.2, prod_calcio_g: 3.8, prod_fosforo_g: 0.45, prod_grasa_g: 1.0,
 }
 
-export default function EditarRequerimientosModal({ open, onClose, loteId, fincaId, actual, onUpdated }: Props) {
+export default function EditarRequerimientosModal({ open, onClose, loteId, fincaId, actual, historial, fechaInicioPostura, onUpdated }: Props) {
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState<Record<string, string>>({})
+  const [vigenteDesde, setVigenteDesde] = useState(new Date().toISOString().split('T')[0])
 
   useEffect(() => {
     const base = actual ?? DEFAULTS
     setForm(Object.fromEntries(CAMPOS.map(c => [c.key, String(base[c.key])])))
+    setVigenteDesde(new Date().toISOString().split('T')[0])
   }, [actual, open])
 
   async function handleSubmit(e: React.FormEvent) {
@@ -51,24 +56,32 @@ export default function EditarRequerimientosModal({ open, onClose, loteId, finca
     setLoading(true)
     const valores = Object.fromEntries(CAMPOS.map(c => [c.key, Number(form[c.key] || 0)]))
     const { error } = await supabase.from('requerimientos_nutricionales_aves')
-      .upsert({ lote_id: loteId, finca_id: fincaId, ...valores }, { onConflict: 'lote_id' })
+      .insert({ lote_id: loteId, finca_id: fincaId, vigente_desde: vigenteDesde, ...valores })
     setLoading(false)
     if (error) { toast.error('Error al guardar los requerimientos'); return }
-    toast.success('Requerimientos actualizados')
+    toast.success('Nueva versión de requerimientos guardada')
     onUpdated()
     onClose()
+  }
+
+  function fmt(d: string) {
+    return new Date(d + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
   }
 
   const grupos = ['Mantenimiento (g/ave/día)', 'Producción (g/huevo)'] as const
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>🎯 Requerimientos Nutricionales del Lote</DialogTitle>
-          <p className="text-sm text-gray-500">Valores de referencia editables — ajústalos según la ficha técnica de tu línea genética</p>
+          <p className="text-sm text-gray-500">Cada cambio queda guardado como una nueva versión — no se pierde el historial anterior</p>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1">
+            <Label className="text-xs">Vigente desde</Label>
+            <Input type="date" value={vigenteDesde} onChange={e => setVigenteDesde(e.target.value)} />
+          </div>
           {grupos.map(grupo => (
             <div key={grupo} className="space-y-2">
               <p className="text-xs font-semibold text-gray-500 uppercase">{grupo}</p>
@@ -86,10 +99,28 @@ export default function EditarRequerimientosModal({ open, onClose, loteId, finca
               </div>
             </div>
           ))}
+
+          {historial.length > 0 && (
+            <div className="space-y-2 border-t border-gray-100 pt-3">
+              <p className="text-xs font-semibold text-gray-500 uppercase">Historial de cambios</p>
+              <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                {historial.map(h => {
+                  const semana = semanaDePostura(fechaInicioPostura, h.vigente_desde)
+                  return (
+                    <div key={h.id} className="flex items-center justify-between text-xs text-gray-500 border-b border-gray-50 pb-1">
+                      <span>Desde {fmt(h.vigente_desde)}{semana ? ` (semana ${semana} de postura)` : ''}</span>
+                      <span>Prot. mant. {h.mant_proteina_g}g · prod. {h.prod_proteina_g}g</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
             <Button type="submit" disabled={loading} className="bg-green-700 hover:bg-green-800 text-white">
-              {loading ? 'Guardando...' : 'Guardar'}
+              {loading ? 'Guardando...' : 'Guardar nueva versión'}
             </Button>
           </DialogFooter>
         </form>
