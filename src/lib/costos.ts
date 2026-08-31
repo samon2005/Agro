@@ -19,3 +19,6 @@ export const CATEGORIAS_COSTO: CategoriaCosto[] = [
 export function categoriaInfo(categoria: string) {
   return CATEGORIAS_COSTO.find(c => c.value === categoria || c.legacy?.includes(categoria))
 }
+
+/** Mapa value→label para el prop `items` de `<Select>` (Base UI necesita esto para mostrar la etiqueta seleccionada en vez del value crudo). */
+export const CATEGORIAS_COSTO_ITEMS = Object.fromEntries(CATEGORIAS_COSTO.map(c => [c.value, `${c.emoji} ${c.label}`]))

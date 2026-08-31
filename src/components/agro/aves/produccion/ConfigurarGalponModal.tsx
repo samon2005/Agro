@@ -17,11 +17,14 @@ interface Props {
   onClose: () => void
   lote: LoteAves
   onUpdated: (lote: LoteAves) => void
+  onDeleted: () => void
 }
 
-export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated }: Props) {
+export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, onDeleted }: Props) {
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [confirmarNombre, setConfirmarNombre] = useState('')
   const [form, setForm] = useState({
     area_galpon_m2: '',
     fecha_inicio_postura: '',
@@ -52,7 +55,19 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated }
       precio_gramo_alimento: lote.precio_gramo_alimento != null ? String(lote.precio_gramo_alimento) : '',
       peso_bulto_alimento_kg: lote.peso_bulto_alimento_kg != null ? String(lote.peso_bulto_alimento_kg) : '40',
     })
+    setConfirmarNombre('')
   }, [lote, open])
+
+  async function handleDelete() {
+    if (confirmarNombre.trim() !== lote.nombre) { toast.error('El nombre no coincide'); return }
+    setDeleting(true)
+    const { error } = await supabase.from('lotes_aves').delete().eq('id', lote.id)
+    setDeleting(false)
+    if (error) { toast.error('Error al eliminar el galpón'); return }
+    toast.success(`Galpón "${lote.nombre}" eliminado`)
+    onDeleted()
+    onClose()
+  }
 
   function set(field: string, value: string | null) {
     setForm(prev => ({ ...prev, [field]: value ?? '' }))
@@ -165,6 +180,29 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated }
               <Input type="number" min="0" step="1" placeholder="Ej: 40" value={form.peso_bulto_alimento_kg} onChange={e => set('peso_bulto_alimento_kg', e.target.value)} />
             </div>
           </div>
+          <div className="border border-red-200 bg-red-50 rounded-lg p-3 space-y-2">
+            <p className="text-sm font-semibold text-red-800">⚠️ Zona de peligro</p>
+            <p className="text-xs text-red-600">
+              Eliminar este galpón borra permanentemente todo su historial (producción, sanitario, costos, equipos). Esta acción no se puede deshacer.
+            </p>
+            <div className="flex items-center gap-2">
+              <Input
+                placeholder={`Escribe "${lote.nombre}" para confirmar`}
+                value={confirmarNombre}
+                onChange={e => setConfirmarNombre(e.target.value)}
+                className="bg-white"
+              />
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={deleting || confirmarNombre.trim() !== lote.nombre}
+                onClick={handleDelete}
+              >
+                {deleting ? 'Eliminando...' : 'Eliminar galpón'}
+              </Button>
+            </div>
+          </div>
+
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
             <Button type="submit" disabled={loading} className="bg-green-700 hover:bg-green-800 text-white">

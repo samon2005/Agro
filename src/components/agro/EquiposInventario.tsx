@@ -166,14 +166,22 @@ export default function EquiposInventario({ fincaId, especies }: { fincaId: stri
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap gap-3">
-        <Select value={filtroEspecie} onValueChange={(v: string | null) => { setFiltroEspecie(v ?? 'todas'); setCategoriaSeleccionada(null) }}>
+        <Select
+          value={filtroEspecie}
+          onValueChange={(v: string | null) => { setFiltroEspecie(v ?? 'todas'); setCategoriaSeleccionada(null) }}
+          items={{ todas: 'Todas las especies', ...Object.fromEntries(especies.map(esp => [esp, `${ESPECIE_LABEL[esp].icon} ${ESPECIE_LABEL[esp].label}`])) }}
+        >
           <SelectTrigger className="w-44"><SelectValue placeholder="Especie" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="todas">Todas las especies</SelectItem>
             {especies.map(esp => <SelectItem key={esp} value={esp}>{ESPECIE_LABEL[esp].icon} {ESPECIE_LABEL[esp].label}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Select value={filtroEstado} onValueChange={(v: string | null) => { setFiltroEstado(v ?? 'todos'); setCategoriaSeleccionada(null) }}>
+        <Select
+          value={filtroEstado}
+          onValueChange={(v: string | null) => { setFiltroEstado(v ?? 'todos'); setCategoriaSeleccionada(null) }}
+          items={{ todos: 'Todos los estados', operativo: 'Activos', inactivo: 'Inactivos', falla: 'Con falla', mantenimiento: 'En mantenimiento' }}
+        >
           <SelectTrigger className="w-44"><SelectValue placeholder="Estado" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="todos">Todos los estados</SelectItem>

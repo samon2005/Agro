@@ -10,9 +10,12 @@ import { Label } from '@/components/ui/label'
 import { CurrencyInput } from '@/components/ui/currency-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { calcularFechaLiberacion } from '@/lib/sanitario'
+import EncargadoSelect from '@/components/agro/EncargadoSelect'
+import { toSelectItems } from '@/lib/utils'
 import type { Database } from '@/types/database'
 
 type Medicacion = Database['public']['Tables']['medicaciones_aves']['Row']
+type EventoClinico = Database['public']['Tables']['eventos_clinicos_aves']['Row']
 
 interface Props {
   open: boolean
@@ -22,7 +25,10 @@ interface Props {
   eventoClinicoId?: string | null
   medicacionExistente?: Medicacion | null
   onCreated: () => void
+  onCrearEvento?: () => void
 }
+
+const SIN_EVENTO = '__sin_evento__'
 
 const VIAS = ['Agua de bebida', 'Alimento', 'Inyectable SC', 'Inyectable IM', 'Tópico', 'Spray']
 
@@ -48,10 +54,12 @@ function defaultForm(med?: Medicacion | null) {
     periodo_retiro_dias: med?.periodo_retiro_dias != null ? String(med.periodo_retiro_dias) : '',
     motivo: med?.motivo ?? '',
     costo: med?.costo != null ? String(med.costo) : '',
+    proveedor: med?.proveedor ?? '',
     encargado: med?.veterinario ?? '',
     frecuencia_dias: '',
     hora_aplicacion: '',
     observaciones: med?.observaciones ?? '',
+    evento_clinico_id: med?.evento_clinico_id ?? '',
   }
 }
 
@@ -60,12 +68,19 @@ function splitDosis(dosis: string): [string, string] {
   return match ? [match[1], match[2]] : ['', dosis]
 }
 
-export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaId, eventoClinicoId, medicacionExistente, onCreated }: Props) {
+export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaId, eventoClinicoId, medicacionExistente, onCreated, onCrearEvento }: Props) {
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState(() => defaultForm(medicacionExistente))
+  const [eventos, setEventos] = useState<EventoClinico[]>([])
 
   useEffect(() => { if (open) setForm(defaultForm(medicacionExistente)) }, [open, medicacionExistente])
+
+  useEffect(() => {
+    if (!open || eventoClinicoId) return
+    supabase.from('eventos_clinicos_aves').select('*').eq('lote_id', loteId).order('fecha', { ascending: false }).limit(30)
+      .then(({ data }) => setEventos(data ?? []))
+  }, [open, eventoClinicoId, loteId, supabase])
 
   function set(field: string, value: string | null) {
     setForm(prev => ({ ...prev, [field]: value ?? '' }))
@@ -85,6 +100,14 @@ export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaI
     e.preventDefault()
     if (!form.medicamento.trim()) { toast.error('El medicamento es requerido'); return }
 
+    const eventoFinal = eventoClinicoId
+      ? eventoClinicoId
+      : (form.evento_clinico_id && form.evento_clinico_id !== SIN_EVENTO ? form.evento_clinico_id : null)
+
+    if (!medicacionExistente && !eventoClinicoId && !form.evento_clinico_id) {
+      toast.warning('Registrando el tratamiento sin vincularlo a un evento clínico')
+    }
+
     setLoading(true)
     const dosis = [form.dosis_valor, form.dosis_unidad].filter(Boolean).join(' ') || null
     const payload = {
@@ -97,14 +120,15 @@ export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaI
       periodo_retiro_dias: form.periodo_retiro_dias !== '' ? Number(form.periodo_retiro_dias) : null,
       motivo: form.motivo || null,
       costo: form.costo ? Number(form.costo) : null,
+      proveedor: form.proveedor || null,
       veterinario: form.encargado || null,
       observaciones: form.observaciones || null,
     }
     const { data: medicacion, error } = medicacionExistente
-      ? await supabase.from('medicaciones_aves').update(payload).eq('id', medicacionExistente.id).select().single()
-      : await supabase.from('medicaciones_aves').insert({ ...payload, lote_id: loteId, finca_id: fincaId, evento_clinico_id: eventoClinicoId || null }).select().single()
+      ? await supabase.from('medicaciones_aves').update({ ...payload, evento_clinico_id: eventoFinal }).eq('id', medicacionExistente.id).select().single()
+      : await supabase.from('medicaciones_aves').insert({ ...payload, lote_id: loteId, finca_id: fincaId, evento_clinico_id: eventoFinal }).select().single()
 
-    if (!error && !medicacionExistente && form.costo && Number(form.costo) > 0) {
+    if (!error && !medicacionExistente && medicacion && form.costo && Number(form.costo) > 0) {
       await supabase.from('costos_lote_aves').insert({
         lote_id: loteId,
         finca_id: fincaId,
@@ -112,6 +136,7 @@ export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaI
         categoria: 'sanitario',
         descripcion: `Tratamiento: ${form.medicamento.trim()}`,
         monto: Number(form.costo),
+        medicacion_id: medicacion.id,
       })
     }
 
@@ -150,6 +175,40 @@ export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaI
           <DialogTitle>{medicacionExistente ? '✏️ Editar Tratamiento' : '💊 Registrar Tratamiento'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
+          {eventoClinicoId ? (
+            <div className="p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-700">
+              🔗 Vinculado al evento clínico seleccionado
+            </div>
+          ) : !medicacionExistente && (
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <Label>Evento clínico relacionado</Label>
+                {onCrearEvento && (
+                  <button type="button" onClick={onCrearEvento} className="text-xs text-green-700 hover:underline">
+                    + Crear evento clínico primero
+                  </button>
+                )}
+              </div>
+              <Select
+                value={form.evento_clinico_id}
+                onValueChange={v => set('evento_clinico_id', v)}
+                items={{ [SIN_EVENTO]: 'Sin evento clínico (tratamiento preventivo/rutinario)', ...toSelectItems(eventos.map(ev => ({ value: ev.id, label: `${new Date(ev.fecha + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })} — ${ev.descripcion.slice(0, 40)}` }))) }}
+              >
+                <SelectTrigger className="w-full"><SelectValue placeholder="Selecciona un evento o marca que no aplica..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={SIN_EVENTO}>Sin evento clínico (tratamiento preventivo/rutinario)</SelectItem>
+                  {eventos.map(ev => (
+                    <SelectItem key={ev.id} value={ev.id}>
+                      {new Date(ev.fecha + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })} — {ev.descripcion.slice(0, 40)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!form.evento_clinico_id && (
+                <p className="text-xs text-amber-600">Recomendado: registra primero el evento clínico que originó este tratamiento</p>
+              )}
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <Label>Fecha inicio *</Label>
@@ -219,8 +278,12 @@ export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaI
               <CurrencyInput placeholder="0" value={form.costo} onValueChange={v => set('costo', v)} />
             </div>
             <div className="space-y-1">
+              <Label>Proveedor</Label>
+              <Input placeholder="¿Dónde se compró?" value={form.proveedor} onChange={e => set('proveedor', e.target.value)} />
+            </div>
+            <div className="space-y-1">
               <Label>Encargado</Label>
-              <Input placeholder="Nombre del encargado" value={form.encargado} onChange={e => set('encargado', e.target.value)} />
+              <EncargadoSelect fincaId={fincaId} value={form.encargado} onChange={v => set('encargado', v)} />
             </div>
             <div className="col-span-2 space-y-1">
               <Label>Observaciones</Label>

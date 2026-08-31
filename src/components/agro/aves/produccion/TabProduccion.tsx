@@ -9,7 +9,6 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import RegistrarProduccionModal from './RegistrarProduccionModal'
 import ConfigurarGalponModal from './ConfigurarGalponModal'
-import HorariosAlimentacion from './HorariosAlimentacion'
 import HorariosRecoleccion from './HorariosRecoleccion'
 import RevisionCalidadHuevo from './RevisionCalidadHuevo'
 import { toast } from 'sonner'
@@ -17,10 +16,12 @@ import type { Database } from '@/types/database'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 type ProduccionDiaria = Database['public']['Tables']['produccion_diaria_aves']['Row']
+type TipoAlimento = Database['public']['Tables']['tipos_alimento_aves']['Row']
 
 interface Props {
   loteActual: LoteAves
   onLoteUpdated: (lote?: LoteAves) => void
+  onLoteDeleted: () => void
 }
 
 const MS_DIA = 24 * 60 * 60 * 1000
@@ -36,7 +37,7 @@ const CAUSAS_LABEL: Record<string, string> = {
   'Accidente': 'Accidente', 'Estrés calórico': 'Estrés calórico', 'Otra': 'Otra'
 }
 
-export default function TabProduccion({ loteActual, onLoteUpdated }: Props) {
+export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted }: Props) {
   const supabase = createClient()
   const [registros, setRegistros] = useState<ProduccionDiaria[]>([])
   const [loading, setLoading] = useState(true)
@@ -44,6 +45,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated }: Props) {
   const [configOpen, setConfigOpen] = useState(false)
   const [registroEditar, setRegistroEditar] = useState<ProduccionDiaria | null>(null)
   const [confirmandoEliminar, setConfirmandoEliminar] = useState<string | null>(null)
+  const [tipoAlimentoActivo, setTipoAlimentoActivo] = useState<TipoAlimento | null>(null)
 
   const fetchRegistros = useCallback(async () => {
     setLoading(true)
@@ -56,6 +58,12 @@ export default function TabProduccion({ loteActual, onLoteUpdated }: Props) {
     setRegistros(data ?? [])
     setLoading(false)
   }, [loteActual.id, supabase])
+
+  useEffect(() => {
+    if (!loteActual.alimento_activo_id) { setTipoAlimentoActivo(null); return }
+    supabase.from('tipos_alimento_aves').select('*').eq('id', loteActual.alimento_activo_id).maybeSingle()
+      .then(({ data }) => setTipoAlimentoActivo(data ?? null))
+  }, [loteActual.alimento_activo_id, supabase])
 
   useEffect(() => { fetchRegistros() }, [fetchRegistros])
 
@@ -136,15 +144,22 @@ export default function TabProduccion({ loteActual, onLoteUpdated }: Props) {
     ? Math.max(0, hoy.aves_en_dia * (metaPostura / 100) - hoy.huevos_totales)
     : 0
   const valorPerdidoHoy = perdidaHoy * precioPromedio
+  const excedenteHoy = hoy && hoy.aves_en_dia
+    ? Math.max(0, hoy.huevos_totales - hoy.aves_en_dia * (metaPostura / 100))
+    : 0
+  const diffPuntosHoy = posturaHoy ? Number(posturaHoy) - metaPostura : null
 
-  // ── Alimento: costo del día y bultos consumidos ──
+  // ── Alimento: costo y bultos del consumo activo (persiste hasta que se cambie) ──
   const precioGramo = loteActual.precio_gramo_alimento ?? 0
-  const pesoBulto = loteActual.peso_bulto_alimento_kg ?? 40
-  const costoAlimentoHoy = hoy ? Number(hoy.alimento_kg) * 1000 * precioGramo : 0
-  const bultosHoy = hoy ? Number(hoy.alimento_kg) / pesoBulto : 0
-  const kgTotalHoy = hoy ? Number(hoy.alimento_kg) : null
-  const gramosGallinaHoy = hoy && hoy.aves_en_dia && hoy.aves_en_dia > 0
-    ? (Number(hoy.alimento_kg) * 1000) / hoy.aves_en_dia
+  const pesoBulto = tipoAlimentoActivo?.peso_bulto_kg ?? loteActual.peso_bulto_alimento_kg ?? 40
+  const consumoActivoKg = loteActual.consumo_activo_kg != null ? Number(loteActual.consumo_activo_kg) : 0
+  const bultosHoy = consumoActivoKg > 0 ? consumoActivoKg / pesoBulto : 0
+  const costoAlimentoHoy = tipoAlimentoActivo?.precio_bulto
+    ? bultosHoy * tipoAlimentoActivo.precio_bulto
+    : consumoActivoKg * 1000 * precioGramo
+  const kgTotalHoy = consumoActivoKg > 0 ? consumoActivoKg : null
+  const gramosGallinaHoy = consumoActivoKg > 0 && loteActual.aves_actuales > 0
+    ? (consumoActivoKg * 1000) / loteActual.aves_actuales
     : null
 
   // ── Densidad ──
@@ -246,7 +261,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated }: Props) {
           <CardContent className="p-4">
             <p className="text-xs text-yellow-700 font-medium">Huevos puestos hoy</p>
             <p className="text-2xl font-bold text-yellow-800">{hoy ? hoy.huevos_totales.toLocaleString('es-CO') : '—'}</p>
-            <p className="text-xs text-yellow-600 mt-0.5">Comerciales: {hoy ? (hoy.huevos_totales - hoy.huevos_rotos - hoy.huevos_sucios - hoy.huevos_deformes).toLocaleString('es-CO') : '—'}</p>
+            <p className="text-xs text-yellow-600 mt-0.5">Comerciales: {hoy ? (hoy.huevos_totales - hoy.huevos_rotos - hoy.huevos_deformes).toLocaleString('es-CO') : '—'}</p>
           </CardContent>
         </Card>
         <Card className={metaHuevosDiaria && hoy && hoy.huevos_totales < metaHuevosDiaria ? 'border-red-200 bg-red-50' : 'border-teal-200 bg-teal-50'}>
@@ -261,6 +276,13 @@ export default function TabProduccion({ loteActual, onLoteUpdated }: Props) {
             <p className={`text-xs font-medium ${posturaHoy && Number(posturaHoy) < metaPostura ? 'text-red-700' : 'text-green-700'}`}>% Postura hoy</p>
             <p className={`text-2xl font-bold ${posturaHoy && Number(posturaHoy) < metaPostura ? 'text-red-800' : 'text-green-800'}`}>{posturaHoy ? `${posturaHoy}%` : '—'}</p>
             <p className={`text-xs mt-0.5 ${posturaHoy && Number(posturaHoy) < metaPostura ? 'text-red-600' : 'text-green-600'}`}>Meta lote: {metaPostura}%</p>
+            {diffPuntosHoy != null && (
+              <p className={`text-xs mt-0.5 font-medium ${diffPuntosHoy < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                {diffPuntosHoy < 0
+                  ? `Faltan ${Math.abs(diffPuntosHoy).toFixed(1)} pts (${Math.round(perdidaHoy).toLocaleString('es-CO')} huevos bajo la meta)`
+                  : `+${diffPuntosHoy.toFixed(1)} pts (${Math.round(excedenteHoy).toLocaleString('es-CO')} huevos sobre la meta)`}
+              </p>
+            )}
           </CardContent>
         </Card>
         <Card className="border-blue-200 bg-blue-50">
@@ -327,18 +349,18 @@ export default function TabProduccion({ loteActual, onLoteUpdated }: Props) {
         </Card>
       </div>
 
-      {/* Alimento: costo, bultos, gramos/gallina y kg totales */}
+      {/* Alimento: costo, bultos, gramos/gallina y kg totales (consumo activo) */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card className="border-amber-200 bg-amber-50">
           <CardContent className="p-4">
-            <p className="text-xs text-amber-700 font-medium">Costo de alimento hoy</p>
+            <p className="text-xs text-amber-700 font-medium">Costo de alimento (activo)</p>
             <p className="text-2xl font-bold text-amber-800">{costoAlimentoHoy > 0 ? cop(costoAlimentoHoy) : '—'}</p>
-            <p className="text-xs text-amber-600 mt-0.5">{hoy ? `${Number(hoy.alimento_kg).toFixed(1)} kg consumidos` : 'Sin registro de hoy'}</p>
+            <p className="text-xs text-amber-600 mt-0.5">{consumoActivoKg > 0 ? `${consumoActivoKg.toFixed(1)} kg consumidos` : 'Sin consumo registrado'}</p>
           </CardContent>
         </Card>
         <Card className="border-amber-200 bg-amber-50">
           <CardContent className="p-4">
-            <p className="text-xs text-amber-700 font-medium">Bultos consumidos hoy</p>
+            <p className="text-xs text-amber-700 font-medium">Bultos (consumo activo)</p>
             <p className="text-2xl font-bold text-amber-800">{bultosHoy > 0 ? bultosHoy.toFixed(2) : '—'}</p>
             <p className="text-xs text-amber-600 mt-0.5">Bulto de {pesoBulto} kg</p>
           </CardContent>
@@ -359,9 +381,13 @@ export default function TabProduccion({ loteActual, onLoteUpdated }: Props) {
         </Card>
       </div>
 
-      <HorariosAlimentacion loteId={loteActual.id} fincaId={loteActual.finca_id} />
       <HorariosRecoleccion loteId={loteActual.id} fincaId={loteActual.finca_id} />
-      <RevisionCalidadHuevo loteId={loteActual.id} fincaId={loteActual.finca_id} />
+      <RevisionCalidadHuevo
+        loteId={loteActual.id}
+        fincaId={loteActual.finca_id}
+        fechaInicioPostura={loteActual.fecha_inicio_postura}
+        fechaInicioLote={loteActual.fecha_inicio}
+      />
 
       <Card>
         <CardHeader className="pb-2">
@@ -478,7 +504,6 @@ export default function TabProduccion({ loteActual, onLoteUpdated }: Props) {
         loteId={loteActual.id}
         fincaId={loteActual.finca_id}
         avesActuales={loteActual.aves_actuales}
-        metaPostura={metaPostura}
         registroExistente={registroEditar}
         onCreated={() => { fetchRegistros(); onLoteUpdated() }}
       />
@@ -488,6 +513,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated }: Props) {
         onClose={() => setConfigOpen(false)}
         lote={loteActual}
         onUpdated={updated => onLoteUpdated(updated)}
+        onDeleted={onLoteDeleted}
       />
     </div>
   )

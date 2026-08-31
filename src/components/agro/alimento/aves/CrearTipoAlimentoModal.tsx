@@ -95,16 +95,16 @@ export default function CrearTipoAlimentoModal({ open, onClose, fincaId, loteId,
       precio_bulto: form.precio_bulto ? Number(form.precio_bulto) : null,
       peso_bulto_kg: form.peso_bulto_kg ? Number(form.peso_bulto_kg) : 40,
     }
-    const { error } = tipoExistente
-      ? await supabase.from('tipos_alimento_aves').update(payload).eq('id', tipoExistente.id)
+    const { data: tipo, error } = tipoExistente
+      ? await supabase.from('tipos_alimento_aves').update(payload).eq('id', tipoExistente.id).select().single()
       : await supabase.from('tipos_alimento_aves').insert({
           ...payload,
           finca_id: fincaId,
           cantidad_entrada: form.cantidad_entrada ? Number(form.cantidad_entrada) : null,
           fecha_entrada: form.cantidad_entrada ? form.fecha_entrada : null,
-        })
+        }).select().single()
 
-    if (!error && !tipoExistente && costoTotal > 0 && loteId) {
+    if (!error && !tipoExistente && tipo && costoTotal > 0 && loteId) {
       await supabase.from('costos_lote_aves').insert({
         lote_id: loteId,
         finca_id: fincaId,
@@ -112,6 +112,7 @@ export default function CrearTipoAlimentoModal({ open, onClose, fincaId, loteId,
         categoria: 'alimento',
         descripcion: `Compra de alimento: ${form.marca ? form.marca + ' - ' : ''}${form.nombre.trim()} (${form.cantidad_entrada} bultos)`,
         monto: costoTotal,
+        tipo_alimento_id: tipo.id,
       })
     }
 
@@ -137,7 +138,11 @@ export default function CrearTipoAlimentoModal({ open, onClose, fincaId, loteId,
             </div>
             <div className="space-y-1">
               <Label>Tipo</Label>
-              <Select value={form.tipo_alimento_categoria} onValueChange={setCategoria}>
+              <Select
+                value={form.tipo_alimento_categoria}
+                onValueChange={setCategoria}
+                items={Object.fromEntries(TIPOS_CATEGORIA.map(t => [t.value, t.label]))}
+              >
                 <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
                 <SelectContent>
                   {TIPOS_CATEGORIA.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}

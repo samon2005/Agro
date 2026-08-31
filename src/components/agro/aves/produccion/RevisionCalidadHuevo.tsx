@@ -16,14 +16,18 @@ type Revision = Database['public']['Tables']['revisiones_calidad_huevo_aves']['R
 interface Props {
   loteId: string
   fincaId: string
+  fechaInicioPostura: string | null
+  fechaInicioLote: string
 }
 
-const CATEGORIAS: { key: 'cantidad_b' | 'cantidad_a' | 'cantidad_aa' | 'cantidad_aaa' | 'cantidad_jumbo'; label: string }[] = [
-  { key: 'cantidad_b', label: 'B' },
-  { key: 'cantidad_a', label: 'A' },
-  { key: 'cantidad_aa', label: 'AA' },
-  { key: 'cantidad_aaa', label: 'AAA' },
-  { key: 'cantidad_jumbo', label: 'JUMBO' },
+const MS_DIA = 24 * 60 * 60 * 1000
+
+const CATEGORIAS: { key: 'cantidad_b' | 'cantidad_a' | 'cantidad_aa' | 'cantidad_aaa' | 'cantidad_jumbo'; label: string; semanaKey: 'b' | 'a' | 'aa' | 'aaa' | 'jumbo' }[] = [
+  { key: 'cantidad_b', label: 'B', semanaKey: 'b' },
+  { key: 'cantidad_a', label: 'A', semanaKey: 'a' },
+  { key: 'cantidad_aa', label: 'AA', semanaKey: 'aa' },
+  { key: 'cantidad_aaa', label: 'AAA', semanaKey: 'aaa' },
+  { key: 'cantidad_jumbo', label: 'JUMBO', semanaKey: 'jumbo' },
 ]
 
 function defaultForm() {
@@ -38,34 +42,60 @@ function defaultForm() {
   }
 }
 
-export default function RevisionCalidadHuevo({ loteId, fincaId }: Props) {
+export default function RevisionCalidadHuevo({ loteId, fincaId, fechaInicioPostura, fechaInicioLote }: Props) {
   const supabase = createClient()
   const [revisiones, setRevisiones] = useState<Revision[]>([])
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState(defaultForm)
+  const [confirmandoEliminar, setConfirmandoEliminar] = useState<string | null>(null)
+  const [semanaActual, setSemanaActual] = useState({ b: 0, a: 0, aa: 0, aaa: 0, jumbo: 0 })
+
+  const origen = fechaInicioPostura ?? fechaInicioLote
+  const origenDate = new Date(origen + 'T00:00:00')
+  const hoyDate = new Date()
+  const numSemana = Math.max(0, Math.floor((hoyDate.getTime() - origenDate.getTime()) / (7 * MS_DIA)))
+  const inicioSemana = new Date(origenDate.getTime() + numSemana * 7 * MS_DIA)
+  const finSemana = new Date(inicioSemana.getTime() + 6 * MS_DIA)
+  const inicioSemanaStr = inicioSemana.toISOString().split('T')[0]
 
   const fetchRevisiones = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase
-      .from('revisiones_calidad_huevo_aves')
-      .select('*')
-      .eq('lote_id', loteId)
-      .order('fecha', { ascending: false })
-      .limit(12)
-    setRevisiones(data ?? [])
+    const [revRes, diariosRes] = await Promise.all([
+      supabase.from('revisiones_calidad_huevo_aves').select('*').eq('lote_id', loteId).order('fecha', { ascending: false }).limit(12),
+      supabase.from('produccion_diaria_aves').select('huevos_b, huevos_a, huevos_aa, huevos_aaa, huevos_jumbo').eq('lote_id', loteId).gte('fecha', inicioSemanaStr),
+    ])
+    setRevisiones(revRes.data ?? [])
+    const acum = { b: 0, a: 0, aa: 0, aaa: 0, jumbo: 0 }
+    for (const r of diariosRes.data ?? []) {
+      acum.b += r.huevos_b; acum.a += r.huevos_a; acum.aa += r.huevos_aa; acum.aaa += r.huevos_aaa; acum.jumbo += r.huevos_jumbo
+    }
+    setSemanaActual(acum)
     setLoading(false)
-  }, [loteId, supabase])
+  }, [loteId, supabase, inicioSemanaStr])
 
   useEffect(() => { fetchRevisiones() }, [fetchRevisiones])
-  useEffect(() => { if (modalOpen) setForm(defaultForm()) }, [modalOpen])
+
+  useEffect(() => {
+    if (!modalOpen) return
+    setForm({
+      fecha: new Date().toISOString().split('T')[0],
+      cantidad_b: String(semanaActual.b),
+      cantidad_a: String(semanaActual.a),
+      cantidad_aa: String(semanaActual.aa),
+      cantidad_aaa: String(semanaActual.aaa),
+      cantidad_jumbo: String(semanaActual.jumbo),
+      observaciones: '',
+    })
+  }, [modalOpen, semanaActual])
 
   function set(field: string, value: string) {
     setForm(prev => ({ ...prev, [field]: value }))
   }
 
-  const totalForm = CATEGORIAS.reduce((s, c) => s + (Number(form[c.key]) || 0), 0)
+  const totalForm = CATEGORIAS.reduce((s, c) => s + (Number(form[c.key as keyof typeof form]) || 0), 0)
+  const totalSemanaActual = semanaActual.b + semanaActual.a + semanaActual.aa + semanaActual.aaa + semanaActual.jumbo
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -88,8 +118,20 @@ export default function RevisionCalidadHuevo({ loteId, fincaId }: Props) {
     fetchRevisiones()
   }
 
+  async function eliminarRevision(r: Revision) {
+    if (confirmandoEliminar !== r.id) { setConfirmandoEliminar(r.id); return }
+    setConfirmandoEliminar(null)
+    const { error } = await supabase.from('revisiones_calidad_huevo_aves').delete().eq('id', r.id)
+    if (error) { toast.error('Error al eliminar la revisión'); return }
+    toast.success('Revisión eliminada')
+    fetchRevisiones()
+  }
+
   function formatDate(d: string) {
     return new Date(d + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
+  }
+  function formatDateCorta(d: Date) {
+    return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })
   }
 
   return (
@@ -100,11 +142,30 @@ export default function RevisionCalidadHuevo({ loteId, fincaId }: Props) {
           + Revisión semanal
         </Button>
       </CardHeader>
-      <CardContent className="p-0">
+      <CardContent className="space-y-3">
+        <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+          <p className="text-xs font-semibold text-amber-700 mb-1">
+            📅 Semana en curso (automático): {formatDateCorta(inicioSemana)} – {formatDateCorta(finSemana)}
+          </p>
+          <p className="text-xs text-amber-600 mb-2">Se calcula solo con lo que ya registraste día a día — va aumentando a medida que pasan los días</p>
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-center">
+            {CATEGORIAS.map(c => (
+              <div key={c.key} className="bg-white rounded-lg border border-amber-100 py-1.5">
+                <p className="text-[10px] text-amber-500 font-medium">{c.label}</p>
+                <p className="text-sm font-bold text-amber-800">{semanaActual[c.semanaKey].toLocaleString('es-CO')}</p>
+              </div>
+            ))}
+            <div className="bg-amber-100 rounded-lg border border-amber-200 py-1.5">
+              <p className="text-[10px] text-amber-700 font-medium">Total</p>
+              <p className="text-sm font-bold text-amber-900">{totalSemanaActual.toLocaleString('es-CO')}</p>
+            </div>
+          </div>
+        </div>
+
         {loading ? (
-          <p className="text-sm text-gray-400 p-4">Cargando...</p>
+          <p className="text-sm text-gray-400">Cargando...</p>
         ) : revisiones.length === 0 ? (
-          <p className="text-sm text-gray-400 p-4">Sin revisiones registradas. La máquina cuenta-huevos clasifica por peso: B, A, AA, AAA y JUMBO.</p>
+          <p className="text-sm text-gray-400">Sin revisiones registradas. La máquina cuenta-huevos clasifica por peso: B, A, AA, AAA y JUMBO.</p>
         ) : (
           <div className="overflow-x-auto">
             <Table>
@@ -117,6 +178,7 @@ export default function RevisionCalidadHuevo({ loteId, fincaId }: Props) {
                   <TableHead className="text-right">AAA</TableHead>
                   <TableHead className="text-right">JUMBO</TableHead>
                   <TableHead className="text-right">Total</TableHead>
+                  <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -131,6 +193,15 @@ export default function RevisionCalidadHuevo({ loteId, fincaId }: Props) {
                     <TableCell className="text-right font-semibold">
                       {(r.cantidad_b + r.cantidad_a + r.cantidad_aa + r.cantidad_aaa + r.cantidad_jumbo).toLocaleString('es-CO')}
                     </TableCell>
+                    <TableCell>
+                      <Button
+                        size="sm" variant="ghost"
+                        className={confirmandoEliminar === r.id ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
+                        onClick={() => eliminarRevision(r)}
+                      >
+                        {confirmandoEliminar === r.id ? '¿Confirmar?' : '🗑️'}
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -143,7 +214,7 @@ export default function RevisionCalidadHuevo({ loteId, fincaId }: Props) {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>🥚 Revisión semanal de calidad de huevo</DialogTitle>
-            <p className="text-sm text-gray-500">Registra el conteo por categoría de peso que arroja la máquina cuenta-huevos</p>
+            <p className="text-sm text-gray-500">Precargado con lo registrado día a día en la semana en curso — ajústalo si la máquina cuenta-huevos difiere</p>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1">
@@ -154,7 +225,7 @@ export default function RevisionCalidadHuevo({ loteId, fincaId }: Props) {
               {CATEGORIAS.map(c => (
                 <div key={c.key} className="space-y-1">
                   <Label className="text-xs">{c.label}</Label>
-                  <Input type="number" min="0" value={form[c.key]} onChange={e => set(c.key, e.target.value)} />
+                  <Input type="number" min="0" value={form[c.key as keyof typeof form]} onChange={e => set(c.key, e.target.value)} />
                 </div>
               ))}
             </div>

@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { CurrencyInput } from '@/components/ui/currency-input'
+import { toSelectItems } from '@/lib/utils'
 import type { Database } from '@/types/database'
 
 type Equipo = Database['public']['Tables']['equipos_aves']['Row']
@@ -117,7 +118,7 @@ export default function CrearEquipoModal({ open, onClose, loteId, fincaId, equip
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <Label>Tipo *</Label>
-              <Select value={form.tipo} onValueChange={v => set('tipo', v)}>
+              <Select value={form.tipo} onValueChange={v => set('tipo', v)} items={toSelectItems(TIPOS)}>
                 <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
                 <SelectContent>{TIPOS.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
               </Select>
@@ -136,18 +137,10 @@ export default function CrearEquipoModal({ open, onClose, loteId, fincaId, equip
             </div>
             <div className="space-y-1">
               <Label>Estado inicial</Label>
-              <Select value={form.estado} onValueChange={v => set('estado', v)}>
+              <Select value={form.estado} onValueChange={v => set('estado', v)} items={toSelectItems(ESTADOS)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>{ESTADOS.map(e => <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>)}</SelectContent>
               </Select>
-            </div>
-            <div className="space-y-1">
-              <Label>Última revisión</Label>
-              <Input type="date" value={form.ultima_revision} onChange={e => set('ultima_revision', e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>Próximo mantenimiento</Label>
-              <Input type="date" value={form.proximo_mantenimiento} onChange={e => set('proximo_mantenimiento', e.target.value)} />
             </div>
             <div className="space-y-1">
               <Label>Costo de compra</Label>
@@ -158,6 +151,16 @@ export default function CrearEquipoModal({ open, onClose, loteId, fincaId, equip
               <Input type="date" value={form.fecha_compra} onChange={e => set('fecha_compra', e.target.value)} />
               <p className="text-xs text-gray-400">Puede ser pasada (equipo antiguo) o futura (compra planificada)</p>
             </div>
+            <div className="space-y-1">
+              <Label>Próximo mantenimiento</Label>
+              <Input type="date" value={form.proximo_mantenimiento} onChange={e => set('proximo_mantenimiento', e.target.value)} />
+            </div>
+            {equipoExistente && (
+              <div className="space-y-1">
+                <Label>Última revisión</Label>
+                <Input type="date" value={form.ultima_revision} onChange={e => set('ultima_revision', e.target.value)} />
+              </div>
+            )}
             <div className="col-span-2 space-y-1">
               <Label>Observaciones</Label>
               <Input placeholder="Notas del equipo..." value={form.observaciones} onChange={e => set('observaciones', e.target.value)} />

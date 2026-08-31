@@ -12,17 +12,24 @@ import RegistrarCostoModal from './RegistrarCostoModal'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { CATEGORIAS_COSTO, categoriaInfo } from '@/lib/costos'
+import { CATEGORIAS_COSTO, CATEGORIAS_COSTO_ITEMS, categoriaInfo } from '@/lib/costos'
 import type { Database } from '@/types/database'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 type Costo = Database['public']['Tables']['costos_lote_aves']['Row']
+type Venta = Database['public']['Tables']['ventas_huevos_aves']['Row']
 
 interface Props { loteActual: LoteAves }
+
+function totalVenta(v: Venta) {
+  return v.cantidad_b * (v.precio_b ?? 0) + v.cantidad_a * (v.precio_a ?? 0) + v.cantidad_aa * (v.precio_aa ?? 0)
+    + v.cantidad_aaa * (v.precio_aaa ?? 0) + v.cantidad_jumbo * (v.precio_jumbo ?? 0)
+}
 
 export default function TabCostos({ loteActual }: Props) {
   const supabase = createClient()
   const [costos, setCostos] = useState<Costo[]>([])
+  const [ventas, setVentas] = useState<Venta[]>([])
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
   const [costoEditar, setCostoEditar] = useState<Costo | null>(null)
@@ -33,8 +40,12 @@ export default function TabCostos({ loteActual }: Props) {
 
   const fetch = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase.from('costos_lote_aves').select('*').eq('lote_id', loteActual.id).order('fecha', { ascending: false })
-    setCostos(data ?? [])
+    const [costosRes, ventasRes] = await Promise.all([
+      supabase.from('costos_lote_aves').select('*').eq('lote_id', loteActual.id).order('fecha', { ascending: false }),
+      supabase.from('ventas_huevos_aves').select('*').eq('lote_id', loteActual.id),
+    ])
+    setCostos(costosRes.data ?? [])
+    setVentas(ventasRes.data ?? [])
     setLoading(false)
   }, [loteActual.id, supabase])
 
@@ -55,13 +66,21 @@ export default function TabCostos({ loteActual }: Props) {
     ? costosDelMes
     : costosDelMes.filter(c => c.categoria === categoriaFiltro || categoriaInfo(c.categoria)?.value === categoriaFiltro)
 
-  const totalPorCategoria = CATEGORIAS_COSTO.map(cat => ({
+  const categoriasAMostrar = categoriaFiltro === 'todas'
+    ? CATEGORIAS_COSTO
+    : CATEGORIAS_COSTO.filter(c => c.value === categoriaFiltro)
+  const totalPorCategoria = categoriasAMostrar.map(cat => ({
     ...cat,
     total: costosDelMes
       .filter(c => c.categoria === cat.value || ('legacy' in cat && cat.legacy?.includes(c.categoria)))
       .reduce((sum, c) => sum + Number(c.monto), 0),
   }))
   const totalGeneral = costosFiltrados.reduce((sum, c) => sum + Number(c.monto), 0)
+
+  const ventasDelMes = mesFiltro === 'todos' ? ventas : ventas.filter(v => v.fecha.slice(0, 7) === mesFiltro)
+  const ingresoTotal = ventasDelMes.reduce((s, v) => s + totalVenta(v), 0)
+  const costoTotalPeriodo = costosDelMes.reduce((s, c) => s + Number(c.monto), 0)
+  const utilidad = ingresoTotal - costoTotalPeriodo
 
   function fmt(d: string) {
     return new Date(d + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -72,10 +91,38 @@ export default function TabCostos({ loteActual }: Props) {
 
   return (
     <div className="space-y-4">
+      <div>
+        <h2 className="text-base font-semibold text-gray-800 mb-2">Resumen Financiero</h2>
+        <div className="grid grid-cols-3 gap-3">
+          <Card className="border-emerald-200 bg-emerald-50">
+            <CardContent className="p-4">
+              <p className="text-xs text-emerald-700 font-medium">Ingresos por ventas</p>
+              <p className="text-xl font-bold text-emerald-800">{cop(ingresoTotal)}</p>
+            </CardContent>
+          </Card>
+          <Card className="border-red-200 bg-red-50">
+            <CardContent className="p-4">
+              <p className="text-xs text-red-700 font-medium">Costos</p>
+              <p className="text-xl font-bold text-red-800">{cop(costoTotalPeriodo)}</p>
+            </CardContent>
+          </Card>
+          <Card className={utilidad >= 0 ? 'border-green-300 bg-green-50' : 'border-red-300 bg-red-50'}>
+            <CardContent className="p-4">
+              <p className={`text-xs font-medium ${utilidad >= 0 ? 'text-green-700' : 'text-red-700'}`}>Utilidad</p>
+              <p className={`text-xl font-bold ${utilidad >= 0 ? 'text-green-800' : 'text-red-800'}`}>{cop(utilidad)}</p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-base font-semibold text-gray-800">Insumos y Costos Operativos</h2>
         <div className="flex items-center gap-2">
-          <Select value={mesFiltro} onValueChange={v => setMesFiltro(v ?? 'todos')}>
+          <Select
+            value={mesFiltro}
+            onValueChange={v => setMesFiltro(v ?? 'todos')}
+            items={{ todos: 'Todos los meses', ...Object.fromEntries(mesesDisponibles.map(m => [m, new Date(m + '-01T00:00:00').toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })])) }}
+          >
             <SelectTrigger className="w-40"><SelectValue placeholder="Mes" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="todos">Todos los meses</SelectItem>
@@ -86,7 +133,11 @@ export default function TabCostos({ loteActual }: Props) {
               ))}
             </SelectContent>
           </Select>
-          <Select value={categoriaFiltro} onValueChange={v => setCategoriaFiltro(v ?? 'todas')}>
+          <Select
+            value={categoriaFiltro}
+            onValueChange={v => setCategoriaFiltro(v ?? 'todas')}
+            items={{ todas: 'Todas las categorías', ...CATEGORIAS_COSTO_ITEMS }}
+          >
             <SelectTrigger className="w-44"><SelectValue placeholder="Categoría" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="todas">Todas las categorías</SelectItem>

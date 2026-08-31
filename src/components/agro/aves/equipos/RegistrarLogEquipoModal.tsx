@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { toSelectItems } from '@/lib/utils'
 
 interface Props {
   open: boolean
@@ -79,7 +80,7 @@ export default function RegistrarLogEquipoModal({ open, onClose, equipoId, equip
             </div>
             <div className="space-y-1">
               <Label>Estado</Label>
-              <Select value={form.estado_registrado} onValueChange={v => set('estado_registrado', v)}>
+              <Select value={form.estado_registrado} onValueChange={v => set('estado_registrado', v)} items={toSelectItems(ESTADOS)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>{ESTADOS.map(e => <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>)}</SelectContent>
               </Select>

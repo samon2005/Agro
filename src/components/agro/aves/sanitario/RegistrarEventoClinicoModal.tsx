@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { toSelectItems } from '@/lib/utils'
+import EncargadoSelect from '@/components/agro/EncargadoSelect'
 import type { Database } from '@/types/database'
 
 type EventoClinico = Database['public']['Tables']['eventos_clinicos_aves']['Row']
@@ -95,7 +97,7 @@ export default function RegistrarEventoClinicoModal({ open, onClose, loteId, fin
             </div>
             <div className="space-y-1">
               <Label>Tipo de signo *</Label>
-              <Select value={form.tipo_evento} onValueChange={v => set('tipo_evento', v)}>
+              <Select value={form.tipo_evento} onValueChange={v => set('tipo_evento', v)} items={toSelectItems(TIPOS)}>
                 <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
                 <SelectContent>{TIPOS.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
               </Select>
@@ -118,7 +120,7 @@ export default function RegistrarEventoClinicoModal({ open, onClose, loteId, fin
             </div>
             <div className="space-y-1">
               <Label>Encargado</Label>
-              <Input placeholder="Nombre del encargado" value={form.encargado} onChange={e => set('encargado', e.target.value)} />
+              <EncargadoSelect fincaId={fincaId} value={form.encargado} onChange={v => set('encargado', v)} />
             </div>
             <div className="col-span-2 space-y-1">
               <Label>Observaciones</Label>

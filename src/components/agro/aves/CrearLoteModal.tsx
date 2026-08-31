@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { CurrencyInput } from '@/components/ui/currency-input'
 import type { Database } from '@/types/database'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
@@ -29,6 +30,7 @@ function defaultForm() {
     aves_iniciales: '',
     area_galpon_m2: '',
     estado: 'preparacion',
+    costo_pollitas: '',
     observaciones: '',
   }
 }
@@ -73,6 +75,17 @@ export default function CrearLoteModal({ open, onClose, fincaId, onCreated }: Pr
       .select()
       .single()
 
+    if (!error && data && form.costo_pollitas && Number(form.costo_pollitas) > 0) {
+      await supabase.from('costos_lote_aves').insert({
+        lote_id: data.id,
+        finca_id: fincaId,
+        fecha: form.fecha_inicio,
+        categoria: 'pollitas',
+        descripcion: `Compra de pollitas - ${data.nombre}`,
+        monto: Number(form.costo_pollitas),
+      })
+    }
+
     setLoading(false)
     if (error) { toast.error('Error al crear el lote'); return }
     toast.success(`Lote "${data.nombre}" creado`)
@@ -113,13 +126,22 @@ export default function CrearLoteModal({ open, onClose, fincaId, onCreated }: Pr
               <Label>Área del galpón (m²)</Label>
               <Input type="number" min="0" step="0.1" placeholder="Ej: 300" value={form.area_galpon_m2} onChange={e => set('area_galpon_m2', e.target.value)} />
             </div>
+            <div className="space-y-1">
+              <Label>Costo de las pollitas</Label>
+              <CurrencyInput placeholder="Ej: 15000000" value={form.costo_pollitas} onValueChange={v => set('costo_pollitas', v)} />
+              <p className="text-xs text-gray-400">Se registra como costo en Finanzas</p>
+            </div>
             <div className="col-span-2 space-y-1">
               <Label>Densidad estimada</Label>
               <Input disabled value={densidad ? `${densidad} aves/m²` : '—'} />
             </div>
             <div className="col-span-2 space-y-1">
               <Label>Estado inicial</Label>
-              <Select value={form.estado} onValueChange={v => set('estado', v)}>
+              <Select
+                value={form.estado}
+                onValueChange={v => set('estado', v)}
+                items={{ preparacion: 'En preparación (levante, aún sin postura)', activo: 'Activo (ya está en producción de huevo)' }}
+              >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="preparacion">En preparación (levante, aún sin postura)</SelectItem>

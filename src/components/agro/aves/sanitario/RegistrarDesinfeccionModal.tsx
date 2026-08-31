@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { CurrencyInput } from '@/components/ui/currency-input'
+import EncargadoSelect from '@/components/agro/EncargadoSelect'
 import type { Database } from '@/types/database'
 
 type Desinfeccion = Database['public']['Tables']['desinfecciones_aves']['Row']
@@ -58,11 +59,11 @@ export default function RegistrarDesinfeccionModal({ open, onClose, loteId, finc
       costo: form.costo ? Number(form.costo) : null,
       observaciones: form.observaciones || null,
     }
-    const { error } = desinfeccionExistente
-      ? await supabase.from('desinfecciones_aves').update(payload).eq('id', desinfeccionExistente.id)
-      : await supabase.from('desinfecciones_aves').insert({ ...payload, lote_id: loteId, finca_id: fincaId })
+    const { data: desinfeccion, error } = desinfeccionExistente
+      ? await supabase.from('desinfecciones_aves').update(payload).eq('id', desinfeccionExistente.id).select().single()
+      : await supabase.from('desinfecciones_aves').insert({ ...payload, lote_id: loteId, finca_id: fincaId }).select().single()
 
-    if (!error && !desinfeccionExistente && form.costo && Number(form.costo) > 0) {
+    if (!error && !desinfeccionExistente && desinfeccion && form.costo && Number(form.costo) > 0) {
       await supabase.from('costos_lote_aves').insert({
         lote_id: loteId,
         finca_id: fincaId,
@@ -70,6 +71,7 @@ export default function RegistrarDesinfeccionModal({ open, onClose, loteId, finc
         categoria: 'sanitario',
         descripcion: `Desinfección: ${form.producto.trim()}`,
         monto: Number(form.costo),
+        desinfeccion_id: desinfeccion.id,
       })
     }
 
@@ -106,7 +108,7 @@ export default function RegistrarDesinfeccionModal({ open, onClose, loteId, finc
             </div>
             <div className="space-y-1">
               <Label>Responsable</Label>
-              <Input placeholder="Nombre" value={form.responsable} onChange={e => set('responsable', e.target.value)} />
+              <EncargadoSelect fincaId={fincaId} value={form.responsable} onChange={v => set('responsable', v)} />
             </div>
             <div className="space-y-1">
               <Label>Costo</Label>

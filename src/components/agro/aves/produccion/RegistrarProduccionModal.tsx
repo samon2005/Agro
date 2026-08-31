@@ -18,7 +18,6 @@ interface Props {
   loteId: string
   fincaId: string
   avesActuales: number
-  metaPostura?: number
   registroExistente?: ProduccionDiaria | null
   onCreated: () => void
 }
@@ -27,6 +26,19 @@ const CAUSAS_MUERTE = [
   'Marek', 'Newcastle', 'Bronquitis', 'Gumboro', 'Laringotraqueitis',
   'Coccidiosis', 'Micoplasmosis', 'Accidente', 'Estrés calórico', 'Otra'
 ]
+
+const CAUSA_A_TIPO_EVENTO: Record<string, string> = {
+  'Marek': 'nervioso',
+  'Newcastle': 'respiratorio',
+  'Bronquitis': 'respiratorio',
+  'Gumboro': 'digestivo',
+  'Laringotraqueitis': 'respiratorio',
+  'Coccidiosis': 'digestivo',
+  'Micoplasmosis': 'respiratorio',
+  'Accidente': 'otro',
+  'Estrés calórico': 'otro',
+  'Otra': 'otro',
+}
 
 function defaultForm(avesActuales: number, r?: ProduccionDiaria | null) {
   return {
@@ -46,7 +58,7 @@ function defaultForm(avesActuales: number, r?: ProduccionDiaria | null) {
   }
 }
 
-export default function RegistrarProduccionModal({ open, onClose, loteId, fincaId, avesActuales, metaPostura = 90, registroExistente, onCreated }: Props) {
+export default function RegistrarProduccionModal({ open, onClose, loteId, fincaId, avesActuales, registroExistente, onCreated }: Props) {
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState(() => defaultForm(avesActuales, registroExistente))
@@ -77,7 +89,7 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
     setLoading(true)
     const { data: existing } = await supabase
       .from('produccion_diaria_aves')
-      .select('id, muertes')
+      .select('id, muertes, causa_muerte')
       .eq('lote_id', loteId)
       .eq('fecha', form.fecha)
       .maybeSingle()
@@ -118,6 +130,19 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
         .eq('id', loteId)
     }
 
+    const causaNueva = Number(form.muertes) > 0 && form.causa_muerte && form.causa_muerte !== (existing?.causa_muerte ?? '')
+    if (!error && causaNueva) {
+      await supabase.from('eventos_clinicos_aves').insert({
+        lote_id: loteId,
+        finca_id: fincaId,
+        fecha: form.fecha,
+        tipo_evento: CAUSA_A_TIPO_EVENTO[form.causa_muerte] ?? 'otro',
+        descripcion: `Mortalidad reportada: ${form.causa_muerte}`,
+        aves_muertas: Number(form.muertes),
+      })
+      toast.warning(`⚠️ ¡Cuidado! Muertes por ${form.causa_muerte}`)
+    }
+
     setLoading(false)
     if (error) { toast.error('Error al guardar el registro'); return }
     toast.success(existing ? 'Registro actualizado' : 'Producción registrada')
@@ -147,7 +172,7 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
             <div className="flex items-center justify-between">
               <p className="text-xs font-semibold text-yellow-700">Huevos puestos por tamaño</p>
               {postura && (
-                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${Number(postura) >= metaPostura ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${Number(postura) >= 80 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                   Postura: {postura}%
                 </span>
               )}

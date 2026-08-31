@@ -13,6 +13,7 @@ import TabProduccion from '@/components/agro/aves/produccion/TabProduccion'
 import TabAmbiental from '@/components/agro/aves/ambiental/TabAmbiental'
 import TabSanitario from '@/components/agro/aves/sanitario/TabSanitario'
 import TabCostos from '@/components/agro/aves/costos/TabCostos'
+import TabVentas from '@/components/agro/aves/ventas/TabVentas'
 import TabEquipos from '@/components/agro/aves/equipos/TabEquipos'
 import { calcularFechaLiberacion } from '@/lib/sanitario'
 import type { Database } from '@/types/database'
@@ -23,13 +24,14 @@ type Equipo = Database['public']['Tables']['equipos_aves']['Row']
 type Ambiental = Database['public']['Tables']['parametros_ambientales_aves']['Row']
 type Produccion = Database['public']['Tables']['produccion_diaria_aves']['Row']
 
-type Tab = 'produccion' | 'ambiental' | 'sanitario' | 'costos' | 'equipos'
+type Tab = 'produccion' | 'ambiental' | 'sanitario' | 'ventas' | 'costos' | 'equipos'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'produccion', label: '🥚 Producción' },
   { id: 'ambiental', label: '🌡️ Ambiental' },
   { id: 'sanitario', label: '💉 Sanitario' },
-  { id: 'costos', label: '💰 Costos' },
+  { id: 'ventas', label: '🧾 Ventas' },
+  { id: 'costos', label: '💰 Finanzas' },
   { id: 'equipos', label: '⚙️ Equipos' },
 ]
 
@@ -49,6 +51,8 @@ export default function AvesPonedorasPage() {
 
   // Alertas cross-módulo
   const [alertas, setAlertas] = useState<Alerta[]>([])
+  const [alertasVersion, setAlertasVersion] = useState(0)
+  const bumpAlertas = useCallback(() => setAlertasVersion(v => v + 1), [])
 
   const fetchLotes = useCallback(async () => {
     if (!fincaActual) return
@@ -60,8 +64,15 @@ export default function AvesPonedorasPage() {
       .in('estado', ['activo', 'preparacion'])
       .order('created_at', { ascending: false })
     setLotes(data ?? [])
-    if (data && data.length > 0 && !loteActual) {
-      setLoteActual(data[0])
+    if (data && data.length > 0) {
+      if (!loteActual) {
+        setLoteActual(data[0])
+      } else {
+        const refrescado = data.find(l => l.id === loteActual.id)
+        setLoteActual(refrescado ?? data[0])
+      }
+    } else if (loteActual) {
+      setLoteActual(null)
     }
     setLoadingLotes(false)
   }, [fincaActual, loteActual, supabase])
@@ -107,7 +118,7 @@ export default function AvesPonedorasPage() {
       setAlertas(nuevasAlertas)
     }
     evalAlertas()
-  }, [loteActual?.id, supabase])
+  }, [loteActual?.id, supabase, alertasVersion])
 
   if (fincaLoading) {
     return <div className="p-6 text-gray-500">Cargando...</div>
@@ -218,10 +229,15 @@ export default function AvesPonedorasPage() {
                     fetchLotes()
                     if (updated) setLoteActual(updated)
                   }}
+                  onLoteDeleted={() => {
+                    setLoteActual(null)
+                    fetchLotes()
+                  }}
                 />
               )}
               {activeTab === 'ambiental' && <TabAmbiental loteActual={loteActual} finca={fincaActual} />}
-              {activeTab === 'sanitario' && <TabSanitario loteActual={loteActual} />}
+              {activeTab === 'sanitario' && <TabSanitario loteActual={loteActual} onChange={bumpAlertas} />}
+              {activeTab === 'ventas' && (rol === 'trabajador' ? <AccesoRestringido /> : <TabVentas loteActual={loteActual} />)}
               {activeTab === 'costos' && (rol === 'trabajador' ? <AccesoRestringido /> : <TabCostos loteActual={loteActual} />)}
               {activeTab === 'equipos' && <TabEquipos loteActual={loteActual} />}
             </div>

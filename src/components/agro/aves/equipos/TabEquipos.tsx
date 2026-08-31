@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
+import { avisoCostoVinculado } from '@/lib/eliminarConAviso'
 import CrearEquipoModal from './CrearEquipoModal'
 import RegistrarLogEquipoModal from './RegistrarLogEquipoModal'
 import type { Database } from '@/types/database'
@@ -62,7 +63,12 @@ export default function TabEquipos({ loteActual }: Props) {
   useEffect(() => { fetch() }, [fetch])
 
   async function eliminarEquipo(equipo: Equipo) {
-    if (confirmandoEliminar !== equipo.id) { setConfirmandoEliminar(equipo.id); return }
+    if (confirmandoEliminar !== equipo.id) {
+      setConfirmandoEliminar(equipo.id)
+      const aviso = await avisoCostoVinculado(supabase, 'equipo_id', equipo.id)
+      if (aviso) toast.warning(aviso)
+      return
+    }
     setConfirmandoEliminar(null)
     const { error } = await supabase.from('equipos_aves').delete().eq('id', equipo.id)
     if (error) { toast.error('Error al eliminar el equipo'); return }

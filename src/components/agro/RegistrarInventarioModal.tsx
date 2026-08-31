@@ -19,10 +19,11 @@ type Props = {
   open: boolean
   onClose: () => void
   fincaId: string
+  categoriaSugerida?: string
   onCreated: () => void
 }
 
-export default function RegistrarInventarioModal({ open, onClose, fincaId, onCreated }: Props) {
+export default function RegistrarInventarioModal({ open, onClose, fincaId, categoriaSugerida, onCreated }: Props) {
   const [loading, setLoading] = useState(false)
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [categoriaId, setCategoriaId] = useState('')
@@ -43,8 +44,15 @@ export default function RegistrarInventarioModal({ open, onClose, fincaId, onCre
     setPrecioUnitario('')
     const supabase = createClient()
     supabase.from('inventario_categorias').select('*').eq('finca_id', fincaId).order('nombre')
-      .then(({ data }) => setCategorias(data ?? []))
-  }, [open, fincaId])
+      .then(({ data }) => {
+        setCategorias(data ?? [])
+        if (categoriaSugerida) {
+          const existente = (data ?? []).find(c => c.nombre.toLowerCase() === categoriaSugerida.toLowerCase())
+          if (existente) setCategoriaId(existente.id)
+          else setNuevaCategoria(categoriaSugerida)
+        }
+      })
+  }, [open, fincaId, categoriaSugerida])
 
   async function crearCategoria() {
     if (!nuevaCategoria.trim()) return
@@ -110,7 +118,11 @@ export default function RegistrarInventarioModal({ open, onClose, fincaId, onCre
           <div className="space-y-1.5">
             <Label>Categoría</Label>
             <div className="flex gap-2">
-              <Select onValueChange={(v: string | null) => setCategoriaId(v ?? '')} value={categoriaId}>
+              <Select
+                onValueChange={(v: string | null) => setCategoriaId(v ?? '')}
+                value={categoriaId}
+                items={Object.fromEntries(categorias.map(c => [c.id, c.nombre]))}
+              >
                 <SelectTrigger className="flex-1">
                   <SelectValue placeholder="Seleccionar categoría" />
                 </SelectTrigger>
@@ -141,7 +153,7 @@ export default function RegistrarInventarioModal({ open, onClose, fincaId, onCre
             </div>
             <div className="space-y-1.5">
               <Label>Unidad de Medida</Label>
-              <Select onValueChange={(v: string | null) => setUnidad(v ?? '')}>
+              <Select onValueChange={(v: string | null) => setUnidad(v ?? '')} value={unidad}>
                 <SelectTrigger>
                   <SelectValue placeholder="Unidad" />
                 </SelectTrigger>

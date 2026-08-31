@@ -7,9 +7,11 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { calcularFechaLiberacion } from '@/lib/sanitario'
+import { avisoCostoVinculado } from '@/lib/eliminarConAviso'
 import RegistrarVacunacionModal from './RegistrarVacunacionModal'
 import RegistrarMedicacionModal from './RegistrarMedicacionModal'
 import RegistrarEventoClinicoModal from './RegistrarEventoClinicoModal'
@@ -25,7 +27,7 @@ type Recordatorio = Database['public']['Tables']['recordatorios_medicacion_aves'
 
 type SubTab = 'vacunas' | 'medicaciones' | 'eventos' | 'desinfecciones'
 
-interface Props { loteActual: LoteAves }
+interface Props { loteActual: LoteAves; onChange?: () => void }
 
 function cop(n: number) {
   return n.toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })
@@ -36,9 +38,9 @@ const TIPO_LABELS: Record<string, string> = {
   reproductivo: '🥚 Reproductivo', nervioso: '🧠 Nervioso', piel: '🐾 Piel/Plumas', otro: '❓ Otro'
 }
 
-export default function TabSanitario({ loteActual }: Props) {
+export default function TabSanitario({ loteActual, onChange }: Props) {
   const supabase = createClient()
-  const [subTab, setSubTab] = useState<SubTab>('vacunas')
+  const [subTab, setSubTab] = useState<SubTab>('eventos')
   const [vacunas, setVacunas] = useState<Vacunacion[]>([])
   const [medicaciones, setMedicaciones] = useState<Medicacion[]>([])
   const [eventos, setEventos] = useState<EventoClinico[]>([])
@@ -54,6 +56,7 @@ export default function TabSanitario({ loteActual }: Props) {
   const [medEditar, setMedEditar] = useState<Medicacion | null>(null)
   const [eventoEditar, setEventoEditar] = useState<EventoClinico | null>(null)
   const [desinfeccionEditar, setDesinfeccionEditar] = useState<Desinfeccion | null>(null)
+  const [seguimientoEventoId, setSeguimientoEventoId] = useState<string | null>(null)
   const [confirmandoEliminar, setConfirmandoEliminar] = useState<string | null>(null)
 
   const fetchAll = useCallback(async () => {
@@ -71,16 +74,36 @@ export default function TabSanitario({ loteActual }: Props) {
     setDesinfecciones(d.data ?? [])
     setRecordatorios(r.data ?? [])
     setLoading(false)
-  }, [loteActual.id, supabase])
+    onChange?.()
+  }, [loteActual.id, supabase, onChange])
 
   async function completarRecordatorio(id: string) {
     await supabase.from('recordatorios_medicacion_aves').update({ completado: true }).eq('id', id)
     setRecordatorios(prev => prev.filter(r => r.id !== id))
   }
 
+  async function eliminarRecordatorio(id: string) {
+    await supabase.from('recordatorios_medicacion_aves').delete().eq('id', id)
+    setRecordatorios(prev => prev.filter(r => r.id !== id))
+  }
+
+  const COLUMNA_COSTO: Record<string, 'medicacion_id' | 'vacunacion_id' | 'desinfeccion_id'> = {
+    medicaciones_aves: 'medicacion_id',
+    vacunaciones_aves: 'vacunacion_id',
+    desinfecciones_aves: 'desinfeccion_id',
+  }
+
   async function eliminar(tabla: 'vacunaciones_aves' | 'medicaciones_aves' | 'eventos_clinicos_aves' | 'desinfecciones_aves', id: string) {
     const key = `${tabla}-${id}`
-    if (confirmandoEliminar !== key) { setConfirmandoEliminar(key); return }
+    if (confirmandoEliminar !== key) {
+      setConfirmandoEliminar(key)
+      const columna = COLUMNA_COSTO[tabla]
+      if (columna) {
+        const aviso = await avisoCostoVinculado(supabase, columna, id)
+        if (aviso) toast.warning(aviso)
+      }
+      return
+    }
     setConfirmandoEliminar(null)
     const { error } = await supabase.from(tabla).delete().eq('id', id)
     if (error) { toast.error('Error al eliminar el registro'); return }
@@ -117,9 +140,9 @@ export default function TabSanitario({ loteActual }: Props) {
   }
 
   const subTabItems: { id: SubTab; label: string; count: number }[] = [
-    { id: 'vacunas', label: '💉 Vacunaciones', count: vacunas.length },
-    { id: 'medicaciones', label: '💊 Tratamientos', count: medicaciones.length },
     { id: 'eventos', label: '🏥 Eventos Clínicos', count: eventos.length },
+    { id: 'medicaciones', label: '💊 Tratamientos', count: medicaciones.length },
+    { id: 'vacunas', label: '💉 Vacunaciones', count: vacunas.length },
     { id: 'desinfecciones', label: '🧴 Desinfección', count: desinfecciones.length },
   ]
 
@@ -151,11 +174,16 @@ export default function TabSanitario({ loteActual }: Props) {
             {recordatoriosVisibles.map(r => (
               <div key={r.id} className="flex items-center justify-between gap-2 text-sm">
                 <span className={cn(r.fecha <= hoyStr ? 'text-red-700 font-medium' : 'text-blue-700')}>
-                  {r.fecha <= hoyStr ? '⏰' : '📅'} Aplicar <strong>{medicamentoPorId.get(r.medicacion_id) ?? 'medicamento'}</strong> — {fmt(r.fecha)}{r.hora ? ` a las ${r.hora}` : ''}
+                  {r.fecha <= hoyStr ? '⏰' : '📅'} Aplicar <strong>{medicamentoPorId.get(r.medicacion_id) ?? 'Medicamento'}</strong> — {fmt(r.fecha)}{r.hora ? ` a las ${r.hora}` : ''}
                 </span>
-                <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => completarRecordatorio(r.id)}>
-                  ✓ Hecho
-                </Button>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => completarRecordatorio(r.id)}>
+                    ✓ Hecho
+                  </Button>
+                  <Button size="sm" variant="ghost" className="text-xs h-7 px-2 text-red-600" onClick={() => eliminarRecordatorio(r.id)}>
+                    🗑️
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
@@ -332,9 +360,15 @@ export default function TabSanitario({ loteActual }: Props) {
                           <TableCell className="text-right text-sm text-red-600">{ev.aves_muertas || '—'}</TableCell>
                           <TableCell className="text-sm text-gray-500 max-w-[150px] truncate">{ev.accion_tomada ?? '—'}</TableCell>
                           <TableCell>
-                            <Badge className={tieneTratamiento ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}>
-                              {tieneTratamiento ? 'En tratamiento' : 'Sin tratamiento'}
-                            </Badge>
+                            <button
+                              type="button"
+                              onClick={() => tieneTratamiento && setSeguimientoEventoId(ev.id)}
+                              className={cn('inline-block', tieneTratamiento && 'cursor-pointer')}
+                            >
+                              <Badge className={tieneTratamiento ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : 'bg-gray-100 text-gray-600'}>
+                                {tieneTratamiento ? '📋 En tratamiento' : 'Sin tratamiento'}
+                              </Badge>
+                            </button>
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center justify-end gap-1">
@@ -414,6 +448,7 @@ export default function TabSanitario({ loteActual }: Props) {
         onClose={() => { setModalVacuna(false); setVacunaEditar(null) }}
         loteId={loteActual.id}
         fincaId={loteActual.finca_id}
+        avesActuales={loteActual.aves_actuales}
         vacunacionExistente={vacunaEditar}
         onCreated={fetchAll}
       />
@@ -425,6 +460,7 @@ export default function TabSanitario({ loteActual }: Props) {
         eventoClinicoId={eventoClinicoIdActivo}
         medicacionExistente={medEditar}
         onCreated={fetchAll}
+        onCrearEvento={() => { setModalMed(false); setEventoEditar(null); setModalEvento(true) }}
       />
       <RegistrarEventoClinicoModal
         open={modalEvento}
@@ -445,6 +481,45 @@ export default function TabSanitario({ loteActual }: Props) {
         desinfeccionExistente={desinfeccionEditar}
         onCreated={fetchAll}
       />
+
+      <Dialog open={seguimientoEventoId != null} onOpenChange={v => !v && setSeguimientoEventoId(null)}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>📋 Seguimiento del tratamiento</DialogTitle>
+          </DialogHeader>
+          {(() => {
+            const historial = medicaciones
+              .filter(m => m.evento_clinico_id === seguimientoEventoId)
+              .sort((a, b) => a.fecha_inicio.localeCompare(b.fecha_inicio))
+            return (
+              <div className="space-y-2">
+                {historial.map((m, i) => {
+                  const anterior = historial[i - 1]
+                  const cambioMed = anterior && anterior.medicamento !== m.medicamento
+                  const cambioDosis = anterior && anterior.dosis !== m.dosis
+                  return (
+                    <div key={m.id} className="border-l-2 border-blue-300 pl-3 py-1">
+                      <p className="text-xs text-gray-400">{fmt(m.fecha_inicio)}{m.fecha_fin ? ` – ${fmt(m.fecha_fin)}` : ''}</p>
+                      <p className="text-sm font-medium text-gray-800">
+                        {m.medicamento}{m.dosis ? ` · ${m.dosis}` : ''}
+                      </p>
+                      {(cambioMed || cambioDosis) && (
+                        <p className="text-xs text-amber-600">
+                          ⚠️ {cambioMed ? `Cambió el medicamento (antes: ${anterior.medicamento})` : ''}
+                          {cambioMed && cambioDosis ? ' · ' : ''}
+                          {cambioDosis ? `Cambió la dosis (antes: ${anterior.dosis ?? '—'})` : ''}
+                        </p>
+                      )}
+                      {m.motivo && <p className="text-xs text-gray-500">{m.motivo}</p>}
+                    </div>
+                  )
+                })}
+                {historial.length === 0 && <p className="text-sm text-gray-400">Sin tratamientos registrados para este evento</p>}
+              </div>
+            )
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { CurrencyInput } from '@/components/ui/currency-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import EncargadoSelect from '@/components/agro/EncargadoSelect'
 import type { Database } from '@/types/database'
 
 type Vacunacion = Database['public']['Tables']['vacunaciones_aves']['Row']
@@ -18,6 +19,7 @@ interface Props {
   onClose: () => void
   loteId: string
   fincaId: string
+  avesActuales?: number
   vacunacionExistente?: Vacunacion | null
   onCreated: () => void
 }
@@ -47,6 +49,7 @@ function defaultForm(vac?: Vacunacion | null) {
     dosis_valor: dosisValor,
     dosis_unidad: dosisUnidad,
     laboratorio: vac?.laboratorio ?? '',
+    proveedor: vac?.proveedor ?? '',
     numero_aves: vac?.numero_aves != null ? String(vac.numero_aves) : '',
     costo: vac?.costo != null ? String(vac.costo) : '',
     proxima_dosis: vac?.proxima_dosis ?? '',
@@ -61,7 +64,7 @@ function splitDosis(dosis: string): [string, string] {
   return match ? [match[1], match[2]] : ['', dosis]
 }
 
-export default function RegistrarVacunacionModal({ open, onClose, loteId, fincaId, vacunacionExistente, onCreated }: Props) {
+export default function RegistrarVacunacionModal({ open, onClose, loteId, fincaId, avesActuales, vacunacionExistente, onCreated }: Props) {
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState(() => defaultForm(vacunacionExistente))
@@ -94,17 +97,18 @@ export default function RegistrarVacunacionModal({ open, onClose, loteId, fincaI
       via_administracion: form.via_administracion || null,
       dosis,
       laboratorio: form.laboratorio || null,
+      proveedor: form.proveedor || null,
       numero_aves: form.numero_aves ? Number(form.numero_aves) : null,
       costo: form.costo ? Number(form.costo) : null,
       proxima_dosis: form.proxima_dosis || null,
       veterinario: form.encargado || null,
       observaciones: form.observaciones || null,
     }
-    const { error } = vacunacionExistente
-      ? await supabase.from('vacunaciones_aves').update(payload).eq('id', vacunacionExistente.id)
-      : await supabase.from('vacunaciones_aves').insert({ ...payload, lote_id: loteId, finca_id: fincaId })
+    const { data: vacunacion, error } = vacunacionExistente
+      ? await supabase.from('vacunaciones_aves').update(payload).eq('id', vacunacionExistente.id).select().single()
+      : await supabase.from('vacunaciones_aves').insert({ ...payload, lote_id: loteId, finca_id: fincaId }).select().single()
 
-    if (!error && !vacunacionExistente && form.costo && Number(form.costo) > 0) {
+    if (!error && !vacunacionExistente && vacunacion && form.costo && Number(form.costo) > 0) {
       await supabase.from('costos_lote_aves').insert({
         lote_id: loteId,
         finca_id: fincaId,
@@ -112,6 +116,7 @@ export default function RegistrarVacunacionModal({ open, onClose, loteId, fincaI
         categoria: 'sanitario',
         descripcion: `Vacuna: ${vacunaFinal.trim()}`,
         monto: Number(form.costo),
+        vacunacion_id: vacunacion.id,
       })
     }
 
@@ -170,8 +175,12 @@ export default function RegistrarVacunacionModal({ open, onClose, loteId, fincaI
               <Input placeholder="Fabricante" value={form.laboratorio} onChange={e => set('laboratorio', e.target.value)} />
             </div>
             <div className="space-y-1">
+              <Label>Proveedor</Label>
+              <Input placeholder="¿Dónde se compró?" value={form.proveedor} onChange={e => set('proveedor', e.target.value)} />
+            </div>
+            <div className="space-y-1">
               <Label>N° aves vacunadas</Label>
-              <Input type="number" min="0" value={form.numero_aves} onChange={e => set('numero_aves', e.target.value)} />
+              <Input type="number" min="0" placeholder={avesActuales != null ? String(avesActuales) : undefined} value={form.numero_aves} onChange={e => set('numero_aves', e.target.value)} />
             </div>
             <div className="space-y-1">
               <Label>Costo</Label>
@@ -187,7 +196,7 @@ export default function RegistrarVacunacionModal({ open, onClose, loteId, fincaI
             </div>
             <div className="space-y-1">
               <Label>Encargado</Label>
-              <Input placeholder="Nombre del encargado" value={form.encargado} onChange={e => set('encargado', e.target.value)} />
+              <EncargadoSelect fincaId={fincaId} value={form.encargado} onChange={v => set('encargado', v)} />
             </div>
             <div className="col-span-2 space-y-1">
               <Label>Observaciones</Label>

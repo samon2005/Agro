@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import RegistrarAmbientalModal from './RegistrarAmbientalModal'
 import { getClimaActual, recomendacionesAmbientales, type ClimaActual } from '@/lib/clima'
+import { toast } from 'sonner'
 import type { Database } from '@/types/database'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
@@ -60,6 +61,7 @@ export default function TabAmbiental({ loteActual, finca }: Props) {
   const [modalOpen, setModalOpen] = useState(false)
   const [climaExterior, setClimaExterior] = useState<ClimaActual | null>(null)
   const [climaLoading, setClimaLoading] = useState(false)
+  const [confirmandoEliminar, setConfirmandoEliminar] = useState<string | null>(null)
 
   const fetch = useCallback(async () => {
     setLoading(true)
@@ -97,6 +99,15 @@ export default function TabAmbiental({ loteActual, finca }: Props) {
 
   function fmt(d: string) {
     return new Date(d + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })
+  }
+
+  async function eliminar(r: Parametro) {
+    if (confirmandoEliminar !== r.id) { setConfirmandoEliminar(r.id); return }
+    setConfirmandoEliminar(null)
+    const { error } = await supabase.from('parametros_ambientales_aves').delete().eq('id', r.id)
+    if (error) { toast.error('Error al eliminar la lectura'); return }
+    toast.success('Lectura eliminada')
+    fetch()
   }
 
   return (
@@ -209,6 +220,7 @@ export default function TabAmbiental({ loteActual, finca }: Props) {
                     <TableHead className="text-right">CO₂ (ppm)</TableHead>
                     <TableHead className="text-right">Lux</TableHead>
                     <TableHead>Fuente</TableHead>
+                    <TableHead></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -223,6 +235,15 @@ export default function TabAmbiental({ loteActual, finca }: Props) {
                       <TableCell className={`text-right text-sm ${r.co2_ppm && r.co2_ppm > 3000 ? 'text-red-600 font-semibold' : ''}`}>{r.co2_ppm?.toFixed(0) ?? '—'}</TableCell>
                       <TableCell className="text-right text-sm">{r.lux_intensidad?.toFixed(0) ?? '—'}</TableCell>
                       <TableCell><Badge variant="secondary" className="text-[10px]">{r.fuente === 'sensor' ? '📡 Sensor' : '✍️ Manual'}</Badge></TableCell>
+                      <TableCell>
+                        <Button
+                          size="sm" variant="ghost"
+                          className={confirmandoEliminar === r.id ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
+                          onClick={() => eliminar(r)}
+                        >
+                          {confirmandoEliminar === r.id ? '¿Confirmar?' : '🗑️'}
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

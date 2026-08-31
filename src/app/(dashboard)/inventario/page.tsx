@@ -32,7 +32,7 @@ export default function InventarioPage() {
   const [items, setItems] = useState<Item[]>([])
   const [loading, setLoading] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
-  const [tab, setTab] = useState<'insumos' | 'equipos'>('insumos')
+  const [tab, setTab] = useState<'insumos' | 'alimento' | 'farmacos' | 'equipos'>('insumos')
   const [borrandoId, setBorrandoId] = useState<string | null>(null)
   const [confirmandoId, setConfirmandoId] = useState<string | null>(null)
 
@@ -70,12 +70,26 @@ export default function InventarioPage() {
     setBorrandoId(null)
   }
 
-  const stockBajo = items.filter(i => i.cantidad_actual <= i.cantidad_minima && i.cantidad_minima > 0)
-  const porVencer = items.filter(i => {
+  function normaliza(s: string) {
+    return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+  }
+
+  const itemsVista = items.filter(i => {
+    const cat = i.inventario_categorias?.nombre ? normaliza(i.inventario_categorias.nombre) : ''
+    if (tab === 'alimento') return cat === 'alimento'
+    if (tab === 'farmacos') return cat === 'farmacos' || cat === 'medicamentos'
+    if (tab === 'insumos') return cat !== 'alimento' && cat !== 'farmacos' && cat !== 'medicamentos'
+    return true
+  })
+
+  const stockBajo = itemsVista.filter(i => i.cantidad_actual <= i.cantidad_minima && i.cantidad_minima > 0)
+  const porVencer = itemsVista.filter(i => {
     if (!i.fecha_vencimiento) return false
     const diff = (new Date(i.fecha_vencimiento).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
     return diff <= 30 && diff >= 0
   })
+
+  const categoriaSugeridaPorTab: Record<string, string | undefined> = { alimento: 'Alimento', farmacos: 'Fármacos' }
 
   if (fincaLoading) return <PageSkeleton />
 
@@ -85,6 +99,7 @@ export default function InventarioPage() {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         fincaId={fincaActual?.id ?? ''}
+        categoriaSugerida={categoriaSugeridaPorTab[tab]}
         onCreated={fetchInventario}
       />
 
@@ -98,7 +113,7 @@ export default function InventarioPage() {
               {fincaActual ? `Finca: ${fincaActual.nombre}` : 'Selecciona una finca'}
             </p>
           </div>
-          {tab === 'insumos' && (
+          {tab !== 'equipos' && (
             <Button
               className="bg-green-700 hover:bg-green-800 text-white"
               onClick={() => setModalOpen(true)}
@@ -112,6 +127,8 @@ export default function InventarioPage() {
         <div className="flex gap-2 border-b border-gray-200 mb-6">
           {([
             { id: 'insumos' as const, label: '📦 Insumos' },
+            { id: 'alimento' as const, label: '🌾 Alimento' },
+            { id: 'farmacos' as const, label: '💊 Fármacos' },
             { id: 'equipos' as const, label: '⚙️ Equipos' },
           ]).map(t => (
             <button
@@ -137,7 +154,7 @@ export default function InventarioPage() {
           <Card className="border-blue-200 bg-blue-50">
             <CardContent className="pt-4 pb-4 flex justify-between items-center">
               <span className="text-sm text-blue-700 font-medium">Total Ítems</span>
-              <Badge className="bg-blue-700 text-white">{items.length}</Badge>
+              <Badge className="bg-blue-700 text-white">{itemsVista.length}</Badge>
             </CardContent>
           </Card>
           <Card className="border-red-200 bg-red-50">
@@ -156,12 +173,14 @@ export default function InventarioPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Inventario General</CardTitle>
+            <CardTitle className="text-base">
+              {tab === 'alimento' ? 'Alimento en Inventario' : tab === 'farmacos' ? 'Fármacos en Inventario' : 'Inventario General'}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {loading ? (
               <div className="space-y-2">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
-            ) : items.length === 0 ? (
+            ) : itemsVista.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <span className="text-5xl mb-4">📦</span>
                 <p className="text-lg font-semibold text-gray-700">Inventario vacío</p>
@@ -185,7 +204,7 @@ export default function InventarioPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {items.map(item => {
+                  {itemsVista.map(item => {
                     const bajo = item.cantidad_actual <= item.cantidad_minima && item.cantidad_minima > 0
                     const venceProximo = item.fecha_vencimiento && (() => {
                       const diff = (new Date(item.fecha_vencimiento!).getTime() - Date.now()) / (1000 * 60 * 60 * 24)

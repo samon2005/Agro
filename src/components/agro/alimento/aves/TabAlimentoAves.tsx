@@ -10,9 +10,11 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import { avisoCostoVinculado } from '@/lib/eliminarConAviso'
 import CrearTipoAlimentoModal from './CrearTipoAlimentoModal'
 import EditarRequerimientosModal from './EditarRequerimientosModal'
 import RegistrarConsumoAlimentoModal from './RegistrarConsumoAlimentoModal'
+import HorariosAlimentacion from './HorariosAlimentacion'
 import type { Database } from '@/types/database'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
@@ -57,6 +59,7 @@ export default function TabAlimentoAves({ lotes }: Props) {
   const [subTab, setSubTab] = useState<SubTab>('alimento')
   const [loteId, setLoteId] = useState(lotes[0]?.id ?? '')
   const [hoy, setHoy] = useState<ProduccionDiaria | null>(null)
+  const [alimentoActivo, setAlimentoActivo] = useState<{ alimento_activo_id: string | null; consumo_activo_kg: number | null } | null>(null)
   const [consumos, setConsumos] = useState<ProduccionDiaria[]>([])
   const [tipos, setTipos] = useState<TipoAlimento[]>([])
   const [requerimientosHistorial, setRequerimientosHistorial] = useState<Requerimientos[]>([])
@@ -65,22 +68,25 @@ export default function TabAlimentoAves({ lotes }: Props) {
   const [tipoEditar, setTipoEditar] = useState<TipoAlimento | null>(null)
   const [modalRequerimientos, setModalRequerimientos] = useState(false)
   const [modalConsumo, setModalConsumo] = useState(false)
+  const [confirmandoEliminar, setConfirmandoEliminar] = useState<string | null>(null)
 
   const lote = lotes.find(l => l.id === loteId) ?? lotes[0] ?? null
 
   const fetchAll = useCallback(async () => {
     if (!lote) { setLoading(false); return }
     setLoading(true)
-    const [prod, consumosRes, tiposRes, reqRes] = await Promise.all([
+    const [prod, consumosRes, tiposRes, reqRes, loteRes] = await Promise.all([
       supabase.from('produccion_diaria_aves').select('*').eq('lote_id', lote.id).order('fecha', { ascending: false }).limit(1).maybeSingle(),
       supabase.from('produccion_diaria_aves').select('*').eq('lote_id', lote.id).gt('alimento_kg', 0).order('fecha', { ascending: false }).limit(30),
       supabase.from('tipos_alimento_aves').select('*').eq('finca_id', lote.finca_id).order('nombre'),
       supabase.from('requerimientos_nutricionales_aves').select('*').eq('lote_id', lote.id).order('vigente_desde', { ascending: false }),
+      supabase.from('lotes_aves').select('alimento_activo_id, consumo_activo_kg').eq('id', lote.id).single(),
     ])
     setHoy(prod.data ?? null)
     setConsumos(consumosRes.data ?? [])
     setTipos(tiposRes.data ?? [])
     setRequerimientosHistorial(reqRes.data ?? [])
+    setAlimentoActivo(loteRes.data ?? null)
     setLoading(false)
   }, [lote, supabase])
 
@@ -90,6 +96,20 @@ export default function TabAlimentoAves({ lotes }: Props) {
     const { error } = await supabase.from('tipos_alimento_aves').update({ activo: !tipo.activo }).eq('id', tipo.id)
     if (error) { toast.error('Error al actualizar el alimento'); return }
     toast.success(tipo.activo ? 'Alimento desactivado' : 'Alimento reactivado')
+    fetchAll()
+  }
+
+  async function eliminarTipo(tipo: TipoAlimento) {
+    if (confirmandoEliminar !== tipo.id) {
+      setConfirmandoEliminar(tipo.id)
+      const aviso = await avisoCostoVinculado(supabase, 'tipo_alimento_id', tipo.id)
+      if (aviso) toast.warning(aviso)
+      return
+    }
+    setConfirmandoEliminar(null)
+    const { error } = await supabase.from('tipos_alimento_aves').delete().eq('id', tipo.id)
+    if (error) { toast.error('Error al eliminar el alimento'); return }
+    toast.success(`Alimento "${tipo.nombre}" eliminado`)
     fetchAll()
   }
 
@@ -119,9 +139,9 @@ export default function TabAlimentoAves({ lotes }: Props) {
   const requerimientos = requerimientosHistorial.find(r => r.vigente_desde <= hoyStr) ?? null
   const req = requerimientos ?? { ...DEFAULTS, lote_id: lote!.id, finca_id: lote!.finca_id, id: '', vigente_desde: '', created_at: '' }
   const avesEnDia = hoy?.aves_en_dia ?? lote?.aves_actuales ?? 0
-  const alimentoKgHoy = hoy ? Number(hoy.alimento_kg) : 0
+  const alimentoKgHoy = alimentoActivo?.consumo_activo_kg != null ? Number(alimentoActivo.consumo_activo_kg) : 0
   const posturaFraccion = hoy && hoy.aves_en_dia && hoy.aves_en_dia > 0 ? hoy.huevos_totales / hoy.aves_en_dia : 0
-  const tipoActual = tipos.find(t => t.id === hoy?.tipo_alimento_id) ?? null
+  const tipoActual = tipos.find(t => t.id === alimentoActivo?.alimento_activo_id) ?? null
 
   const pesoBulto = tipoActual?.peso_bulto_kg ?? 40
   const bultosHoy = alimentoKgHoy / pesoBulto
@@ -215,6 +235,13 @@ export default function TabAlimentoAves({ lotes }: Props) {
                             <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-gray-500" onClick={() => toggleActivo(t)}>
                               {t.activo ? 'Desactivar' : 'Reactivar'}
                             </Button>
+                            <Button
+                              size="sm" variant="ghost"
+                              className={confirmandoEliminar === t.id ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
+                              onClick={() => eliminarTipo(t)}
+                            >
+                              {confirmandoEliminar === t.id ? '¿Confirmar?' : '🗑️ Eliminar'}
+                            </Button>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -233,13 +260,13 @@ export default function TabAlimentoAves({ lotes }: Props) {
             </div>
           )}
 
-          {/* Tipo de alimento y costos del día */}
+          {/* Tipo de alimento y costos activos */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <Card className="border-lime-200 bg-lime-50">
               <CardContent className="p-4">
-                <p className="text-xs text-lime-700 font-medium">Tipo de alimento (hoy)</p>
+                <p className="text-xs text-lime-700 font-medium">Tipo de alimento (activo)</p>
                 <p className="text-lg font-bold text-lime-900 truncate">{tipoActual?.nombre ?? 'Sin especificar'}</p>
-                <p className="text-xs text-lime-600 mt-0.5">{tipoActual ? `Bulto de ${pesoBulto} kg` : 'Registra el consumo de hoy'}</p>
+                <p className="text-xs text-lime-600 mt-0.5">{tipoActual ? `Bulto de ${pesoBulto} kg` : 'Registra el consumo'}</p>
               </CardContent>
             </Card>
             {puedeVerCostos && (
@@ -252,19 +279,21 @@ export default function TabAlimentoAves({ lotes }: Props) {
             )}
             <Card className="border-lime-200 bg-lime-50">
               <CardContent className="p-4">
-                <p className="text-xs text-lime-700 font-medium">Bultos hoy</p>
+                <p className="text-xs text-lime-700 font-medium">Bultos (consumo activo)</p>
                 <p className="text-lg font-bold text-lime-900">{alimentoKgHoy > 0 ? bultosHoy.toFixed(2) : '—'}</p>
               </CardContent>
             </Card>
             {puedeVerCostos && (
               <Card className="border-lime-200 bg-lime-50">
                 <CardContent className="p-4">
-                  <p className="text-xs text-lime-700 font-medium">Costo de alimento hoy</p>
+                  <p className="text-xs text-lime-700 font-medium">Costo de alimento (activo)</p>
                   <p className="text-lg font-bold text-lime-900">{costoHoy ? cop(costoHoy) : '—'}</p>
                 </CardContent>
               </Card>
             )}
           </div>
+
+          <HorariosAlimentacion loteId={lote!.id} fincaId={lote!.finca_id} />
 
           {/* Balance nutricional */}
           <Card>
@@ -286,10 +315,11 @@ export default function TabAlimentoAves({ lotes }: Props) {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Nutriente</TableHead>
-                      <TableHead className="text-right">Mantenimiento</TableHead>
-                      <TableHead className="text-right">Producción</TableHead>
+                      <TableHead className="text-right">Requerimiento de mantenimiento</TableHead>
+                      <TableHead className="text-right">Requerimiento de producción</TableHead>
                       <TableHead className="text-right">Requerimiento total</TableHead>
                       <TableHead className="text-right">Consumo registrado</TableHead>
+                      <TableHead className="text-right">Diferencia</TableHead>
                       <TableHead>Balance</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -301,8 +331,9 @@ export default function TabAlimentoAves({ lotes }: Props) {
                       const pctAlimento = tipoActual?.[n.pctKey] ?? null
                       const consumoGalpon = pctAlimento != null ? alimentoKgHoy * 1000 * (pctAlimento / 100) : null
                       const consumoAve = consumoGalpon != null && avesEnDia > 0 ? consumoGalpon / avesEnDia : null
-                      const bien = consumoAve != null && consumoAve >= total
-                      const sinDatos = consumoAve == null
+                      const diferencia = consumoAve != null ? consumoAve - total : null
+                      const bien = diferencia != null && diferencia >= 0
+                      const sinDatos = diferencia == null
 
                       return (
                         <TableRow key={n.key}>
@@ -311,11 +342,14 @@ export default function TabAlimentoAves({ lotes }: Props) {
                           <TableCell className="text-right text-sm text-gray-600">{prod.toFixed(2)} g</TableCell>
                           <TableCell className="text-right text-sm font-semibold text-gray-800">{total.toFixed(2)} g/ave</TableCell>
                           <TableCell className="text-right text-sm">{consumoAve != null ? `${consumoAve.toFixed(2)} g/ave` : '—'}</TableCell>
+                          <TableCell className={`text-right text-sm font-medium ${sinDatos ? 'text-gray-400' : bien ? 'text-green-700' : 'text-red-700'}`}>
+                            {diferencia != null ? `${diferencia >= 0 ? '+' : ''}${diferencia.toFixed(2)} g/ave` : '—'}
+                          </TableCell>
                           <TableCell>
                             {sinDatos ? (
                               <Badge variant="outline" className="text-[10px]">Sin datos</Badge>
                             ) : bien ? (
-                              <Badge className="bg-green-100 text-green-700 text-[10px]">✓ Bien alimentado</Badge>
+                              <Badge className="bg-green-100 text-green-700 text-[10px]">✓ Suficiente</Badge>
                             ) : (
                               <Badge className="bg-red-100 text-red-700 text-[10px]">⚠ Insuficiente</Badge>
                             )}

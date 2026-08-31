@@ -62,6 +62,13 @@ export default function RegistrarConsumoAlimentoModal({ open, onClose, loteId, f
       ? await supabase.from('produccion_diaria_aves').update(payload).eq('id', existing.id)
       : await supabase.from('produccion_diaria_aves').insert({ ...payload, lote_id: loteId, finca_id: fincaId, fecha: form.fecha })
 
+    if (!error) {
+      await supabase.from('lotes_aves').update({
+        alimento_activo_id: form.tipo_alimento_id,
+        consumo_activo_kg: Number(form.alimento_kg),
+      }).eq('id', loteId)
+    }
+
     setLoading(false)
     if (error) { toast.error('Error al registrar el consumo'); return }
     toast.success('Consumo de alimento registrado')
@@ -82,7 +89,11 @@ export default function RegistrarConsumoAlimentoModal({ open, onClose, loteId, f
           </div>
           <div className="space-y-1">
             <Label>Alimento *</Label>
-            <Select value={form.tipo_alimento_id} onValueChange={v => set('tipo_alimento_id', v)}>
+            <Select
+              value={form.tipo_alimento_id}
+              onValueChange={v => set('tipo_alimento_id', v)}
+              items={Object.fromEntries(tiposAlimento.map(t => [t.id, t.nombre]))}
+            >
               <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
               <SelectContent>
                 {tiposAlimento.length === 0

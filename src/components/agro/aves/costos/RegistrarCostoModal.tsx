@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { CurrencyInput } from '@/components/ui/currency-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { CATEGORIAS_COSTO } from '@/lib/costos'
+import { CATEGORIAS_COSTO, CATEGORIAS_COSTO_ITEMS } from '@/lib/costos'
 import type { Database } from '@/types/database'
 
 type Costo = Database['public']['Tables']['costos_lote_aves']['Row']
@@ -84,7 +84,7 @@ export default function RegistrarCostoModal({ open, onClose, loteId, fincaId, co
             </div>
             <div className="space-y-1">
               <Label>Categoría *</Label>
-              <Select value={form.categoria} onValueChange={v => set('categoria', v)}>
+              <Select value={form.categoria} onValueChange={v => set('categoria', v)} items={CATEGORIAS_COSTO_ITEMS}>
                 <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
                 <SelectContent>{CATEGORIAS_COSTO.map(c => <SelectItem key={c.value} value={c.value}>{c.emoji} {c.label}</SelectItem>)}</SelectContent>
               </Select>
