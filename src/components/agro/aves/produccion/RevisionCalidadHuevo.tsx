@@ -12,12 +12,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import type { Database } from '@/types/database'
 
 type Revision = Database['public']['Tables']['revisiones_calidad_huevo_aves']['Row']
+type ProduccionDiaria = Database['public']['Tables']['produccion_diaria_aves']['Row']
 
 interface Props {
   loteId: string
   fincaId: string
   fechaInicioPostura: string | null
   fechaInicioLote: string
+  registros: Pick<ProduccionDiaria, 'fecha' | 'huevos_b' | 'huevos_a' | 'huevos_aa' | 'huevos_aaa' | 'huevos_jumbo'>[]
 }
 
 const MS_DIA = 24 * 60 * 60 * 1000
@@ -42,7 +44,7 @@ function defaultForm() {
   }
 }
 
-export default function RevisionCalidadHuevo({ loteId, fincaId, fechaInicioPostura, fechaInicioLote }: Props) {
+export default function RevisionCalidadHuevo({ loteId, fincaId, fechaInicioPostura, fechaInicioLote, registros }: Props) {
   const supabase = createClient()
   const [revisiones, setRevisiones] = useState<Revision[]>([])
   const [loading, setLoading] = useState(true)
@@ -50,31 +52,37 @@ export default function RevisionCalidadHuevo({ loteId, fincaId, fechaInicioPostu
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState(defaultForm)
   const [confirmandoEliminar, setConfirmandoEliminar] = useState<string | null>(null)
-  const [semanaActual, setSemanaActual] = useState({ b: 0, a: 0, aa: 0, aaa: 0, jumbo: 0 })
 
   const origen = fechaInicioPostura ?? fechaInicioLote
   const origenDate = new Date(origen + 'T00:00:00')
   const hoyDate = new Date()
-  const numSemana = Math.max(0, Math.floor((hoyDate.getTime() - origenDate.getTime()) / (7 * MS_DIA)))
+  // Sin Math.max: si el origen quedó en el futuro (p.ej. postura aún no
+  // inicia), esto igual encuentra la semana calendario que contiene a "hoy".
+  const numSemana = Math.floor((hoyDate.getTime() - origenDate.getTime()) / (7 * MS_DIA))
   const inicioSemana = new Date(origenDate.getTime() + numSemana * 7 * MS_DIA)
   const finSemana = new Date(inicioSemana.getTime() + 6 * MS_DIA)
   const inicioSemanaStr = inicioSemana.toISOString().split('T')[0]
   const finSemanaStr = finSemana.toISOString().split('T')[0]
 
+  // Se deriva directo de los registros diarios ya cargados por el padre,
+  // así se mantiene al día apenas se registra/edita/quita un día — antes
+  // se traía aparte con su propio fetch que nunca se refrescaba.
+  const semanaActual = registros
+    .filter(r => r.fecha >= inicioSemanaStr && r.fecha <= finSemanaStr)
+    .reduce((acum, r) => ({
+      b: acum.b + r.huevos_b,
+      a: acum.a + r.huevos_a,
+      aa: acum.aa + r.huevos_aa,
+      aaa: acum.aaa + r.huevos_aaa,
+      jumbo: acum.jumbo + r.huevos_jumbo,
+    }), { b: 0, a: 0, aa: 0, aaa: 0, jumbo: 0 })
+
   const fetchRevisiones = useCallback(async () => {
     setLoading(true)
-    const [revRes, diariosRes] = await Promise.all([
-      supabase.from('revisiones_calidad_huevo_aves').select('*').eq('lote_id', loteId).order('fecha', { ascending: false }).limit(12),
-      supabase.from('produccion_diaria_aves').select('huevos_b, huevos_a, huevos_aa, huevos_aaa, huevos_jumbo').eq('lote_id', loteId).gte('fecha', inicioSemanaStr).lte('fecha', finSemanaStr),
-    ])
-    setRevisiones(revRes.data ?? [])
-    const acum = { b: 0, a: 0, aa: 0, aaa: 0, jumbo: 0 }
-    for (const r of diariosRes.data ?? []) {
-      acum.b += r.huevos_b; acum.a += r.huevos_a; acum.aa += r.huevos_aa; acum.aaa += r.huevos_aaa; acum.jumbo += r.huevos_jumbo
-    }
-    setSemanaActual(acum)
+    const { data } = await supabase.from('revisiones_calidad_huevo_aves').select('*').eq('lote_id', loteId).order('fecha', { ascending: false }).limit(12)
+    setRevisiones(data ?? [])
     setLoading(false)
-  }, [loteId, supabase, inicioSemanaStr, finSemanaStr])
+  }, [loteId, supabase])
 
   useEffect(() => { fetchRevisiones() }, [fetchRevisiones])
 

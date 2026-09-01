@@ -427,6 +427,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
         fincaId={loteActual.finca_id}
         fechaInicioPostura={loteActual.fecha_inicio_postura}
         fechaInicioLote={loteActual.fecha_inicio}
+        registros={registros}
       />
 
       <Card>
