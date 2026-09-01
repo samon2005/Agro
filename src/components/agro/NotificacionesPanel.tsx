@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useFinca } from './FincaProvider'
 import { Badge } from '@/components/ui/badge'
 
-type Notificacion = { tipo: 'stock' | 'equipo' | 'recoleccion'; mensaje: string; href: string }
+type Notificacion = { tipo: 'stock' | 'equipo' | 'recoleccion' | 'postura' | 'ventas'; mensaje: string; href: string }
 
 export default function NotificacionesPanel() {
   const { fincaActual } = useFinca()
@@ -55,7 +55,8 @@ export default function NotificacionesPanel() {
     await Promise.all(tareas)
 
     if (especies.includes('aves_ponedoras')) {
-      const { data: lotes } = await supabase.from('lotes_aves').select('id, nombre').eq('finca_id', fincaActual.id).in('estado', ['activo', 'preparacion'])
+      const { data: lotes } = await supabase.from('lotes_aves').select('id, nombre, estado, fecha_inicio_postura').eq('finca_id', fincaActual.id).in('estado', ['activo', 'preparacion'])
+
       for (const lote of lotes ?? []) {
         const [{ data: horarios }, { data: hoyProd }] = await Promise.all([
           supabase.from('horarios_recoleccion_aves').select('hora, descripcion').eq('lote_id', lote.id).eq('activo', true),
@@ -68,6 +69,36 @@ export default function NotificacionesPanel() {
             notifs.push({ tipo: 'recoleccion', mensaje: `Recolección pendiente hoy en "${lote.nombre}" (sin registro de producción)`, href: '/aves-ponedoras' })
           }
         }
+
+        if (lote.estado === 'preparacion' && lote.fecha_inicio_postura) {
+          const fechaPostura = new Date(lote.fecha_inicio_postura + 'T00:00:00')
+          const diasFaltan = Math.round((fechaPostura.getTime() - hoy.getTime()) / (24 * 60 * 60 * 1000))
+          if (diasFaltan >= 0 && diasFaltan <= 14) {
+            const semanas = Math.ceil(diasFaltan / 7)
+            notifs.push({
+              tipo: 'postura',
+              mensaje: `La postura de "${lote.nombre}" inicia en ${semanas === 0 ? 'menos de 1 semana' : `${semanas} semana${semanas === 1 ? '' : 's'}`}`,
+              href: '/aves-ponedoras',
+            })
+          }
+        }
+      }
+
+      const hace7dias = new Date(hoy); hace7dias.setDate(hoy.getDate() - 7)
+      const desdeStr = hace7dias.toISOString().split('T')[0]
+      const [{ data: prodSemana }, { data: ventasSemana }] = await Promise.all([
+        supabase.from('produccion_diaria_aves').select('huevos_totales').eq('finca_id', fincaActual.id).gte('fecha', desdeStr),
+        supabase.from('ventas_huevos_aves').select('cantidad_b, cantidad_a, cantidad_aa, cantidad_aaa, cantidad_jumbo').eq('finca_id', fincaActual.id).gte('fecha', desdeStr),
+      ])
+      const totalProducido = (prodSemana ?? []).reduce((s, r) => s + r.huevos_totales, 0)
+      const totalVendido = (ventasSemana ?? []).reduce((s, v) => s + v.cantidad_b + v.cantidad_a + v.cantidad_aa + v.cantidad_aaa + v.cantidad_jumbo, 0)
+      const sinVender = totalProducido - totalVendido
+      if (totalProducido > 0 && sinVender > totalProducido * 0.3) {
+        notifs.push({
+          tipo: 'ventas',
+          mensaje: `${sinVender.toLocaleString('es-CO')} huevos producidos sin vender en los últimos 7 días`,
+          href: '/aves-ponedoras',
+        })
       }
     }
 
@@ -112,7 +143,7 @@ export default function NotificacionesPanel() {
                     onClick={() => setAbierto(false)}
                     className="block p-3 text-sm hover:bg-gray-50 text-gray-700"
                   >
-                    <span className="mr-1.5">{n.tipo === 'stock' ? '📦' : n.tipo === 'equipo' ? '⚙️' : '🥚'}</span>
+                    <span className="mr-1.5">{n.tipo === 'stock' ? '📦' : n.tipo === 'equipo' ? '⚙️' : n.tipo === 'postura' ? '🐣' : n.tipo === 'ventas' ? '💰' : '🥚'}</span>
                     {n.mensaje}
                   </Link>
                 ))}

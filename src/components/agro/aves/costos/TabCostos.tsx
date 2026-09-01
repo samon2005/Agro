@@ -37,6 +37,8 @@ export default function TabCostos({ loteActual }: Props) {
   const [categoriaDialog, setCategoriaDialog] = useState<string | null>(null)
   const [mesFiltro, setMesFiltro] = useState('todos')
   const [categoriaFiltro, setCategoriaFiltro] = useState('todas')
+  const [anioFiltro, setAnioFiltro] = useState('todos')
+  const [soloUtilidad, setSoloUtilidad] = useState(false)
 
   const fetch = useCallback(async () => {
     setLoading(true)
@@ -60,8 +62,10 @@ export default function TabCostos({ loteActual }: Props) {
     toast.success('Costo eliminado')
   }
 
-  const mesesDisponibles = Array.from(new Set(costos.map(c => c.fecha.slice(0, 7)))).sort().reverse()
-  const costosDelMes = mesFiltro === 'todos' ? costos : costos.filter(c => c.fecha.slice(0, 7) === mesFiltro)
+  const aniosDisponibles = Array.from(new Set(costos.map(c => c.fecha.slice(0, 4)))).sort().reverse()
+  const costosDelAnio = anioFiltro === 'todos' ? costos : costos.filter(c => c.fecha.slice(0, 4) === anioFiltro)
+  const mesesDisponibles = Array.from(new Set(costosDelAnio.map(c => c.fecha.slice(0, 7)))).sort().reverse()
+  const costosDelMes = mesFiltro === 'todos' ? costosDelAnio : costosDelAnio.filter(c => c.fecha.slice(0, 7) === mesFiltro)
   const costosFiltrados = categoriaFiltro === 'todas'
     ? costosDelMes
     : costosDelMes.filter(c => c.categoria === categoriaFiltro || categoriaInfo(c.categoria)?.value === categoriaFiltro)
@@ -77,7 +81,8 @@ export default function TabCostos({ loteActual }: Props) {
   }))
   const totalGeneral = costosFiltrados.reduce((sum, c) => sum + Number(c.monto), 0)
 
-  const ventasDelMes = mesFiltro === 'todos' ? ventas : ventas.filter(v => v.fecha.slice(0, 7) === mesFiltro)
+  const ventasDelAnio = anioFiltro === 'todos' ? ventas : ventas.filter(v => v.fecha.slice(0, 4) === anioFiltro)
+  const ventasDelMes = mesFiltro === 'todos' ? ventasDelAnio : ventasDelAnio.filter(v => v.fecha.slice(0, 7) === mesFiltro)
   const ingresoTotal = ventasDelMes.reduce((s, v) => s + totalVenta(v), 0)
   const costoTotalPeriodo = costosDelMes.reduce((s, c) => s + Number(c.monto), 0)
   const utilidad = ingresoTotal - costoTotalPeriodo
@@ -92,20 +97,33 @@ export default function TabCostos({ loteActual }: Props) {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-base font-semibold text-gray-800 mb-2">Resumen Financiero</h2>
-        <div className="grid grid-cols-3 gap-3">
-          <Card className="border-emerald-200 bg-emerald-50">
-            <CardContent className="p-4">
-              <p className="text-xs text-emerald-700 font-medium">Ingresos por ventas</p>
-              <p className="text-xl font-bold text-emerald-800">{cop(ingresoTotal)}</p>
-            </CardContent>
-          </Card>
-          <Card className="border-red-200 bg-red-50">
-            <CardContent className="p-4">
-              <p className="text-xs text-red-700 font-medium">Costos</p>
-              <p className="text-xl font-bold text-red-800">{cop(costoTotalPeriodo)}</p>
-            </CardContent>
-          </Card>
+        <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+          <h2 className="text-base font-semibold text-gray-800">Resumen Financiero</h2>
+          <button
+            type="button"
+            onClick={() => setSoloUtilidad(v => !v)}
+            className={`text-xs rounded-full px-2.5 py-1 border ${soloUtilidad ? 'bg-green-600 border-green-600 text-white' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}
+          >
+            {soloUtilidad ? '✓ Solo utilidad' : 'Ver solo utilidad'}
+          </button>
+        </div>
+        <div className={soloUtilidad ? 'grid grid-cols-1' : 'grid grid-cols-3 gap-3'}>
+          {!soloUtilidad && (
+            <>
+              <Card className="border-emerald-200 bg-emerald-50">
+                <CardContent className="p-4">
+                  <p className="text-xs text-emerald-700 font-medium">Ingresos por ventas</p>
+                  <p className="text-xl font-bold text-emerald-800">{cop(ingresoTotal)}</p>
+                </CardContent>
+              </Card>
+              <Card className="border-red-200 bg-red-50">
+                <CardContent className="p-4">
+                  <p className="text-xs text-red-700 font-medium">Costos</p>
+                  <p className="text-xl font-bold text-red-800">{cop(costoTotalPeriodo)}</p>
+                </CardContent>
+              </Card>
+            </>
+          )}
           <Card className={utilidad >= 0 ? 'border-green-300 bg-green-50' : 'border-red-300 bg-red-50'}>
             <CardContent className="p-4">
               <p className={`text-xs font-medium ${utilidad >= 0 ? 'text-green-700' : 'text-red-700'}`}>Utilidad</p>
@@ -118,6 +136,17 @@ export default function TabCostos({ loteActual }: Props) {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-base font-semibold text-gray-800">Insumos y Costos Operativos</h2>
         <div className="flex items-center gap-2">
+          <Select
+            value={anioFiltro}
+            onValueChange={v => { setAnioFiltro(v ?? 'todos'); setMesFiltro('todos') }}
+            items={{ todos: 'Todos los años', ...Object.fromEntries(aniosDisponibles.map(a => [a, a])) }}
+          >
+            <SelectTrigger className="w-32"><SelectValue placeholder="Año" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos los años</SelectItem>
+              {aniosDisponibles.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+            </SelectContent>
+          </Select>
           <Select
             value={mesFiltro}
             onValueChange={v => setMesFiltro(v ?? 'todos')}
@@ -151,19 +180,6 @@ export default function TabCostos({ loteActual }: Props) {
           </Button>
         </div>
       </div>
-
-      {/* Trazabilidad del lote */}
-      <Card className="border-green-200 bg-green-50">
-        <CardContent className="p-4">
-          <p className="text-xs font-semibold text-green-700 mb-2">📋 Trazabilidad del Lote</p>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-            <div><p className="text-xs text-gray-500">Línea genética</p><p className="font-medium">{loteActual.linea_genetica ?? '—'}</p></div>
-            <div><p className="text-xs text-gray-500">Inicio del lote</p><p className="font-medium">{fmt(loteActual.fecha_inicio)}</p></div>
-            <div><p className="text-xs text-gray-500">Aves iniciales</p><p className="font-medium">{loteActual.aves_iniciales.toLocaleString('es-CO')}</p></div>
-            <div><p className="text-xs text-gray-500">Origen</p><p className="font-medium">{loteActual.origen_aves ?? '—'}</p></div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Resumen por categoría */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

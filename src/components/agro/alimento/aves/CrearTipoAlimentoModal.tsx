@@ -34,6 +34,12 @@ function nombreSugerido(marca: string, categoria: string) {
   return [marca.trim(), CATEGORIA_LABEL[categoria] ?? ''].filter(Boolean).join(' ')
 }
 
+/** El nombre se considera "manual" (no debe autoactualizarse) solo si no coincide con lo que la marca+tipo sugerirían. */
+function esNombreManual(tipo?: TipoAlimento | null) {
+  if (!tipo) return false
+  return tipo.nombre !== nombreSugerido(tipo.marca ?? '', tipo.tipo_alimento_categoria ?? '')
+}
+
 function defaultForm(tipo?: TipoAlimento | null) {
   return {
     nombre: tipo?.nombre ?? '',
@@ -54,9 +60,9 @@ export default function CrearTipoAlimentoModal({ open, onClose, fincaId, loteId,
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState(() => defaultForm(tipoExistente))
-  const [nombreManual, setNombreManual] = useState(!!tipoExistente)
+  const [nombreManual, setNombreManual] = useState(() => esNombreManual(tipoExistente))
 
-  useEffect(() => { if (open) { setForm(defaultForm(tipoExistente)); setNombreManual(!!tipoExistente) } }, [open, tipoExistente])
+  useEffect(() => { if (open) { setForm(defaultForm(tipoExistente)); setNombreManual(esNombreManual(tipoExistente)) } }, [open, tipoExistente])
 
   function set(field: string, value: string | null) {
     setForm(prev => ({ ...prev, [field]: value ?? '' }))

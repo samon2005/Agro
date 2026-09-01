@@ -60,6 +60,7 @@ function defaultForm(med?: Medicacion | null) {
     hora_aplicacion: '',
     observaciones: med?.observaciones ?? '',
     evento_clinico_id: med?.evento_clinico_id ?? '',
+    accion_tomada: '',
   }
 }
 
@@ -73,6 +74,7 @@ export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaI
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState(() => defaultForm(medicacionExistente))
   const [eventos, setEventos] = useState<EventoClinico[]>([])
+  const [eventoVinculado, setEventoVinculado] = useState<EventoClinico | null>(null)
 
   useEffect(() => { if (open) setForm(defaultForm(medicacionExistente)) }, [open, medicacionExistente])
 
@@ -81,6 +83,17 @@ export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaI
     supabase.from('eventos_clinicos_aves').select('*').eq('lote_id', loteId).order('fecha', { ascending: false }).limit(30)
       .then(({ data }) => setEventos(data ?? []))
   }, [open, eventoClinicoId, loteId, supabase])
+
+  useEffect(() => {
+    if (!open || !eventoClinicoId) { setEventoVinculado(null); return }
+    supabase.from('eventos_clinicos_aves').select('*').eq('id', eventoClinicoId).maybeSingle()
+      .then(({ data }) => setEventoVinculado(data ?? null))
+  }, [open, eventoClinicoId, supabase])
+
+  const eventoActivo = eventoClinicoId
+    ? eventoVinculado
+    : (form.evento_clinico_id && form.evento_clinico_id !== SIN_EVENTO ? eventos.find(ev => ev.id === form.evento_clinico_id) ?? null : null)
+  const sinFarmaco = eventoActivo != null && !eventoActivo.requiere_medicamento
 
   function set(field: string, value: string | null) {
     setForm(prev => ({ ...prev, [field]: value ?? '' }))
@@ -98,7 +111,11 @@ export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaI
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.medicamento.trim()) { toast.error('El medicamento es requerido'); return }
+    if (sinFarmaco) {
+      if (!form.accion_tomada.trim()) { toast.error('Describe la acción tomada'); return }
+    } else if (!form.medicamento.trim()) {
+      toast.error('El medicamento es requerido'); return
+    }
 
     const eventoFinal = eventoClinicoId
       ? eventoClinicoId
@@ -110,20 +127,35 @@ export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaI
 
     setLoading(true)
     const dosis = [form.dosis_valor, form.dosis_unidad].filter(Boolean).join(' ') || null
-    const payload = {
-      fecha_inicio: form.fecha_inicio,
-      fecha_fin: form.fecha_fin || null,
-      medicamento: form.medicamento.trim(),
-      principio_activo: form.principio_activo || null,
-      via_administracion: form.via_administracion || null,
-      dosis,
-      periodo_retiro_dias: form.periodo_retiro_dias !== '' ? Number(form.periodo_retiro_dias) : null,
-      motivo: form.motivo || null,
-      costo: form.costo ? Number(form.costo) : null,
-      proveedor: form.proveedor || null,
-      veterinario: form.encargado || null,
-      observaciones: form.observaciones || null,
-    }
+    const payload = sinFarmaco
+      ? {
+          fecha_inicio: form.fecha_inicio,
+          fecha_fin: form.fecha_fin || null,
+          medicamento: `Acción: ${form.accion_tomada.trim()}`,
+          principio_activo: null,
+          via_administracion: null,
+          dosis: null,
+          periodo_retiro_dias: null,
+          motivo: form.motivo || null,
+          costo: form.costo ? Number(form.costo) : null,
+          proveedor: form.proveedor || null,
+          veterinario: form.encargado || null,
+          observaciones: form.observaciones || null,
+        }
+      : {
+          fecha_inicio: form.fecha_inicio,
+          fecha_fin: form.fecha_fin || null,
+          medicamento: form.medicamento.trim(),
+          principio_activo: form.principio_activo || null,
+          via_administracion: form.via_administracion || null,
+          dosis,
+          periodo_retiro_dias: form.periodo_retiro_dias !== '' ? Number(form.periodo_retiro_dias) : null,
+          motivo: form.motivo || null,
+          costo: form.costo ? Number(form.costo) : null,
+          proveedor: form.proveedor || null,
+          veterinario: form.encargado || null,
+          observaciones: form.observaciones || null,
+        }
     const { data: medicacion, error } = medicacionExistente
       ? await supabase.from('medicaciones_aves').update({ ...payload, evento_clinico_id: eventoFinal }).eq('id', medicacionExistente.id).select().single()
       : await supabase.from('medicaciones_aves').insert({ ...payload, lote_id: loteId, finca_id: fincaId, evento_clinico_id: eventoFinal }).select().single()
@@ -218,37 +250,51 @@ export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaI
               <Label>Fecha fin</Label>
               <Input type="date" value={form.fecha_fin} onChange={e => set('fecha_fin', e.target.value)} />
             </div>
-            <div className="col-span-2 space-y-1">
-              <Label>Medicamento *</Label>
-              <Input placeholder="Nombre del medicamento" value={form.medicamento} onChange={e => set('medicamento', e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>Principio activo</Label>
-              <Input placeholder="Ej: Enrofloxacina" value={form.principio_activo} onChange={e => set('principio_activo', e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>Vía de administración</Label>
-              <Select value={form.via_administracion} onValueChange={setVia}>
-                <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
-                <SelectContent>{VIAS.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label>Dosis</Label>
-              <div className="flex gap-1.5">
-                <Input type="number" min="0" step="0.01" className="w-20" placeholder="10" value={form.dosis_valor} onChange={e => set('dosis_valor', e.target.value)} />
-                <Input placeholder="Unidad (mL/ave...)" value={form.dosis_unidad} onChange={e => set('dosis_unidad', e.target.value)} />
+            {sinFarmaco && (
+              <div className="col-span-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-700">
+                🌡️ Este evento no requiere medicamento — registra la acción tomada en vez de un fármaco.
               </div>
-            </div>
-            <div className="space-y-1">
-              <Label>Período de retiro (días)</Label>
-              <Input type="number" min="0" placeholder="0" value={form.periodo_retiro_dias} onChange={e => set('periodo_retiro_dias', e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>Frecuencia de aplicación (cada cuántos días)</Label>
-              <Input type="number" min="1" placeholder="Ej: 1 (diario)" value={form.frecuencia_dias} onChange={e => set('frecuencia_dias', e.target.value)} />
-            </div>
-            {form.frecuencia_dias && (
+            )}
+            {sinFarmaco ? (
+              <div className="col-span-2 space-y-1">
+                <Label>Acción a tomar *</Label>
+                <Input placeholder="Ej: Mejorar ventilación, aumentar agua fresca..." value={form.accion_tomada} onChange={e => set('accion_tomada', e.target.value)} />
+              </div>
+            ) : (
+              <>
+                <div className="col-span-2 space-y-1">
+                  <Label>Medicamento *</Label>
+                  <Input placeholder="Nombre del medicamento" value={form.medicamento} onChange={e => set('medicamento', e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Principio activo</Label>
+                  <Input placeholder="Ej: Enrofloxacina" value={form.principio_activo} onChange={e => set('principio_activo', e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Vía de administración</Label>
+                  <Select value={form.via_administracion} onValueChange={setVia}>
+                    <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                    <SelectContent>{VIAS.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label>Dosis</Label>
+                  <div className="flex gap-1.5">
+                    <Input type="number" min="0" step="0.01" className="w-20" placeholder="10" value={form.dosis_valor} onChange={e => set('dosis_valor', e.target.value)} />
+                    <Input placeholder="Unidad (mL/ave...)" value={form.dosis_unidad} onChange={e => set('dosis_unidad', e.target.value)} />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label>Período de retiro (días)</Label>
+                  <Input type="number" min="0" placeholder="0" value={form.periodo_retiro_dias} onChange={e => set('periodo_retiro_dias', e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Frecuencia de aplicación (cada cuántos días)</Label>
+                  <Input type="number" min="1" placeholder="Ej: 1 (diario)" value={form.frecuencia_dias} onChange={e => set('frecuencia_dias', e.target.value)} />
+                </div>
+              </>
+            )}
+            {!sinFarmaco && form.frecuencia_dias && (
               <div className="space-y-1">
                 <Label>Hora de aplicación</Label>
                 <Input type="time" value={form.hora_aplicacion} onChange={e => set('hora_aplicacion', e.target.value)} />

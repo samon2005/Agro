@@ -125,7 +125,7 @@ export default function DashboardPage() {
                         <p className="font-medium text-green-900">{f.nombre}</p>
                         {f.municipio && <p className="text-xs text-gray-500">{f.municipio}, {f.departamento}</p>}
                       </div>
-                      {f.hectareas && <Badge variant="secondary">{f.hectareas} ha</Badge>}
+                      {f.area_valor && <Badge variant="secondary">{f.area_valor} {f.area_unidad === 'ha' ? 'ha' : f.area_unidad === 'm2' ? 'm²' : f.area_unidad}</Badge>}
                     </div>
                   ))}
                 </div>

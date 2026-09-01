@@ -237,7 +237,12 @@ export default function AvesPonedorasPage() {
               )}
               {activeTab === 'ambiental' && <TabAmbiental loteActual={loteActual} finca={fincaActual} />}
               {activeTab === 'sanitario' && <TabSanitario loteActual={loteActual} onChange={bumpAlertas} />}
-              {activeTab === 'ventas' && (rol === 'trabajador' ? <AccesoRestringido /> : <TabVentas loteActual={loteActual} />)}
+              {activeTab === 'ventas' && (rol === 'trabajador' ? <AccesoRestringido /> : (
+                <TabVentas
+                  loteActual={loteActual}
+                  onLoteUpdated={updated => { fetchLotes(); setLoteActual(updated) }}
+                />
+              ))}
               {activeTab === 'costos' && (rol === 'trabajador' ? <AccesoRestringido /> : <TabCostos loteActual={loteActual} />)}
               {activeTab === 'equipos' && <TabEquipos loteActual={loteActual} />}
             </div>

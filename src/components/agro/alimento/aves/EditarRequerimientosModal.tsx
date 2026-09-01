@@ -36,7 +36,7 @@ const CAMPOS: { key: keyof typeof DEFAULTS; label: string; grupo: 'Mantenimiento
 
 const DEFAULTS = {
   mant_proteina_g: 9, mant_calcio_g: 0.3, mant_fosforo_g: 0.25, mant_grasa_g: 1.5,
-  prod_proteina_g: 4.2, prod_calcio_g: 3.8, prod_fosforo_g: 0.45, prod_grasa_g: 1.0,
+  prod_proteina_g: 0, prod_calcio_g: 0, prod_fosforo_g: 0, prod_grasa_g: 0,
 }
 
 export default function EditarRequerimientosModal({ open, onClose, loteId, fincaId, actual, historial, fechaInicioPostura, onUpdated }: Props) {

@@ -18,6 +18,7 @@ interface Props {
   loteId: string
   fincaId: string
   avesActuales: number
+  estadoLote?: string
   registroExistente?: ProduccionDiaria | null
   onCreated: () => void
 }
@@ -26,6 +27,8 @@ const CAUSAS_MUERTE = [
   'Marek', 'Newcastle', 'Bronquitis', 'Gumboro', 'Laringotraqueitis',
   'Coccidiosis', 'Micoplasmosis', 'Accidente', 'Estrés calórico', 'Otra'
 ]
+
+const CAUSAS_SIN_FARMACO = new Set(['Accidente', 'Estrés calórico'])
 
 const CAUSA_A_TIPO_EVENTO: Record<string, string> = {
   'Marek': 'nervioso',
@@ -39,6 +42,16 @@ const CAUSA_A_TIPO_EVENTO: Record<string, string> = {
   'Estrés calórico': 'otro',
   'Otra': 'otro',
 }
+
+const TIPOS_EVENTO_CLINICO = [
+  { value: 'respiratorio', label: '🫁 Respiratorio' },
+  { value: 'locomotor', label: '🦴 Locomotor' },
+  { value: 'digestivo', label: '🫃 Digestivo' },
+  { value: 'reproductivo', label: '🥚 Reproductivo' },
+  { value: 'nervioso', label: '🧠 Nervioso' },
+  { value: 'piel', label: '🐾 Piel / Plumas' },
+  { value: 'otro', label: '❓ Otro' },
+]
 
 function defaultForm(avesActuales: number, r?: ProduccionDiaria | null) {
   return {
@@ -55,13 +68,17 @@ function defaultForm(avesActuales: number, r?: ProduccionDiaria | null) {
     muertes: r ? String(r.muertes) : '0',
     causa_muerte: r?.causa_muerte ?? '',
     observaciones: r?.observaciones ?? '',
+    evento_tipo: '',
+    evento_descripcion: '',
+    evento_accion: '',
   }
 }
 
-export default function RegistrarProduccionModal({ open, onClose, loteId, fincaId, avesActuales, registroExistente, onCreated }: Props) {
+export default function RegistrarProduccionModal({ open, onClose, loteId, fincaId, avesActuales, estadoLote, registroExistente, onCreated }: Props) {
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState(() => defaultForm(avesActuales, registroExistente))
+  const enPreparacion = estadoLote === 'preparacion'
 
   useEffect(() => {
     if (open) setForm(defaultForm(avesActuales, registroExistente))
@@ -81,7 +98,7 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
     e.preventDefault()
 
     const defectuosos = (Number(form.huevos_rotos) || 0) + (Number(form.huevos_sucios) || 0) + (Number(form.huevos_deformes) || 0)
-    if (defectuosos > totalHuevos) {
+    if (!enPreparacion && defectuosos > totalHuevos) {
       toast.error('Rotos + sucios + deformes no puede superar el total de huevos puestos')
       return
     }
@@ -98,16 +115,16 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
       lote_id: loteId,
       finca_id: fincaId,
       fecha: form.fecha,
-      huevos_totales: totalHuevos,
-      huevos_b: Number(form.huevos_b) || 0,
-      huevos_a: Number(form.huevos_a) || 0,
-      huevos_aa: Number(form.huevos_aa) || 0,
-      huevos_aaa: Number(form.huevos_aaa) || 0,
-      huevos_jumbo: Number(form.huevos_jumbo) || 0,
-      huevos_rotos: Number(form.huevos_rotos) || 0,
-      huevos_sucios: Number(form.huevos_sucios) || 0,
-      huevos_deformes: Number(form.huevos_deformes) || 0,
-      aves_en_dia: Number(form.aves_en_dia) || null,
+      huevos_totales: enPreparacion ? 0 : totalHuevos,
+      huevos_b: enPreparacion ? 0 : Number(form.huevos_b) || 0,
+      huevos_a: enPreparacion ? 0 : Number(form.huevos_a) || 0,
+      huevos_aa: enPreparacion ? 0 : Number(form.huevos_aa) || 0,
+      huevos_aaa: enPreparacion ? 0 : Number(form.huevos_aaa) || 0,
+      huevos_jumbo: enPreparacion ? 0 : Number(form.huevos_jumbo) || 0,
+      huevos_rotos: enPreparacion ? 0 : Number(form.huevos_rotos) || 0,
+      huevos_sucios: enPreparacion ? 0 : Number(form.huevos_sucios) || 0,
+      huevos_deformes: enPreparacion ? 0 : Number(form.huevos_deformes) || 0,
+      aves_en_dia: enPreparacion ? null : Number(form.aves_en_dia) || null,
       muertes: Number(form.muertes) || 0,
       causa_muerte: Number(form.muertes) > 0 ? (form.causa_muerte || null) : null,
       observaciones: form.observaciones || null,
@@ -139,8 +156,20 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
         tipo_evento: CAUSA_A_TIPO_EVENTO[form.causa_muerte] ?? 'otro',
         descripcion: `Mortalidad reportada: ${form.causa_muerte}`,
         aves_muertas: Number(form.muertes),
+        requiere_medicamento: !CAUSAS_SIN_FARMACO.has(form.causa_muerte),
       })
       toast.warning(`⚠️ ¡Cuidado! Muertes por ${form.causa_muerte}`)
+    }
+
+    if (!error && form.evento_descripcion.trim()) {
+      await supabase.from('eventos_clinicos_aves').insert({
+        lote_id: loteId,
+        finca_id: fincaId,
+        fecha: form.fecha,
+        tipo_evento: form.evento_tipo || 'otro',
+        descripcion: form.evento_descripcion.trim(),
+        accion_tomada: form.evento_accion || null,
+      })
     }
 
     setLoading(false)
@@ -154,20 +183,27 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{registroExistente ? '✏️ Editar Producción del Día' : '🥚 Registrar Producción Diaria'}</DialogTitle>
+          <DialogTitle>{registroExistente ? '✏️ Editar Registro del Día' : enPreparacion ? '📋 Registrar Día (preparación)' : '🥚 Registrar Producción Diaria'}</DialogTitle>
+          {enPreparacion && (
+            <p className="text-sm text-blue-600">El lote sigue en preparación — aún no se registran huevos. Usa &quot;Marcar inicio de postura&quot; cuando comience.</p>
+          )}
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className={enPreparacion ? '' : 'grid grid-cols-2 gap-4'}>
             <div className="space-y-1">
               <Label>Fecha</Label>
               <Input type="date" value={form.fecha} onChange={e => set('fecha', e.target.value)} />
             </div>
-            <div className="space-y-1">
-              <Label>Aves en producción</Label>
-              <Input type="number" min="0" value={form.aves_en_dia} onChange={e => set('aves_en_dia', e.target.value)} />
-            </div>
+            {!enPreparacion && (
+              <div className="space-y-1">
+                <Label>Aves en producción</Label>
+                <Input type="number" min="0" value={form.aves_en_dia} onChange={e => set('aves_en_dia', e.target.value)} />
+              </div>
+            )}
           </div>
 
+          {!enPreparacion && (
+          <>
           <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200 space-y-2">
             <div className="flex items-center justify-between">
               <p className="text-xs font-semibold text-yellow-700">Huevos puestos por tamaño</p>
@@ -219,6 +255,8 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
               </div>
             </div>
           </div>
+          </>
+          )}
 
           <div className="space-y-1">
             <Label>Muertes</Label>
@@ -236,6 +274,29 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
               </Select>
             </div>
           )}
+
+          <div className="p-3 bg-red-50 rounded-lg border border-red-200 space-y-2">
+            <p className="text-xs font-semibold text-red-700">🩺 Evento clínico (opcional)</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Tipo</Label>
+                <Select value={form.evento_tipo} onValueChange={v => set('evento_tipo', v)}>
+                  <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                  <SelectContent>
+                    {TIPOS_EVENTO_CLINICO.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Acción tomada</Label>
+                <Input placeholder="Ej: Se aisló el lote..." value={form.evento_accion} onChange={e => set('evento_accion', e.target.value)} />
+              </div>
+              <div className="col-span-2 space-y-1">
+                <Label className="text-xs">Descripción</Label>
+                <Input placeholder="Ej: Se observaron aves con letargo..." value={form.evento_descripcion} onChange={e => set('evento_descripcion', e.target.value)} />
+              </div>
+            </div>
+          </div>
 
           <div className="space-y-1">
             <Label>Observaciones</Label>

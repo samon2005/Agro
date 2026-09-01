@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Label } from '@/components/ui/label'
+import { CurrencyInput } from '@/components/ui/currency-input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { toast } from 'sonner'
 import RegistrarVentaModal from './RegistrarVentaModal'
@@ -13,7 +15,15 @@ import type { Database } from '@/types/database'
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 type Venta = Database['public']['Tables']['ventas_huevos_aves']['Row']
 
-interface Props { loteActual: LoteAves }
+interface Props { loteActual: LoteAves; onLoteUpdated?: (lote: LoteAves) => void }
+
+const TAMANOS_PRECIO = [
+  { key: 'precio_huevo_b', label: 'B' },
+  { key: 'precio_huevo_a', label: 'A' },
+  { key: 'precio_huevo_aa', label: 'AA' },
+  { key: 'precio_huevo_aaa', label: 'AAA' },
+  { key: 'precio_huevo_jumbo', label: 'JUMBO' },
+] as const
 
 function cop(n: number) {
   return n.toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })
@@ -28,13 +38,37 @@ function totalVenta(v: Venta) {
     + v.cantidad_aaa * (v.precio_aaa ?? 0) + v.cantidad_jumbo * (v.precio_jumbo ?? 0)
 }
 
-export default function TabVentas({ loteActual }: Props) {
+export default function TabVentas({ loteActual, onLoteUpdated }: Props) {
   const supabase = createClient()
   const [ventas, setVentas] = useState<Venta[]>([])
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
   const [ventaEditar, setVentaEditar] = useState<Venta | null>(null)
   const [confirmandoEliminar, setConfirmandoEliminar] = useState<string | null>(null)
+  const [editandoPrecios, setEditandoPrecios] = useState(false)
+  const [precios, setPrecios] = useState<Record<string, string>>({})
+  const [guardandoPrecios, setGuardandoPrecios] = useState(false)
+
+  useEffect(() => {
+    setPrecios(Object.fromEntries(TAMANOS_PRECIO.map(t => [t.key, loteActual[t.key] != null ? String(loteActual[t.key]) : ''])))
+  }, [loteActual])
+
+  async function guardarPrecios() {
+    setGuardandoPrecios(true)
+    const payload: Database['public']['Tables']['lotes_aves']['Update'] = {
+      precio_huevo_b: precios.precio_huevo_b ? Number(precios.precio_huevo_b) : null,
+      precio_huevo_a: precios.precio_huevo_a ? Number(precios.precio_huevo_a) : null,
+      precio_huevo_aa: precios.precio_huevo_aa ? Number(precios.precio_huevo_aa) : null,
+      precio_huevo_aaa: precios.precio_huevo_aaa ? Number(precios.precio_huevo_aaa) : null,
+      precio_huevo_jumbo: precios.precio_huevo_jumbo ? Number(precios.precio_huevo_jumbo) : null,
+    }
+    const { data, error } = await supabase.from('lotes_aves').update(payload).eq('id', loteActual.id).select().single()
+    setGuardandoPrecios(false)
+    if (error) { toast.error('Error al guardar los precios'); return }
+    toast.success('Precios de venta actualizados')
+    setEditandoPrecios(false)
+    onLoteUpdated?.(data)
+  }
 
   const fetchVentas = useCallback(async () => {
     setLoading(true)
@@ -74,6 +108,44 @@ export default function TabVentas({ loteActual }: Props) {
           + Registrar venta
         </Button>
       </div>
+
+      <Card>
+        <CardHeader className="pb-2 flex flex-row items-center justify-between">
+          <CardTitle className="text-sm font-semibold text-gray-700">💲 Precio de venta por tamaño de huevo</CardTitle>
+          {!editandoPrecios && (
+            <Button size="sm" variant="outline" className="text-xs" onClick={() => setEditandoPrecios(true)}>Editar precios</Button>
+          )}
+        </CardHeader>
+        <CardContent>
+          {editandoPrecios ? (
+            <div className="space-y-3">
+              <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
+                {TAMANOS_PRECIO.map(t => (
+                  <div key={t.key} className="space-y-1">
+                    <Label className="text-xs">{t.label}</Label>
+                    <CurrencyInput placeholder="$" value={precios[t.key] ?? ''} onValueChange={v => setPrecios(prev => ({ ...prev, [t.key]: v ?? '' }))} />
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" disabled={guardandoPrecios} className="bg-green-700 hover:bg-green-800 text-white text-xs" onClick={guardarPrecios}>
+                  {guardandoPrecios ? 'Guardando...' : 'Guardar precios'}
+                </Button>
+                <Button size="sm" variant="outline" className="text-xs" onClick={() => setEditandoPrecios(false)}>Cancelar</Button>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
+              {TAMANOS_PRECIO.map(t => (
+                <div key={t.key} className="bg-gray-50 rounded-lg border border-gray-100 py-2 text-center">
+                  <p className="text-[10px] text-gray-500 font-medium">{t.label}</p>
+                  <p className="text-sm font-bold text-gray-800">{loteActual[t.key] ? cop(Number(loteActual[t.key])) : '—'}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         <Card className="border-emerald-200 bg-emerald-50">

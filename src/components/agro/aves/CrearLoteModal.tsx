@@ -21,17 +21,28 @@ interface Props {
 }
 
 const LINEAS = ['Lohmann Brown', 'Isa Brown', 'Hy-Line Brown', 'Bovans Brown', 'Babcock B-380', 'Otra']
+const SEMANAS_INICIO_POSTURA = 20
+
+function sumarSemanas(fechaStr: string, semanas: number) {
+  const d = new Date(fechaStr + 'T00:00:00')
+  d.setDate(d.getDate() + semanas * 7)
+  return d.toISOString().split('T')[0]
+}
 
 function defaultForm() {
+  const fechaInicio = new Date().toISOString().split('T')[0]
   return {
     nombre: '',
     linea_genetica: '',
-    fecha_inicio: new Date().toISOString().split('T')[0],
+    fecha_inicio: fechaInicio,
     aves_iniciales: '',
     area_galpon_m2: '',
     estado: 'preparacion',
     costo_pollitas: '',
     observaciones: '',
+    fecha_inicio_postura: sumarSemanas(fechaInicio, SEMANAS_INICIO_POSTURA),
+    meta_postura_pct: '90',
+    meta_huevos_diaria: '',
   }
 }
 
@@ -39,13 +50,25 @@ export default function CrearLoteModal({ open, onClose, fincaId, onCreated }: Pr
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState(defaultForm)
+  const [posturaManual, setPosturaManual] = useState(false)
 
   useEffect(() => {
-    if (open) setForm(defaultForm())
+    if (open) { setForm(defaultForm()); setPosturaManual(false) }
   }, [open])
 
   function set(field: string, value: string | null) {
-    setForm(prev => ({ ...prev, [field]: value ?? '' }))
+    setForm(prev => {
+      const next = { ...prev, [field]: value ?? '' }
+      if (field === 'fecha_inicio' && !posturaManual && value) {
+        next.fecha_inicio_postura = sumarSemanas(value, SEMANAS_INICIO_POSTURA)
+      }
+      return next
+    })
+  }
+
+  function setFechaInicioPostura(value: string) {
+    setPosturaManual(true)
+    setForm(prev => ({ ...prev, fecha_inicio_postura: value }))
   }
 
   const densidad = form.area_galpon_m2 && Number(form.area_galpon_m2) > 0 && form.aves_iniciales
@@ -71,6 +94,9 @@ export default function CrearLoteModal({ open, onClose, fincaId, onCreated }: Pr
         area_galpon_m2: form.area_galpon_m2 ? Number(form.area_galpon_m2) : null,
         estado: form.estado,
         observaciones: form.observaciones || null,
+        fecha_inicio_postura: form.fecha_inicio_postura || null,
+        meta_postura_pct: form.meta_postura_pct ? Number(form.meta_postura_pct) : null,
+        meta_huevos_diaria: form.meta_huevos_diaria ? Number(form.meta_huevos_diaria) : null,
       })
       .select()
       .single()
@@ -148,6 +174,22 @@ export default function CrearLoteModal({ open, onClose, fincaId, onCreated }: Pr
                   <SelectItem value="activo">Activo (ya está en producción de huevo)</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="col-span-2 border-t pt-3 mt-1">
+              <p className="text-sm font-medium text-gray-700">🥚 Configuración de postura</p>
+              <p className="text-xs text-gray-400">La postura suele iniciar a las {SEMANAS_INICIO_POSTURA} semanas de vida — se calcula sola desde la fecha de entrada, pero puedes ajustarla.</p>
+            </div>
+            <div className="space-y-1">
+              <Label>Fecha estimada de inicio de postura</Label>
+              <Input type="date" value={form.fecha_inicio_postura} onChange={e => setFechaInicioPostura(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label>Pico esperado de postura (% meta lote)</Label>
+              <Input type="number" min="0" max="100" step="0.1" placeholder="Ej: 90" value={form.meta_postura_pct} onChange={e => set('meta_postura_pct', e.target.value)} />
+            </div>
+            <div className="col-span-2 space-y-1">
+              <Label>Meta de huevos puestos por día</Label>
+              <Input type="number" min="0" placeholder="Ej: 4500" value={form.meta_huevos_diaria} onChange={e => set('meta_huevos_diaria', e.target.value)} />
             </div>
             <div className="col-span-2 space-y-1">
               <Label>Observaciones</Label>

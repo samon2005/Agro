@@ -25,25 +25,50 @@ export default function HorariosAlimentacion({ loteId, fincaId }: Props) {
   const [saving, setSaving] = useState(false)
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [formEditar, setFormEditar] = useState({ hora: '', descripcion: '', cantidad_kg: '' })
+  const [estimadoKgDia, setEstimadoKgDia] = useState('')
+  const [editandoEstimado, setEditandoEstimado] = useState(false)
+  const [permitirExceder, setPermitirExceder] = useState(false)
 
   const hoyStr = new Date().toISOString().split('T')[0]
 
   const fetchHorarios = useCallback(async () => {
     setLoading(true)
-    const [horariosRes, completadosRes] = await Promise.all([
+    const [horariosRes, completadosRes, loteRes] = await Promise.all([
       supabase.from('horarios_alimentacion_aves').select('*').eq('lote_id', loteId).eq('activo', true).order('hora', { ascending: true }),
       supabase.from('horarios_alimentacion_completados').select('horario_id').eq('lote_id', loteId).eq('fecha', hoyStr),
+      supabase.from('lotes_aves').select('consumo_estimado_kg_dia').eq('id', loteId).maybeSingle(),
     ])
     setHorarios(horariosRes.data ?? [])
     setCompletadosHoy(new Set((completadosRes.data ?? []).map(c => c.horario_id)))
+    setEstimadoKgDia(loteRes.data?.consumo_estimado_kg_dia != null ? String(loteRes.data.consumo_estimado_kg_dia) : '')
     setLoading(false)
   }, [loteId, supabase, hoyStr])
 
   useEffect(() => { fetchHorarios() }, [fetchHorarios])
 
+  async function guardarEstimado() {
+    const { error } = await supabase.from('lotes_aves').update({
+      consumo_estimado_kg_dia: estimadoKgDia ? Number(estimadoKgDia) : null,
+    }).eq('id', loteId)
+    if (error) { toast.error('Error al guardar el estimado'); return }
+    setEditandoEstimado(false)
+    setPermitirExceder(false)
+    toast.success('Consumo estimado actualizado')
+  }
+
+  function excedeLimite(totalConCambio: number) {
+    const estimado = Number(estimadoKgDia) || 0
+    return estimado > 0 && !permitirExceder && totalConCambio > estimado
+  }
+
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault()
     if (!nuevo.hora) { toast.error('Ingresa la hora de alimentación'); return }
+    const kgNuevo = nuevo.cantidad_kg ? Number(nuevo.cantidad_kg) : 0
+    if (excedeLimite(totalProgramadoKg + kgNuevo)) {
+      toast.error(`Superarías el consumo estimado (${estimadoKgDia} kg/día). Usa "Cambiar límites" si es intencional.`)
+      return
+    }
     setSaving(true)
     const { error } = await supabase.from('horarios_alimentacion_aves').insert({
       lote_id: loteId,
@@ -55,6 +80,7 @@ export default function HorariosAlimentacion({ loteId, fincaId }: Props) {
     setSaving(false)
     if (error) { toast.error('Error al agregar el horario'); return }
     setNuevo({ hora: '', descripcion: '', cantidad_kg: '' })
+    setPermitirExceder(false)
     fetchHorarios()
   }
 
@@ -70,6 +96,12 @@ export default function HorariosAlimentacion({ loteId, fincaId }: Props) {
   }
 
   async function guardarEdicion(id: string) {
+    const kgAnterior = horarios.find(h => h.id === id)?.cantidad_kg ?? 0
+    const kgNuevo = formEditar.cantidad_kg ? Number(formEditar.cantidad_kg) : 0
+    if (excedeLimite(totalProgramadoKg - kgAnterior + kgNuevo)) {
+      toast.error(`Superarías el consumo estimado (${estimadoKgDia} kg/día). Usa "Cambiar límites" si es intencional.`)
+      return
+    }
     const { error } = await supabase.from('horarios_alimentacion_aves').update({
       hora: formEditar.hora,
       descripcion: formEditar.descripcion || null,
@@ -77,6 +109,7 @@ export default function HorariosAlimentacion({ loteId, fincaId }: Props) {
     }).eq('id', id)
     if (error) { toast.error('Error al guardar el horario'); return }
     setEditandoId(null)
+    setPermitirExceder(false)
     toast.success('Horario actualizado')
     fetchHorarios()
   }
@@ -121,16 +154,48 @@ export default function HorariosAlimentacion({ loteId, fincaId }: Props) {
   }
 
   const totalProgramadoKg = horarios.reduce((s, h) => s + (h.cantidad_kg ?? 0), 0)
+  const totalParcialKg = horarios.filter(h => completadosHoy.has(h.id)).reduce((s, h) => s + (h.cantidad_kg ?? 0), 0)
 
   return (
     <Card>
-      <CardHeader className="pb-2 flex flex-row items-center justify-between">
-        <CardTitle className="text-sm font-semibold text-gray-700">🕐 Horarios de Alimentación</CardTitle>
-        {totalProgramadoKg > 0 && (
-          <span className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2.5 py-1">
-            Total programado: {totalProgramadoKg.toFixed(1)} kg/día
-          </span>
-        )}
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <CardTitle className="text-sm font-semibold text-gray-700">🕐 Horarios de Alimentación</CardTitle>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-semibold text-green-700 bg-green-50 border border-green-200 rounded-full px-2.5 py-1">
+              Alimento parcial (hoy): {totalParcialKg.toFixed(1)} kg
+            </span>
+            <span className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2.5 py-1">
+              Total del día (fijo): {totalProgramadoKg.toFixed(1)} kg
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap pt-1">
+          {editandoEstimado ? (
+            <>
+              <Label className="text-xs">Consumo estimado (kg/día)</Label>
+              <Input type="number" min="0" step="0.1" className="w-28 h-7" value={estimadoKgDia} onChange={e => setEstimadoKgDia(e.target.value)} />
+              <Button size="sm" className="h-7 text-xs bg-green-700 hover:bg-green-800 text-white" onClick={guardarEstimado}>Guardar</Button>
+              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEditandoEstimado(false)}>Cancelar</Button>
+            </>
+          ) : (
+            <>
+              <p className="text-xs text-gray-400">
+                {estimadoKgDia ? `Límite: ${estimadoKgDia} kg/día` : 'Sin límite de consumo estimado configurado'}
+              </p>
+              <button type="button" onClick={() => setEditandoEstimado(true)} className="text-xs text-amber-600 hover:underline">Configurar límite</button>
+              {estimadoKgDia && (
+                <button
+                  type="button"
+                  onClick={() => setPermitirExceder(v => !v)}
+                  className={`text-xs rounded-full px-2 py-0.5 border ${permitirExceder ? 'bg-red-50 border-red-200 text-red-600' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}
+                >
+                  {permitirExceder ? '🔓 Cambiar límites: activo' : '🔒 Cambiar límites'}
+                </button>
+              )}
+            </>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="space-y-3">
         {loading ? (

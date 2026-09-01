@@ -19,7 +19,11 @@ type Finca = {
   tipo_produccion: string[] | null
   latitud: number | null
   longitud: number | null
+  area_valor?: number | null
+  area_unidad?: string | null
 }
+
+const UNIDAD_OTRA = '__otra__'
 
 interface Props {
   open: boolean
@@ -55,6 +59,10 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated }: Pr
   const [especies, setEspecies] = useState<EspecieFinca[]>([])
   const [buscandoUbicacion, setBuscandoUbicacion] = useState(false)
   const [conteos, setConteos] = useState<Record<string, number>>({})
+  const [areaValor, setAreaValor] = useState('')
+  const [areaUnidad, setAreaUnidad] = useState('ha')
+  const [unidadOtra, setUnidadOtra] = useState('')
+  const [unidadesGuardadas, setUnidadesGuardadas] = useState<string[]>([])
 
   useEffect(() => {
     if (!open) return
@@ -67,6 +75,20 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated }: Pr
       longitud: finca.longitud != null ? String(finca.longitud) : '',
     })
     setEspecies((finca.tipo_produccion ?? []) as EspecieFinca[])
+    setAreaValor(finca.area_valor != null ? String(finca.area_valor) : '')
+    const unidadActual = finca.area_unidad ?? 'ha'
+    setAreaUnidad(unidadActual === 'ha' || unidadActual === 'm2' ? unidadActual : (unidadActual ? UNIDAD_OTRA : 'ha'))
+    setUnidadOtra(unidadActual !== 'ha' && unidadActual !== 'm2' ? unidadActual ?? '' : '')
+
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return
+      const { data } = await supabase
+        .from('unidades_area_personalizadas')
+        .select('nombre')
+        .eq('propietario_id', user.id)
+        .order('nombre')
+      setUnidadesGuardadas((data ?? []).map(d => d.nombre))
+    })
 
     Promise.all(
       ESPECIES_FINCA.map(async esp => {
@@ -116,6 +138,12 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated }: Pr
     e.preventDefault()
     if (especies.length === 0) { toast.error('Selecciona al menos una especie con la que trabaja la finca'); return }
     setLoading(true)
+
+    const areaNum = areaValor ? Number(areaValor) : null
+    const unidadFinal = areaUnidad === UNIDAD_OTRA ? unidadOtra.trim() : areaUnidad
+
+    const { data: { user } } = await supabase.auth.getUser()
+
     const { error } = await supabase
       .from('fincas')
       .update({
@@ -126,11 +154,21 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated }: Pr
         tipo_produccion: especies,
         latitud: form.latitud ? Number(form.latitud) : null,
         longitud: form.longitud ? Number(form.longitud) : null,
+        area_valor: areaNum,
+        area_unidad: areaNum && unidadFinal ? unidadFinal : null,
       })
       .eq('id', finca.id)
 
     setLoading(false)
     if (error) { toast.error('Error al guardar los datos de la finca'); return }
+
+    if (areaNum && areaUnidad === UNIDAD_OTRA && unidadFinal && user) {
+      await supabase.from('unidades_area_personalizadas').upsert(
+        { propietario_id: user.id, nombre: unidadFinal },
+        { onConflict: 'propietario_id,nombre' }
+      )
+    }
+
     toast.success('Datos geográficos actualizados')
     onUpdated()
     onClose()
@@ -166,6 +204,33 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated }: Pr
               <Label>Temperatura ambiente promedio (°C)</Label>
               <Input type="number" step="0.1" placeholder="Ej: 24.0" value={form.temperatura_promedio_ext} onChange={e => set('temperatura_promedio_ext', e.target.value)} />
             </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Área de la finca</Label>
+            <div className="grid grid-cols-2 gap-3">
+              <Input type="number" step="0.01" min="0" placeholder="Ej: 120.5" value={areaValor} onChange={e => setAreaValor(e.target.value)} />
+              <Select value={areaUnidad} onValueChange={v => setAreaUnidad(v ?? 'ha')}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Unidad" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ha">Hectáreas</SelectItem>
+                  <SelectItem value="m2">Metros cuadrados (m²)</SelectItem>
+                  {unidadesGuardadas.map(u => (
+                    <SelectItem key={u} value={u}>{u}</SelectItem>
+                  ))}
+                  <SelectItem value={UNIDAD_OTRA}>Otra unidad...</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {areaUnidad === UNIDAD_OTRA && (
+              <Input
+                placeholder="Nombre de la unidad (Ej: fanegadas)"
+                value={unidadOtra}
+                onChange={e => setUnidadOtra(e.target.value)}
+                className="mt-1.5"
+              />
+            )}
           </div>
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">

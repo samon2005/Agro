@@ -11,12 +11,16 @@ import RegistrarProduccionModal from './RegistrarProduccionModal'
 import ConfigurarGalponModal from './ConfigurarGalponModal'
 import HorariosRecoleccion from './HorariosRecoleccion'
 import RevisionCalidadHuevo from './RevisionCalidadHuevo'
+import GraficaProduccionHuevos from './GraficaProduccionHuevos'
 import { toast } from 'sonner'
+import Link from 'next/link'
+import { estadoPostura } from '@/lib/postura'
 import type { Database } from '@/types/database'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 type ProduccionDiaria = Database['public']['Tables']['produccion_diaria_aves']['Row']
 type TipoAlimento = Database['public']['Tables']['tipos_alimento_aves']['Row']
+type EventoClinico = Database['public']['Tables']['eventos_clinicos_aves']['Row']
 
 interface Props {
   loteActual: LoteAves
@@ -46,6 +50,8 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
   const [registroEditar, setRegistroEditar] = useState<ProduccionDiaria | null>(null)
   const [confirmandoEliminar, setConfirmandoEliminar] = useState<string | null>(null)
   const [tipoAlimentoActivo, setTipoAlimentoActivo] = useState<TipoAlimento | null>(null)
+  const [eventosClinicos, setEventosClinicos] = useState<EventoClinico[]>([])
+  const [hayAlimentoRegistrado, setHayAlimentoRegistrado] = useState(true)
 
   const fetchRegistros = useCallback(async () => {
     setLoading(true)
@@ -59,13 +65,29 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
     setLoading(false)
   }, [loteActual.id, supabase])
 
+  const fetchEventosClinicos = useCallback(async () => {
+    const { data } = await supabase
+      .from('eventos_clinicos_aves')
+      .select('*')
+      .eq('lote_id', loteActual.id)
+      .order('fecha', { ascending: false })
+      .limit(60)
+    setEventosClinicos(data ?? [])
+  }, [loteActual.id, supabase])
+
   useEffect(() => {
     if (!loteActual.alimento_activo_id) { setTipoAlimentoActivo(null); return }
     supabase.from('tipos_alimento_aves').select('*').eq('id', loteActual.alimento_activo_id).maybeSingle()
       .then(({ data }) => setTipoAlimentoActivo(data ?? null))
   }, [loteActual.alimento_activo_id, supabase])
 
+  useEffect(() => {
+    supabase.from('tipos_alimento_aves').select('id', { count: 'exact', head: true }).eq('finca_id', loteActual.finca_id)
+      .then(({ count }) => setHayAlimentoRegistrado((count ?? 0) > 0))
+  }, [loteActual.finca_id, supabase])
+
   useEffect(() => { fetchRegistros() }, [fetchRegistros])
+  useEffect(() => { fetchEventosClinicos() }, [fetchEventosClinicos])
 
   async function eliminarRegistro(r: ProduccionDiaria) {
     if (confirmandoEliminar !== r.id) { setConfirmandoEliminar(r.id); return }
@@ -99,18 +121,16 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
   // ── Ciclo de postura ──
   const metaPostura = loteActual.meta_postura_pct ?? 90
   const hoyDate = new Date()
-  let semanaPostura: number | null = null
+  const hoyStr = hoyDate.toISOString().split('T')[0]
+  const estadoPosturaHoy = estadoPostura(loteActual.fecha_inicio_postura, hoyStr)
+  const semanaPostura = estadoPosturaHoy.iniciada ? estadoPosturaHoy.semana : null
+  const inicioSemanaActual = estadoPosturaHoy.iniciada ? estadoPosturaHoy.inicioSemana : null
+  const finSemanaActual = estadoPosturaHoy.iniciada ? estadoPosturaHoy.finSemana : null
+  const semanasFaltantesPostura = !estadoPosturaHoy.iniciada ? estadoPosturaHoy.semanasFaltantes : null
   let fechaFinEstimada: Date | null = null
-  let inicioSemanaActual: Date | null = null
-  let finSemanaActual: Date | null = null
-  if (loteActual.fecha_inicio_postura) {
+  if (loteActual.fecha_inicio_postura && loteActual.semanas_ciclo_postura) {
     const inicio = new Date(loteActual.fecha_inicio_postura + 'T00:00:00')
-    semanaPostura = Math.max(1, Math.floor((hoyDate.getTime() - inicio.getTime()) / (7 * MS_DIA)) + 1)
-    inicioSemanaActual = new Date(inicio.getTime() + (semanaPostura - 1) * 7 * MS_DIA)
-    finSemanaActual = new Date(inicioSemanaActual.getTime() + 6 * MS_DIA)
-    if (loteActual.semanas_ciclo_postura) {
-      fechaFinEstimada = new Date(inicio.getTime() + loteActual.semanas_ciclo_postura * 7 * MS_DIA)
-    }
+    fechaFinEstimada = new Date(inicio.getTime() + loteActual.semanas_ciclo_postura * 7 * MS_DIA)
   }
 
   // ── Precio por tamaño de huevo ──
@@ -179,10 +199,9 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
   ))
 
   async function marcarInicioPostura() {
-    const hoyStr = new Date().toISOString().split('T')[0]
     const { data, error } = await supabase
       .from('lotes_aves')
-      .update({ estado: 'activo', fecha_inicio_postura: loteActual.fecha_inicio_postura ?? hoyStr })
+      .update({ estado: 'activo', fecha_inicio_postura: hoyStr })
       .eq('id', loteActual.id)
       .select()
       .single()
@@ -203,9 +222,16 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
     return Math.floor((d.getTime() - origenSemanasDate.getTime()) / (7 * MS_DIA))
   }
 
+  const eventosPorFecha = new Map<string, EventoClinico[]>()
+  for (const ev of eventosClinicos) {
+    const lista = eventosPorFecha.get(ev.fecha) ?? []
+    lista.push(ev)
+    eventosPorFecha.set(ev.fecha, lista)
+  }
+
   type FilaHistorial =
-    | { tipo: 'separador'; key: string; inicio: Date; fin: Date; promPostura: string | null; totalHuevos: number; totalAlimento: number; mortalidad: number }
-    | { tipo: 'dato'; key: string; registro: ProduccionDiaria }
+    | { tipo: 'separador'; key: string; inicio: Date; fin: Date; totalAlimento: number; mortalidad: number }
+    | { tipo: 'dato'; key: string; registro: ProduccionDiaria; eventos: EventoClinico[] }
 
   const filasHistorial: FilaHistorial[] = []
   let semanaAnterior: number | null = null
@@ -213,19 +239,14 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
     const semana = semanaDeFecha(r.fecha)
     if (semana !== semanaAnterior) {
       const grupo = registros.filter(x => semanaDeFecha(x.fecha) === semana)
-      const totalHuevos = grupo.reduce((s, x) => s + x.huevos_totales, 0)
       const totalAlimento = grupo.reduce((s, x) => s + Number(x.alimento_kg), 0)
       const mortalidad = grupo.reduce((s, x) => s + x.muertes, 0)
-      const conAves = grupo.filter(x => x.aves_en_dia && x.aves_en_dia > 0)
-      const promPostura = conAves.length > 0
-        ? (conAves.reduce((s, x) => s + (x.huevos_totales / x.aves_en_dia! * 100), 0) / conAves.length).toFixed(1)
-        : null
       const inicio = new Date(origenSemanasDate.getTime() + semana * 7 * MS_DIA)
       const fin = new Date(inicio.getTime() + 6 * MS_DIA)
-      filasHistorial.push({ tipo: 'separador', key: `sep-${semana}`, inicio, fin, promPostura, totalHuevos, totalAlimento, mortalidad })
+      filasHistorial.push({ tipo: 'separador', key: `sep-${semana}`, inicio, fin, totalAlimento, mortalidad })
       semanaAnterior = semana
     }
-    filasHistorial.push({ tipo: 'dato', key: r.id, registro: r })
+    filasHistorial.push({ tipo: 'dato', key: r.id, registro: r, eventos: eventosPorFecha.get(r.fecha) ?? [] })
   }
 
   return (
@@ -245,14 +266,25 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
       {loteActual.estado === 'preparacion' && (
         <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg border border-blue-200 bg-blue-50">
           <div>
-            <p className="text-sm font-semibold text-blue-800">🐣 Lote en preparación (levante)</p>
+            <p className="text-sm font-semibold text-blue-800">🐣 Semana de preparación {semanasEnGalpon + 1} (levante)</p>
             <p className="text-xs text-blue-600 mt-0.5">
-              {semanasEnGalpon} semana{semanasEnGalpon === 1 ? '' : 's'} desde su entrada al galpón · aún no inicia postura
+              {semanasFaltantesPostura != null
+                ? `Faltan ${semanasFaltantesPostura} semana${semanasFaltantesPostura === 1 ? '' : 's'} para el inicio estimado de postura`
+                : 'Aún no inicia postura'}
             </p>
           </div>
           <Button size="sm" onClick={marcarInicioPostura} className="bg-blue-700 hover:bg-blue-800 text-white text-xs">
-            Marcar inicio de postura
+            🥚 Marcar inicio de postura
           </Button>
+        </div>
+      )}
+
+      {!hayAlimentoRegistrado && (
+        <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg border border-amber-200 bg-amber-50">
+          <p className="text-sm font-semibold text-amber-800">⚠️ No has registrado alimento para esta finca</p>
+          <Link href="/alimento">
+            <Button size="sm" className="bg-amber-700 hover:bg-amber-800 text-white text-xs">Registrar alimento</Button>
+          </Link>
         </div>
       )}
 
@@ -305,12 +337,14 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Card className="border-purple-200 bg-purple-50">
           <CardContent className="p-4">
-            <p className="text-xs text-purple-700 font-medium">Semana de postura</p>
-            <p className="text-2xl font-bold text-purple-800">{semanaPostura ?? '—'}</p>
+            <p className="text-xs text-purple-700 font-medium">{semanaPostura != null ? 'Semana de postura' : 'Postura'}</p>
+            <p className="text-2xl font-bold text-purple-800">
+              {semanaPostura ?? (semanasFaltantesPostura != null ? `Faltan ${semanasFaltantesPostura}` : '—')}
+            </p>
             <p className="text-xs text-purple-600 mt-0.5">
               {inicioSemanaActual && finSemanaActual
                 ? `${inicioSemanaActual.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })} – ${finSemanaActual.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}`
-                : 'Sin fecha de inicio'}
+                : semanasFaltantesPostura != null ? `semana${semanasFaltantesPostura === 1 ? '' : 's'} para iniciar` : 'Sin fecha de inicio'}
             </p>
             {fechaFinEstimada && (
               <p className="text-xs text-purple-500 mt-0.5">
@@ -381,6 +415,12 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
         </Card>
       </div>
 
+      <GraficaProduccionHuevos
+        registros={registros}
+        semanasFaltantesPostura={semanasFaltantesPostura}
+        enPreparacion={loteActual.estado === 'preparacion'}
+      />
+
       <HorariosRecoleccion loteId={loteActual.id} fincaId={loteActual.finca_id} />
       <RevisionCalidadHuevo
         loteId={loteActual.id}
@@ -391,7 +431,8 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-semibold text-gray-700">Historial de Producción</CardTitle>
+          <CardTitle className="text-sm font-semibold text-gray-700">Historial (alimento, muertes y eventos clínicos)</CardTitle>
+          <p className="text-xs text-gray-400">La producción de huevos se ve en la gráfica de arriba y en Ventas — aquí solo lo demás.</p>
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
@@ -400,11 +441,13 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
             </div>
           ) : registros.length === 0 ? (
             <div className="py-12 text-center">
-              <p className="text-4xl mb-2">🥚</p>
-              <p className="text-gray-600 font-medium">Sin registros de producción</p>
-              <p className="text-sm text-gray-400 mb-4">Registra el primer día de postura</p>
+              <p className="text-4xl mb-2">📋</p>
+              <p className="text-gray-600 font-medium">Sin registros todavía</p>
+              <p className="text-sm text-gray-400 mb-4">
+                {loteActual.estado === 'preparacion' ? 'Registra alimento, muertes o eventos clínicos del día' : 'Registra el primer día'}
+              </p>
               <Button onClick={() => setModalOpen(true)} className="bg-green-700 hover:bg-green-800 text-white">
-                + Registrar día
+                {loteActual.estado === 'preparacion' ? '+ Registrar día' : '🥚 Marcar inicio de postura'}
               </Button>
             </div>
           ) : (
@@ -413,19 +456,10 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
                 <TableHeader>
                   <TableRow>
                     <TableHead>Fecha</TableHead>
-                    <TableHead className="text-right">Huevos</TableHead>
-                    <TableHead className="text-right">B</TableHead>
-                    <TableHead className="text-right">A</TableHead>
-                    <TableHead className="text-right">AA</TableHead>
-                    <TableHead className="text-right">AAA</TableHead>
-                    <TableHead className="text-right">JUMBO</TableHead>
-                    <TableHead className="text-right">% Postura</TableHead>
-                    <TableHead className="text-right">Rotos</TableHead>
-                    <TableHead className="text-right">Sucios</TableHead>
-                    <TableHead className="text-right">Deformes</TableHead>
                     <TableHead className="text-right">Alimento kg</TableHead>
                     <TableHead className="text-right">Muertes</TableHead>
                     <TableHead>Causa</TableHead>
+                    <TableHead>Eventos clínicos</TableHead>
                     <TableHead></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -434,13 +468,11 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
                     if (fila.tipo === 'separador') {
                       return (
                         <TableRow key={fila.key} className="bg-purple-50 hover:bg-purple-50 border-y border-purple-200">
-                          <TableCell colSpan={15} className="py-2">
+                          <TableCell colSpan={6} className="py-2">
                             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-purple-800 font-medium">
                               <span>
                                 📅 Semana {fila.inicio.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })} – {fila.fin.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}
                               </span>
-                              <span>Prom. postura: {fila.promPostura ? `${fila.promPostura}%` : '—'}</span>
-                              <span>Huevos: {fila.totalHuevos.toLocaleString('es-CO')}</span>
                               <span>Alimento: {fila.totalAlimento.toFixed(1)} kg</span>
                               <span>Mortalidad: {fila.mortalidad}</span>
                             </div>
@@ -449,33 +481,19 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
                       )
                     }
                     const r = fila.registro
-                    const pct = r.aves_en_dia && r.aves_en_dia > 0
-                      ? ((r.huevos_totales / r.aves_en_dia) * 100).toFixed(1)
-                      : null
                     return (
                       <TableRow key={fila.key}>
                         <TableCell className="font-medium text-sm">{formatDate(r.fecha)}</TableCell>
-                        <TableCell className="text-right font-medium">{r.huevos_totales.toLocaleString('es-CO')}</TableCell>
-                        <TableCell className="text-right text-gray-500">{r.huevos_b || '—'}</TableCell>
-                        <TableCell className="text-right text-gray-500">{r.huevos_a || '—'}</TableCell>
-                        <TableCell className="text-right text-gray-500">{r.huevos_aa || '—'}</TableCell>
-                        <TableCell className="text-right text-gray-500">{r.huevos_aaa || '—'}</TableCell>
-                        <TableCell className="text-right text-gray-500">{r.huevos_jumbo || '—'}</TableCell>
-                        <TableCell className="text-right">
-                          {pct ? (
-                            <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${Number(pct) >= metaPostura ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                              {pct}%
-                            </span>
-                          ) : '—'}
-                        </TableCell>
-                        <TableCell className="text-right text-red-600">{r.huevos_rotos || '—'}</TableCell>
-                        <TableCell className="text-right text-orange-600">{r.huevos_sucios || '—'}</TableCell>
-                        <TableCell className="text-right text-amber-600">{r.huevos_deformes || '—'}</TableCell>
                         <TableCell className="text-right">{Number(r.alimento_kg) > 0 ? Number(r.alimento_kg).toFixed(1) : '—'}</TableCell>
                         <TableCell className="text-right">
                           {r.muertes > 0 ? <Badge variant="destructive" className="text-xs">{r.muertes}</Badge> : '—'}
                         </TableCell>
                         <TableCell className="text-xs text-gray-500">{r.causa_muerte ? CAUSAS_LABEL[r.causa_muerte] ?? r.causa_muerte : '—'}</TableCell>
+                        <TableCell className="text-xs text-gray-500">
+                          {fila.eventos.length > 0
+                            ? fila.eventos.map(ev => ev.descripcion).join(' · ')
+                            : '—'}
+                        </TableCell>
                         <TableCell>
                           <div className="flex items-center justify-end gap-1">
                             <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={() => { setRegistroEditar(r); setModalOpen(true) }}>✏️</Button>
@@ -504,8 +522,9 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
         loteId={loteActual.id}
         fincaId={loteActual.finca_id}
         avesActuales={loteActual.aves_actuales}
+        estadoLote={loteActual.estado}
         registroExistente={registroEditar}
-        onCreated={() => { fetchRegistros(); onLoteUpdated() }}
+        onCreated={() => { fetchRegistros(); fetchEventosClinicos(); onLoteUpdated() }}
       />
 
       <ConfigurarGalponModal

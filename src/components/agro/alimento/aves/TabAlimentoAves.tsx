@@ -28,7 +28,7 @@ type SubTab = 'alimento' | 'balance'
 
 const DEFAULTS = {
   mant_proteina_g: 9, mant_calcio_g: 0.3, mant_fosforo_g: 0.25, mant_grasa_g: 1.5,
-  prod_proteina_g: 4.2, prod_calcio_g: 3.8, prod_fosforo_g: 0.45, prod_grasa_g: 1.0,
+  prod_proteina_g: 0, prod_calcio_g: 0, prod_fosforo_g: 0, prod_grasa_g: 0,
 }
 
 function cop(n: number) {
@@ -116,6 +116,22 @@ export default function TabAlimentoAves({ lotes }: Props) {
   async function quitarConsumo(registro: ProduccionDiaria) {
     const { error } = await supabase.from('produccion_diaria_aves').update({ alimento_kg: 0, tipo_alimento_id: null }).eq('id', registro.id)
     if (error) { toast.error('Error al quitar el consumo'); return }
+
+    if (lote) {
+      const { data: ultimo } = await supabase
+        .from('produccion_diaria_aves')
+        .select('tipo_alimento_id, alimento_kg')
+        .eq('lote_id', lote.id)
+        .gt('alimento_kg', 0)
+        .order('fecha', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      await supabase.from('lotes_aves').update({
+        alimento_activo_id: ultimo?.tipo_alimento_id ?? null,
+        consumo_activo_kg: ultimo ? Number(ultimo.alimento_kg) : null,
+      }).eq('id', lote.id)
+    }
+
     toast.success('Consumo eliminado')
     fetchAll()
   }
@@ -252,7 +268,13 @@ export default function TabAlimentoAves({ lotes }: Props) {
             )}
           </CardContent>
         </Card>
-      ) : (
+      ) : null}
+
+      {subTab === 'alimento' && lote && (
+        <HorariosAlimentacion loteId={lote.id} fincaId={lote.finca_id} />
+      )}
+
+      {subTab === 'balance' && (
         <>
           {!hoy && (
             <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg text-sm text-amber-800">
@@ -292,8 +314,6 @@ export default function TabAlimentoAves({ lotes }: Props) {
               </Card>
             )}
           </div>
-
-          <HorariosAlimentacion loteId={lote!.id} fincaId={lote!.finca_id} />
 
           {/* Balance nutricional */}
           <Card>

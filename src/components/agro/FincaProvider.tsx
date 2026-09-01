@@ -9,6 +9,8 @@ type Finca = {
   municipio: string | null
   departamento: string | null
   hectareas: number | null
+  area_valor: number | null
+  area_unidad: string | null
   tipo_produccion: string[] | null
   altitud_msnm: number | null
   velocidad_viento_kmh: number | null

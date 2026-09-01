@@ -59,12 +59,13 @@ export default function RevisionCalidadHuevo({ loteId, fincaId, fechaInicioPostu
   const inicioSemana = new Date(origenDate.getTime() + numSemana * 7 * MS_DIA)
   const finSemana = new Date(inicioSemana.getTime() + 6 * MS_DIA)
   const inicioSemanaStr = inicioSemana.toISOString().split('T')[0]
+  const finSemanaStr = finSemana.toISOString().split('T')[0]
 
   const fetchRevisiones = useCallback(async () => {
     setLoading(true)
     const [revRes, diariosRes] = await Promise.all([
       supabase.from('revisiones_calidad_huevo_aves').select('*').eq('lote_id', loteId).order('fecha', { ascending: false }).limit(12),
-      supabase.from('produccion_diaria_aves').select('huevos_b, huevos_a, huevos_aa, huevos_aaa, huevos_jumbo').eq('lote_id', loteId).gte('fecha', inicioSemanaStr),
+      supabase.from('produccion_diaria_aves').select('huevos_b, huevos_a, huevos_aa, huevos_aaa, huevos_jumbo').eq('lote_id', loteId).gte('fecha', inicioSemanaStr).lte('fecha', finSemanaStr),
     ])
     setRevisiones(revRes.data ?? [])
     const acum = { b: 0, a: 0, aa: 0, aaa: 0, jumbo: 0 }
@@ -73,7 +74,7 @@ export default function RevisionCalidadHuevo({ loteId, fincaId, fechaInicioPostu
     }
     setSemanaActual(acum)
     setLoading(false)
-  }, [loteId, supabase, inicioSemanaStr])
+  }, [loteId, supabase, inicioSemanaStr, finSemanaStr])
 
   useEffect(() => { fetchRevisiones() }, [fetchRevisiones])
 

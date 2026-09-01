@@ -43,6 +43,7 @@ function defaultForm(evento?: EventoClinico | null) {
     accion_tomada: evento?.accion_tomada ?? '',
     encargado: evento?.veterinario ?? '',
     observaciones: evento?.observaciones ?? '',
+    requiere_medicamento: evento ? evento.requiere_medicamento : true,
   }
 }
 
@@ -72,6 +73,7 @@ export default function RegistrarEventoClinicoModal({ open, onClose, loteId, fin
       accion_tomada: form.accion_tomada || null,
       veterinario: form.encargado || null,
       observaciones: form.observaciones || null,
+      requiere_medicamento: form.requiere_medicamento,
     }
     const { data, error } = eventoExistente
       ? await supabase.from('eventos_clinicos_aves').update(payload).eq('id', eventoExistente.id).select('id').single()
@@ -117,6 +119,18 @@ export default function RegistrarEventoClinicoModal({ open, onClose, loteId, fin
             <div className="col-span-2 space-y-1">
               <Label>Acción tomada</Label>
               <Input placeholder="Tratamiento o manejo aplicado" value={form.accion_tomada} onChange={e => set('accion_tomada', e.target.value)} />
+            </div>
+            <div className="col-span-2 flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="requiere_medicamento"
+                checked={form.requiere_medicamento}
+                onChange={e => setForm(prev => ({ ...prev, requiere_medicamento: e.target.checked }))}
+                className="h-4 w-4"
+              />
+              <Label htmlFor="requiere_medicamento" className="text-sm font-normal">
+                Requiere medicamento (desmárcalo para causas como estrés calórico o accidentes)
+              </Label>
             </div>
             <div className="space-y-1">
               <Label>Encargado</Label>

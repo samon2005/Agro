@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -10,6 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner'
 import { ESPECIES_FINCA, type EspecieFinca } from '@/lib/especies'
 import { geocodeMunicipio } from '@/lib/clima'
+
+const UNIDAD_OTRA = '__otra__'
 
 const DEPARTAMENTOS = [
   'Antioquia','Atlántico','Bogotá D.C.','Bolívar','Boyacá','Caldas','Caquetá',
@@ -27,6 +29,23 @@ export default function CrearFincaModal({ open, onCreated }: Props) {
   const [loading, setLoading] = useState(false)
   const [departamento, setDepartamento] = useState('')
   const [especies, setEspecies] = useState<EspecieFinca[]>([])
+  const [areaUnidad, setAreaUnidad] = useState('ha')
+  const [unidadOtra, setUnidadOtra] = useState('')
+  const [unidadesGuardadas, setUnidadesGuardadas] = useState<string[]>([])
+
+  useEffect(() => {
+    if (!open) return
+    const supabase = createClient()
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return
+      const { data } = await supabase
+        .from('unidades_area_personalizadas')
+        .select('nombre')
+        .eq('propietario_id', user.id)
+        .order('nombre')
+      setUnidadesGuardadas((data ?? []).map(d => d.nombre))
+    })
+  }, [open])
 
   function toggleEspecie(value: EspecieFinca) {
     setEspecies(prev => prev.includes(value) ? prev.filter(e => e !== value) : [...prev, value])
@@ -43,11 +62,15 @@ export default function CrearFincaModal({ open, onCreated }: Props) {
     const municipio = form.get('municipio') as string || ''
     const coords = municipio && departamento ? await geocodeMunicipio(municipio, departamento) : null
 
+    const areaValor = form.get('area_valor') ? Number(form.get('area_valor')) : null
+    const unidadFinal = areaUnidad === UNIDAD_OTRA ? unidadOtra.trim() : areaUnidad
+
     const { error } = await supabase.from('fincas').insert({
       nombre: form.get('nombre') as string,
       municipio: municipio || null,
       departamento: departamento || null,
-      hectareas: form.get('hectareas') ? Number(form.get('hectareas')) : null,
+      area_valor: areaValor,
+      area_unidad: areaValor && unidadFinal ? unidadFinal : null,
       tipo_produccion: especies,
       latitud: coords?.lat ?? null,
       longitud: coords?.lon ?? null,
@@ -56,10 +79,19 @@ export default function CrearFincaModal({ open, onCreated }: Props) {
 
     if (error) {
       toast.error('Error al crear la finca: ' + error.message)
-    } else {
-      toast.success('¡Finca creada exitosamente!')
-      onCreated()
+      setLoading(false)
+      return
     }
+
+    if (areaValor && areaUnidad === UNIDAD_OTRA && unidadFinal && user) {
+      await supabase.from('unidades_area_personalizadas').upsert(
+        { propietario_id: user.id, nombre: unidadFinal },
+        { onConflict: 'propietario_id,nombre' }
+      )
+    }
+
+    toast.success('¡Finca creada exitosamente!')
+    onCreated()
     setLoading(false)
   }
 
@@ -99,8 +131,31 @@ export default function CrearFincaModal({ open, onCreated }: Props) {
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="hectareas">Hectáreas</Label>
-            <Input id="hectareas" name="hectareas" type="number" step="0.01" placeholder="Ej: 120.5" />
+            <Label htmlFor="area_valor">Área de la finca</Label>
+            <div className="grid grid-cols-2 gap-3">
+              <Input id="area_valor" name="area_valor" type="number" step="0.01" min="0" placeholder="Ej: 120.5" />
+              <Select value={areaUnidad} onValueChange={v => setAreaUnidad(v ?? 'ha')}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Unidad" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ha">Hectáreas</SelectItem>
+                  <SelectItem value="m2">Metros cuadrados (m²)</SelectItem>
+                  {unidadesGuardadas.map(u => (
+                    <SelectItem key={u} value={u}>{u}</SelectItem>
+                  ))}
+                  <SelectItem value={UNIDAD_OTRA}>Otra unidad...</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {areaUnidad === UNIDAD_OTRA && (
+              <Input
+                placeholder="Nombre de la unidad (Ej: fanegadas)"
+                value={unidadOtra}
+                onChange={e => setUnidadOtra(e.target.value)}
+                className="mt-1.5"
+              />
+            )}
           </div>
           <div className="space-y-1.5">
             <Label>¿Con qué especies vas a trabajar? *</Label>
