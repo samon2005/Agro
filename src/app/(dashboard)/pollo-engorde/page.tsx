@@ -11,20 +11,25 @@ import CrearLotePolloModal from '@/components/agro/pollo/CrearLotePolloModal'
 import TabProduccionPollo from '@/components/agro/pollo/produccion/TabProduccionPollo'
 import TabAmbientalPollo from '@/components/agro/pollo/ambiental/TabAmbientalPollo'
 import TabSanitarioPollo from '@/components/agro/pollo/sanitario/TabSanitarioPollo'
-import TabCostosPollo from '@/components/agro/pollo/costos/TabCostosPollo'
 import TabEquiposPollo from '@/components/agro/pollo/equipos/TabEquiposPollo'
+import TabVentasGenerico from '@/components/agro/comun/TabVentasGenerico'
+import TabCostosGenerico from '@/components/agro/comun/TabCostosGenerico'
+import { CONFIG_ESPECIES } from '@/lib/especiesConfig'
 import type { Database } from '@/types/database'
 
 type LotePollo = Database['public']['Tables']['lotes_pollo']['Row']
-type Tab = 'produccion' | 'ambiental' | 'sanitario' | 'costos' | 'equipos'
+type Tab = 'produccion' | 'ambiental' | 'sanitario' | 'ventas' | 'costos' | 'equipos'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'produccion', label: '📈 Producción' },
   { id: 'ambiental',  label: '🌡️ Ambiental' },
   { id: 'sanitario',  label: '💉 Sanitario' },
-  { id: 'costos',     label: '💰 Costos' },
+  { id: 'ventas',     label: '🧾 Ventas' },
+  { id: 'costos',     label: '💰 Finanzas' },
   { id: 'equipos',    label: '⚙️ Equipos' },
 ]
+
+const CONFIG = CONFIG_ESPECIES.pollo_engorde
 
 export default function PolloEngordePage() {
   const { fincaActual, loading: fincaLoading } = useFinca()
@@ -145,7 +150,19 @@ export default function PolloEngordePage() {
             {activeTab === 'produccion' && <TabProduccionPollo loteActual={loteActual} onLoteUpdated={refreshLote} />}
             {activeTab === 'ambiental'  && <TabAmbientalPollo loteActual={loteActual} />}
             {activeTab === 'sanitario'  && <TabSanitarioPollo loteActual={loteActual} />}
-            {activeTab === 'costos'     && (rol === 'trabajador' ? <AccesoRestringido /> : <TabCostosPollo loteActual={loteActual} />)}
+            {activeTab === 'ventas'     && (rol === 'trabajador' ? <AccesoRestringido /> : (
+              <TabVentasGenerico
+                loteId={loteActual.id}
+                fincaId={loteActual.finca_id}
+                config={CONFIG}
+                animalesActuales={loteActual.pollos_actuales}
+                precioKgObjetivo={loteActual.precio_kg_objetivo}
+                onLoteCambiado={refreshLote}
+              />
+            ))}
+            {activeTab === 'costos'     && (rol === 'trabajador' ? <AccesoRestringido /> : (
+              <TabCostosGenerico loteId={loteActual.id} fincaId={loteActual.finca_id} config={CONFIG} />
+            ))}
             {activeTab === 'equipos'    && <TabEquiposPollo loteActual={loteActual} />}
           </div>
         </div>

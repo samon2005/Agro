@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useFinca } from '@/components/agro/FincaProvider'
+import { useRol } from '@/components/agro/RolProvider'
+import AccesoRestringido from '@/components/agro/AccesoRestringido'
 import { cn } from '@/lib/utils'
 import CrearLoteCerdosModal from '@/components/agro/cerdos/CrearLoteCerdosModal'
 import TabCrecimiento from '@/components/agro/cerdos/crecimiento/TabCrecimiento'
@@ -10,19 +12,26 @@ import TabNutricion from '@/components/agro/cerdos/nutricion/TabNutricion'
 import TabSanitarioCerdos from '@/components/agro/cerdos/sanitario/TabSanitarioCerdos'
 import TabAmbientalCerdos from '@/components/agro/cerdos/ambiental/TabAmbientalCerdos'
 import TabEquiposCerdos from '@/components/agro/cerdos/equipos/TabEquiposCerdos'
+import TabVentasGenerico from '@/components/agro/comun/TabVentasGenerico'
+import TabCostosGenerico from '@/components/agro/comun/TabCostosGenerico'
+import { CONFIG_ESPECIES } from '@/lib/especiesConfig'
 import { Badge } from '@/components/ui/badge'
 import type { Database } from '@/types/database'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
-type Tab = 'crecimiento' | 'nutricion' | 'sanitario' | 'ambiental' | 'equipos'
+type Tab = 'crecimiento' | 'nutricion' | 'sanitario' | 'ambiental' | 'ventas' | 'costos' | 'equipos'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'crecimiento', label: '📈 Crecimiento' },
   { id: 'nutricion', label: '🌾 Nutrición' },
   { id: 'sanitario', label: '💉 Sanitario' },
   { id: 'ambiental', label: '🌡️ Ambiental' },
+  { id: 'ventas', label: '🧾 Ventas' },
+  { id: 'costos', label: '💰 Finanzas' },
   { id: 'equipos', label: '⚙️ Equipos' },
 ]
+
+const CONFIG = CONFIG_ESPECIES.cerdos
 
 const ETAPAS_LABEL: Record<string, string> = {
   precebo: '🐷 Precebo', levante: '🐖 Levante', ceba: '🐗 Ceba', finalizacion: '✅ Finalización', vendido: '💰 Vendido'
@@ -30,6 +39,7 @@ const ETAPAS_LABEL: Record<string, string> = {
 
 export default function CerdosPage() {
   const { fincaActual, loading: fincaLoading } = useFinca()
+  const rol = useRol()
   const supabase = createClient()
   const [lotes, setLotes] = useState<LoteCerdos[]>([])
   const [loteActual, setLoteActual] = useState<LoteCerdos | null>(null)
@@ -135,6 +145,19 @@ export default function CerdosPage() {
             {activeTab === 'nutricion' && <TabNutricion loteActual={loteActual} />}
             {activeTab === 'sanitario' && <TabSanitarioCerdos loteActual={loteActual} />}
             {activeTab === 'ambiental' && <TabAmbientalCerdos loteActual={loteActual} />}
+            {activeTab === 'ventas' && (rol === 'trabajador' ? <AccesoRestringido /> : (
+              <TabVentasGenerico
+                loteId={loteActual.id}
+                fincaId={loteActual.finca_id}
+                config={CONFIG}
+                animalesActuales={loteActual.animales_actuales}
+                precioKgObjetivo={loteActual.precio_kg_objetivo}
+                onLoteCambiado={refreshLote}
+              />
+            ))}
+            {activeTab === 'costos' && (rol === 'trabajador' ? <AccesoRestringido /> : (
+              <TabCostosGenerico loteId={loteActual.id} fincaId={loteActual.finca_id} config={CONFIG} />
+            ))}
             {activeTab === 'equipos' && <TabEquiposCerdos loteActual={loteActual} />}
           </div>
         </div>

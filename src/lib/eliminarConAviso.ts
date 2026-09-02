@@ -14,9 +14,10 @@ function cop(n: number) {
 export async function avisoCostoVinculado(
   supabase: SupabaseClient,
   columna: 'medicacion_id' | 'vacunacion_id' | 'desinfeccion_id' | 'tipo_alimento_id' | 'equipo_id',
-  id: string
+  id: string,
+  tablaCostos = 'costos_lote_aves'
 ): Promise<string | null> {
-  const { data } = await supabase.from('costos_lote_aves').select('monto, categoria').eq(columna, id).maybeSingle()
+  const { data } = await supabase.from(tablaCostos).select('monto, categoria').eq(columna, id).maybeSingle()
   if (!data) return null
   const cat = categoriaInfo(data.categoria)
   return `⚠️ También se eliminará el costo de ${cop(Number(data.monto))} (${cat?.label ?? data.categoria}) registrado en Finanzas.`
