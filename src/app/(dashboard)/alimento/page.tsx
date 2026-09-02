@@ -5,12 +5,15 @@ import { createClient } from '@/lib/supabase/client'
 import { useFinca } from '@/components/agro/FincaProvider'
 import { cn } from '@/lib/utils'
 import TabAlimentoAves from '@/components/agro/alimento/aves/TabAlimentoAves'
+import TabAlimentoGenerico from '@/components/agro/comun/TabAlimentoGenerico'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ESPECIES_FINCA, type EspecieFinca } from '@/lib/especies'
+import { CONFIG_ESPECIES } from '@/lib/especiesConfig'
 import type { Database } from '@/types/database'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
+type LoteSimple = { id: string; finca_id: string; nombre: string }
 
 export default function AlimentoPage() {
   const { fincaActual, loading: fincaLoading } = useFinca()
@@ -19,26 +22,32 @@ export default function AlimentoPage() {
   const especies = (fincaActual?.tipo_produccion ?? []) as EspecieFinca[]
   const [especieActiva, setEspecieActiva] = useState<EspecieFinca | null>(null)
   const [lotesAves, setLotesAves] = useState<LoteAves[]>([])
+  const [lotesCerdos, setLotesCerdos] = useState<LoteSimple[]>([])
+  const [lotesPollo, setLotesPollo] = useState<LoteSimple[]>([])
   const [loadingLotes, setLoadingLotes] = useState(true)
 
   useEffect(() => {
     if (especies.length > 0 && !especieActiva) setEspecieActiva(especies[0])
   }, [especies, especieActiva])
 
-  const fetchLotesAves = useCallback(async () => {
+  const fetchLotes = useCallback(async () => {
     if (!fincaActual) return
     setLoadingLotes(true)
-    const { data } = await supabase
-      .from('lotes_aves')
-      .select('*')
-      .eq('finca_id', fincaActual.id)
-      .in('estado', ['activo', 'preparacion'])
-      .order('created_at', { ascending: false })
-    setLotesAves(data ?? [])
+    const [avesRes, cerdosRes, polloRes] = await Promise.all([
+      supabase.from('lotes_aves').select('*').eq('finca_id', fincaActual.id)
+        .in('estado', ['activo', 'preparacion']).order('created_at', { ascending: false }),
+      supabase.from('lotes_cerdos').select('id, finca_id, nombre').eq('finca_id', fincaActual.id)
+        .eq('estado', 'activo').order('created_at', { ascending: false }),
+      supabase.from('lotes_pollo').select('id, finca_id, nombre').eq('finca_id', fincaActual.id)
+        .eq('estado', 'activo').order('created_at', { ascending: false }),
+    ])
+    setLotesAves(avesRes.data ?? [])
+    setLotesCerdos(cerdosRes.data ?? [])
+    setLotesPollo(polloRes.data ?? [])
     setLoadingLotes(false)
   }, [fincaActual, supabase])
 
-  useEffect(() => { fetchLotesAves() }, [fetchLotesAves])
+  useEffect(() => { fetchLotes() }, [fetchLotes])
 
   if (fincaLoading) {
     return (
@@ -95,14 +104,20 @@ export default function AlimentoPage() {
         )
       )}
 
-      {(especieActiva === 'cerdos' || especieActiva === 'pollo_engorde') && (
-        <Card className="border-dashed border-gray-300 bg-gray-50">
-          <CardContent className="p-8 text-center space-y-2">
-            <p className="text-3xl">🚧</p>
-            <p className="font-semibold text-gray-600">Módulo de alimento para {especieActiva === 'cerdos' ? 'cerdos' : 'pollo de engorde'} — Próximamente</p>
-            <p className="text-sm text-gray-400">Por ahora el consumo de alimento de esta especie se registra en su pestaña de Producción.</p>
-          </CardContent>
-        </Card>
+      {especieActiva === 'cerdos' && (
+        loadingLotes ? (
+          <div className="space-y-3">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-lg" />)}</div>
+        ) : (
+          <TabAlimentoGenerico lotes={lotesCerdos} config={CONFIG_ESPECIES.cerdos} />
+        )
+      )}
+
+      {especieActiva === 'pollo_engorde' && (
+        loadingLotes ? (
+          <div className="space-y-3">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-lg" />)}</div>
+        ) : (
+          <TabAlimentoGenerico lotes={lotesPollo} config={CONFIG_ESPECIES.pollo_engorde} />
+        )
       )}
     </div>
   )

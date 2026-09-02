@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useFinca } from '@/components/agro/FincaProvider'
 import CrearFincaModal from '@/components/agro/CrearFincaModal'
 import ResumenEspecies from '@/components/agro/ResumenEspecies'
+import ResumenFinanciero from '@/components/agro/ResumenFinanciero'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -98,6 +99,10 @@ export default function DashboardPage() {
 
         {fincaActual && (
           <ResumenEspecies fincaId={fincaActual.id} especies={(fincaActual.tipo_produccion ?? []) as EspecieFinca[]} />
+        )}
+
+        {fincaActual && (
+          <ResumenFinanciero fincaId={fincaActual.id} especies={(fincaActual.tipo_produccion ?? []) as EspecieFinca[]} />
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

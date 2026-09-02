@@ -26,6 +26,24 @@ export interface TablasEspecie {
   registroDiario: string
 }
 
+/**
+ * Cómo expresa cada especie sus requerimientos nutricionales. En carne se
+ * trabaja con porcentajes de la dieta más un consumo objetivo por día; en
+ * ponedoras se trabaja por gramos de mantenimiento y de producción.
+ */
+export interface ConfigNutricion {
+  /** Columna que identifica la etapa/fase en la tabla de requerimientos */
+  campoEtapa: string
+  etiquetaEtapa: string
+  /** Columna con el consumo objetivo por animal y día */
+  campoConsumo: string
+  unidadConsumo: 'kg' | 'g'
+  /** Etapas o fases disponibles */
+  etapas: { value: string; label: string }[]
+  /** Categorías del catálogo de alimento */
+  categoriasAlimento: { value: string; label: string }[]
+}
+
 export interface ConfigEspecie {
   especie: EspecieFinca
   label: string
@@ -47,6 +65,61 @@ export interface ConfigEspecie {
   /** Clase de color del botón principal */
   botonClase: string
   tablas: TablasEspecie
+  nutricion: ConfigNutricion
+}
+
+const NUTRICION_AVES: ConfigNutricion = {
+  campoEtapa: 'etapa',
+  etiquetaEtapa: 'Etapa',
+  campoConsumo: 'consumo_g_dia',
+  unidadConsumo: 'g',
+  etapas: [{ value: 'postura', label: 'Postura' }],
+  categoriasAlimento: [
+    { value: 'levante', label: 'Levante' },
+    { value: 'pollitas_ponedoras', label: 'Pollitas ponedoras' },
+    { value: 'otros', label: 'Otros' },
+  ],
+}
+
+const NUTRICION_CERDOS: ConfigNutricion = {
+  campoEtapa: 'etapa',
+  etiquetaEtapa: 'Etapa',
+  campoConsumo: 'consumo_kg_dia',
+  unidadConsumo: 'kg',
+  etapas: [
+    { value: 'precebo', label: 'Precebo (7–40 kg)' },
+    { value: 'levante', label: 'Levante (40–60 kg)' },
+    { value: 'ceba', label: 'Ceba (60–100 kg)' },
+    { value: 'finalizacion', label: 'Finalización (100 kg en adelante)' },
+  ],
+  categoriasAlimento: [
+    { value: 'preiniciacion', label: 'Preiniciación' },
+    { value: 'iniciacion', label: 'Iniciación' },
+    { value: 'levante', label: 'Levante' },
+    { value: 'ceba', label: 'Ceba' },
+    { value: 'finalizacion', label: 'Finalización' },
+    { value: 'otros', label: 'Otros' },
+  ],
+}
+
+const NUTRICION_POLLO: ConfigNutricion = {
+  campoEtapa: 'fase',
+  etiquetaEtapa: 'Fase',
+  campoConsumo: 'consumo_g_dia',
+  unidadConsumo: 'g',
+  etapas: [
+    { value: 'preiniciador', label: 'Preiniciador (día 0–10)' },
+    { value: 'iniciador', label: 'Iniciador (día 11–24)' },
+    { value: 'engorde', label: 'Engorde (día 25–35)' },
+    { value: 'finalizador', label: 'Finalizador (día 36 en adelante)' },
+  ],
+  categoriasAlimento: [
+    { value: 'preiniciador', label: 'Preiniciador' },
+    { value: 'iniciador', label: 'Iniciador' },
+    { value: 'engorde', label: 'Engorde' },
+    { value: 'finalizador', label: 'Finalizador' },
+    { value: 'otros', label: 'Otros' },
+  ],
 }
 
 export const CONFIG_ESPECIES: Record<EspecieFinca, ConfigEspecie> = {
@@ -81,6 +154,7 @@ export const CONFIG_ESPECIES: Record<EspecieFinca, ConfigEspecie> = {
       desinfecciones: 'desinfecciones_aves',
       registroDiario: 'produccion_diaria_aves',
     },
+    nutricion: NUTRICION_AVES,
   },
   cerdos: {
     especie: 'cerdos',
@@ -113,6 +187,7 @@ export const CONFIG_ESPECIES: Record<EspecieFinca, ConfigEspecie> = {
       desinfecciones: 'desinfecciones_cerdos',
       registroDiario: 'nutricion_diaria_cerdos',
     },
+    nutricion: NUTRICION_CERDOS,
   },
   pollo_engorde: {
     especie: 'pollo_engorde',
@@ -145,6 +220,7 @@ export const CONFIG_ESPECIES: Record<EspecieFinca, ConfigEspecie> = {
       desinfecciones: 'desinfecciones_pollo',
       registroDiario: 'produccion_diaria_pollo',
     },
+    nutricion: NUTRICION_POLLO,
   },
 }
 
