@@ -163,9 +163,15 @@ export interface Database {
         Relationships: []
       }
       eventos_clinicos_aves: {
-        Row: { id: string; lote_id: string; finca_id: string; fecha: string; tipo_evento: string; descripcion: string; aves_afectadas: number | null; aves_muertas: number | null; accion_tomada: string | null; veterinario: string | null; resuelto: boolean; observaciones: string | null; requiere_medicamento: boolean; registrado_por: string | null; created_at: string }
-        Insert: { id?: string; lote_id: string; finca_id: string; fecha?: string; tipo_evento: string; descripcion: string; aves_afectadas?: number | null; aves_muertas?: number | null; accion_tomada?: string | null; veterinario?: string | null; resuelto?: boolean; observaciones?: string | null; requiere_medicamento?: boolean; registrado_por?: string | null; created_at?: string }
-        Update: { id?: string; lote_id?: string; finca_id?: string; fecha?: string; tipo_evento?: string; descripcion?: string; aves_afectadas?: number | null; aves_muertas?: number | null; accion_tomada?: string | null; veterinario?: string | null; resuelto?: boolean; observaciones?: string | null; requiere_medicamento?: boolean; registrado_por?: string | null; created_at?: string }
+        Row: { id: string; lote_id: string; finca_id: string; fecha: string; tipo_evento: string; descripcion: string; aves_afectadas: number | null; aves_muertas: number | null; accion_tomada: string | null; veterinario: string | null; resuelto: boolean; observaciones: string | null; requiere_medicamento: boolean; causa: string | null; registrado_por: string | null; created_at: string }
+        Insert: { id?: string; lote_id: string; finca_id: string; fecha?: string; tipo_evento: string; descripcion: string; aves_afectadas?: number | null; aves_muertas?: number | null; accion_tomada?: string | null; veterinario?: string | null; resuelto?: boolean; observaciones?: string | null; requiere_medicamento?: boolean; causa?: string | null; registrado_por?: string | null; created_at?: string }
+        Update: { id?: string; lote_id?: string; finca_id?: string; fecha?: string; tipo_evento?: string; descripcion?: string; aves_afectadas?: number | null; aves_muertas?: number | null; accion_tomada?: string | null; veterinario?: string | null; resuelto?: boolean; observaciones?: string | null; requiere_medicamento?: boolean; causa?: string | null; registrado_por?: string | null; created_at?: string }
+        Relationships: []
+      }
+      causas_clinicas_aves: {
+        Row: { id: string; finca_id: string; nombre: string; created_at: string }
+        Insert: { id?: string; finca_id: string; nombre: string; created_at?: string }
+        Update: { id?: string; finca_id?: string; nombre?: string; created_at?: string }
         Relationships: []
       }
       costos_lote_aves: {

@@ -16,6 +16,7 @@ import { toast } from 'sonner'
 import Link from 'next/link'
 import { estadoPostura } from '@/lib/postura'
 import type { Database } from '@/types/database'
+import { aFechaLocal } from '@/lib/fechas'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 type ProduccionDiaria = Database['public']['Tables']['produccion_diaria_aves']['Row']
@@ -81,10 +82,11 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
       .then(({ data }) => setTipoAlimentoActivo(data ?? null))
   }, [loteActual.alimento_activo_id, supabase])
 
+  // El aviso es por galpón: mira si ESTE lote ya tiene alimento asignado, no si la
+  // finca tiene catálogo. Así también sale en los galpones creados después del primero.
   useEffect(() => {
-    supabase.from('tipos_alimento_aves').select('id', { count: 'exact', head: true }).eq('finca_id', loteActual.finca_id)
-      .then(({ count }) => setHayAlimentoRegistrado((count ?? 0) > 0))
-  }, [loteActual.finca_id, supabase])
+    setHayAlimentoRegistrado(loteActual.alimento_activo_id != null)
+  }, [loteActual.alimento_activo_id])
 
   useEffect(() => { fetchRegistros() }, [fetchRegistros])
   useEffect(() => { fetchEventosClinicos() }, [fetchEventosClinicos])
@@ -121,12 +123,14 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
   // ── Ciclo de postura ──
   const metaPostura = loteActual.meta_postura_pct ?? 90
   const hoyDate = new Date()
-  const hoyStr = hoyDate.toISOString().split('T')[0]
+  const hoyStr = aFechaLocal(hoyDate)
   const estadoPosturaHoy = estadoPostura(loteActual.fecha_inicio_postura, hoyStr)
   const semanaPostura = estadoPosturaHoy.iniciada ? estadoPosturaHoy.semana : null
   const inicioSemanaActual = estadoPosturaHoy.iniciada ? estadoPosturaHoy.inicioSemana : null
   const finSemanaActual = estadoPosturaHoy.iniciada ? estadoPosturaHoy.finSemana : null
   const semanasFaltantesPostura = !estadoPosturaHoy.iniciada ? estadoPosturaHoy.semanasFaltantes : null
+  /** Mientras el galpón esté en preparación no se muestra nada de huevos. */
+  const enPostura = loteActual.estado !== 'preparacion'
   let fechaFinEstimada: Date | null = null
   if (loteActual.fecha_inicio_postura && loteActual.semanas_ciclo_postura) {
     const inicio = new Date(loteActual.fecha_inicio_postura + 'T00:00:00')
@@ -268,10 +272,15 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
           <div>
             <p className="text-sm font-semibold text-blue-800">🐣 Semana de preparación {semanasEnGalpon + 1} (levante)</p>
             <p className="text-xs text-blue-600 mt-0.5">
-              {semanasFaltantesPostura != null
-                ? `Faltan ${semanasFaltantesPostura} semana${semanasFaltantesPostura === 1 ? '' : 's'} para el inicio estimado de postura`
-                : 'Aún no inicia postura'}
+              {loteActual.fecha_inicio_postura
+                ? `Fecha tentativa de inicio de postura: ${new Date(loteActual.fecha_inicio_postura + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'long', year: 'numeric' })}`
+                : 'Aún no hay fecha estimada de postura — configúrala en "⚙️ Configurar galpón"'}
             </p>
+            {semanasFaltantesPostura != null && (
+              <p className="text-xs text-blue-600">
+                Faltan {semanasFaltantesPostura} semana{semanasFaltantesPostura === 1 ? '' : 's'}
+              </p>
+            )}
           </div>
           <Button size="sm" onClick={marcarInicioPostura} className="bg-blue-700 hover:bg-blue-800 text-white text-xs">
             🥚 Marcar inicio de postura
@@ -281,7 +290,9 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
 
       {!hayAlimentoRegistrado && (
         <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg border border-amber-200 bg-amber-50">
-          <p className="text-sm font-semibold text-amber-800">⚠️ No has registrado alimento para esta finca</p>
+          <p className="text-sm font-semibold text-amber-800">
+            ⚠️ Este galpón todavía no tiene alimento registrado
+          </p>
           <Link href="/alimento">
             <Button size="sm" className="bg-amber-700 hover:bg-amber-800 text-white text-xs">Registrar alimento</Button>
           </Link>
@@ -289,6 +300,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
       )}
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        {enPostura && (<>
         <Card className="border-yellow-200 bg-yellow-50">
           <CardContent className="p-4">
             <p className="text-xs text-yellow-700 font-medium">Huevos puestos hoy</p>
@@ -324,6 +336,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
             <p className="text-xs text-blue-600 mt-0.5">kg alim / docena</p>
           </CardContent>
         </Card>
+        </>)}
         <Card className="border-gray-200 bg-gray-50">
           <CardContent className="p-4">
             <p className="text-xs text-gray-700 font-medium">Mortalidad acum.</p>
@@ -353,27 +366,47 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
             )}
           </CardContent>
         </Card>
+        {enPostura && (<>
         <Card className="border-emerald-200 bg-emerald-50">
           <CardContent className="p-4">
             <p className="text-xs text-emerald-700 font-medium">Ingreso por venta (hoy)</p>
             <p className="text-2xl font-bold text-emerald-800">{ingresoHoy > 0 ? cop(ingresoHoy) : '—'}</p>
-            <p className="text-xs text-emerald-600 mt-0.5">Según precio por tamaño configurado</p>
+            <p className="text-xs text-emerald-600 mt-0.5">
+              {precioPromedio > 0 ? 'Según precio por tamaño configurado' : 'Configura el precio del huevo en Ventas'}
+            </p>
           </CardContent>
         </Card>
-        <Card className={valorPerdidoHoy > 0 ? 'border-red-200 bg-red-50' : 'border-gray-200'}>
+        <Card className={perdidaHoy > 0 ? 'border-red-200 bg-red-50' : 'border-gray-200'}>
           <CardContent className="p-4">
-            <p className={`text-xs font-medium ${valorPerdidoHoy > 0 ? 'text-red-700' : 'text-gray-500'}`}>Pérdida por baja postura (hoy)</p>
-            <p className={`text-2xl font-bold ${valorPerdidoHoy > 0 ? 'text-red-800' : 'text-gray-700'}`}>{valorPerdidoHoy > 0 ? cop(valorPerdidoHoy) : '—'}</p>
-            <p className="text-xs text-gray-500 mt-0.5">{Math.round(perdidaHoy)} huevos bajo la meta</p>
+            <p className={`text-xs font-medium ${perdidaHoy > 0 ? 'text-red-700' : 'text-gray-500'}`}>Pérdida por baja postura (hoy)</p>
+            <p className={`text-2xl font-bold ${perdidaHoy > 0 ? 'text-red-800' : 'text-gray-700'}`}>
+              {precioPromedio > 0
+                ? (valorPerdidoHoy > 0 ? cop(valorPerdidoHoy) : cop(0))
+                : `${Math.round(perdidaHoy).toLocaleString('es-CO')}`}
+            </p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {precioPromedio > 0
+                ? `${Math.round(perdidaHoy).toLocaleString('es-CO')} huevos bajo la meta`
+                : 'huevos bajo la meta · pon el precio en Ventas para verlo en pesos'}
+            </p>
           </CardContent>
         </Card>
-        <Card className={valorPerdido30 > 0 ? 'border-red-200 bg-red-50' : 'border-gray-200'}>
+        <Card className={huevosPerdidos30 > 0 ? 'border-red-200 bg-red-50' : 'border-gray-200'}>
           <CardContent className="p-4">
-            <p className={`text-xs font-medium ${valorPerdido30 > 0 ? 'text-red-700' : 'text-gray-500'}`}>Pérdida acumulada (30d)</p>
-            <p className={`text-2xl font-bold ${valorPerdido30 > 0 ? 'text-red-800' : 'text-gray-700'}`}>{valorPerdido30 > 0 ? cop(valorPerdido30) : '—'}</p>
-            <p className="text-xs text-gray-500 mt-0.5">{Math.round(huevosPerdidos30).toLocaleString('es-CO')} huevos bajo la meta</p>
+            <p className={`text-xs font-medium ${huevosPerdidos30 > 0 ? 'text-red-700' : 'text-gray-500'}`}>Pérdida acumulada (30d)</p>
+            <p className={`text-2xl font-bold ${huevosPerdidos30 > 0 ? 'text-red-800' : 'text-gray-700'}`}>
+              {precioPromedio > 0
+                ? (valorPerdido30 > 0 ? cop(valorPerdido30) : cop(0))
+                : `${Math.round(huevosPerdidos30).toLocaleString('es-CO')}`}
+            </p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {precioPromedio > 0
+                ? `${Math.round(huevosPerdidos30).toLocaleString('es-CO')} huevos bajo la meta`
+                : 'huevos bajo la meta · pon el precio en Ventas para verlo en pesos'}
+            </p>
           </CardContent>
         </Card>
+        </>)}
         <Card className="border-orange-200 bg-orange-50">
           <CardContent className="p-4">
             <p className="text-xs text-orange-700 font-medium">Densidad</p>
@@ -415,20 +448,24 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
         </Card>
       </div>
 
-      <GraficaProduccionHuevos
-        registros={registros}
-        semanasFaltantesPostura={semanasFaltantesPostura}
-        enPreparacion={loteActual.estado === 'preparacion'}
-      />
+      {enPostura && (
+        <>
+          <GraficaProduccionHuevos
+            registros={registros}
+            semanasFaltantesPostura={semanasFaltantesPostura}
+            enPreparacion={false}
+          />
 
-      <HorariosRecoleccion loteId={loteActual.id} fincaId={loteActual.finca_id} />
-      <RevisionCalidadHuevo
-        loteId={loteActual.id}
-        fincaId={loteActual.finca_id}
-        fechaInicioPostura={loteActual.fecha_inicio_postura}
-        fechaInicioLote={loteActual.fecha_inicio}
-        registros={registros}
-      />
+          <HorariosRecoleccion loteId={loteActual.id} fincaId={loteActual.finca_id} />
+          <RevisionCalidadHuevo
+            loteId={loteActual.id}
+            fincaId={loteActual.finca_id}
+            fechaInicioPostura={loteActual.fecha_inicio_postura}
+            fechaInicioLote={loteActual.fecha_inicio}
+            registros={registros}
+          />
+        </>
+      )}
 
       <Card>
         <CardHeader className="pb-2">

@@ -16,6 +16,7 @@ import EditarRequerimientosGenericoModal, { type RequerimientoGenerico } from '.
 import RegistrarConsumoGenericoModal from './RegistrarConsumoGenericoModal'
 import HorariosAlimentacionGenerico from './HorariosAlimentacionGenerico'
 import { dbGenerico, type ConfigEspecie } from '@/lib/especiesConfig'
+import { hoyLocal } from '@/lib/fechas'
 
 interface LoteMinimo {
   id: string
@@ -157,7 +158,7 @@ export default function TabAlimentoGenerico({ lotes, config }: Props) {
 
   const nutri = config.nutricion
   const tiposActivos = tipos.filter(t => t.activo)
-  const hoyStr = new Date().toISOString().split('T')[0]
+  const hoyStr = hoyLocal()
   const requerimientos = requerimientosHistorial.find(r => r.vigente_desde <= hoyStr) ?? null
   const tipoActual = tipos.find(t => t.id === alimentoActivo?.alimento_activo_id) ?? null
   const alimentoKgHoy = alimentoActivo?.consumo_activo_kg != null ? Number(alimentoActivo.consumo_activo_kg) : 0

@@ -16,6 +16,7 @@ import EditarRequerimientosModal from './EditarRequerimientosModal'
 import RegistrarConsumoAlimentoModal from './RegistrarConsumoAlimentoModal'
 import HorariosAlimentacion from './HorariosAlimentacion'
 import type { Database } from '@/types/database'
+import { hoyLocal } from '@/lib/fechas'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 type ProduccionDiaria = Database['public']['Tables']['produccion_diaria_aves']['Row']
@@ -68,6 +69,7 @@ export default function TabAlimentoAves({ lotes }: Props) {
   const [tipoEditar, setTipoEditar] = useState<TipoAlimento | null>(null)
   const [modalRequerimientos, setModalRequerimientos] = useState(false)
   const [modalConsumo, setModalConsumo] = useState(false)
+  const [consumoEditar, setConsumoEditar] = useState<ProduccionDiaria | null>(null)
   const [confirmandoEliminar, setConfirmandoEliminar] = useState<string | null>(null)
 
   const lote = lotes.find(l => l.id === loteId) ?? lotes[0] ?? null
@@ -151,7 +153,7 @@ export default function TabAlimentoAves({ lotes }: Props) {
   if (loading) return <div className="space-y-3">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-lg" />)}</div>
 
   const tiposActivos = tipos.filter(t => t.activo)
-  const hoyStr = new Date().toISOString().split('T')[0]
+  const hoyStr = hoyLocal()
   const requerimientos = requerimientosHistorial.find(r => r.vigente_desde <= hoyStr) ?? null
   const req = requerimientos ?? { ...DEFAULTS, lote_id: lote!.id, finca_id: lote!.finca_id, id: '', vigente_desde: '', created_at: '' }
   const avesEnDia = hoy?.aves_en_dia ?? lote?.aves_actuales ?? 0
@@ -182,14 +184,16 @@ export default function TabAlimentoAves({ lotes }: Props) {
           </select>
         </div>
         {subTab === 'alimento' ? (
-          <Button className="bg-green-700 hover:bg-green-800 text-white text-sm" onClick={() => { setTipoEditar(null); setModalTipo(true) }}>
-            + Tipo de alimento
-          </Button>
-        ) : (
           <div className="flex gap-2">
-            <Button variant="outline" className="text-sm" onClick={() => setModalRequerimientos(true)}>🎯 Requerimientos</Button>
-            <Button className="bg-green-700 hover:bg-green-800 text-white text-sm" onClick={() => setModalConsumo(true)}>+ Registrar consumo</Button>
+            <Button variant="outline" className="text-sm" onClick={() => { setTipoEditar(null); setModalTipo(true) }}>
+              + Tipo de alimento
+            </Button>
+            <Button className="bg-green-700 hover:bg-green-800 text-white text-sm" onClick={() => { setConsumoEditar(null); setModalConsumo(true) }}>
+              + Registrar consumo
+            </Button>
           </div>
+        ) : (
+          <Button variant="outline" className="text-sm" onClick={() => setModalRequerimientos(true)}>🎯 Requerimientos</Button>
         )}
       </div>
 
@@ -226,7 +230,6 @@ export default function TabAlimentoAves({ lotes }: Props) {
                       <TableHead>Nombre</TableHead>
                       <TableHead>Marca</TableHead>
                       <TableHead>Tipo</TableHead>
-                      <TableHead className="text-right">Proteína</TableHead>
                       {puedeVerCostos && <TableHead className="text-right">Precio/bulto</TableHead>}
                       <TableHead className="text-right">Última entrada</TableHead>
                       <TableHead></TableHead>
@@ -238,7 +241,6 @@ export default function TabAlimentoAves({ lotes }: Props) {
                         <TableCell className="font-medium text-sm">{t.nombre}</TableCell>
                         <TableCell className="text-sm text-gray-600">{t.marca || '—'}</TableCell>
                         <TableCell className="text-sm text-gray-600">{t.tipo_alimento_categoria ? CATEGORIA_LABEL[t.tipo_alimento_categoria] ?? t.tipo_alimento_categoria : '—'}</TableCell>
-                        <TableCell className="text-right text-sm">{t.proteina_bruta_pct != null ? `${t.proteina_bruta_pct}%` : '—'}</TableCell>
                         {puedeVerCostos && <TableCell className="text-right text-sm">{t.precio_bulto ? cop(t.precio_bulto) : '—'}</TableCell>}
                         <TableCell className="text-right text-xs text-gray-500">
                           {t.cantidad_entrada && t.fecha_entrada
@@ -271,7 +273,56 @@ export default function TabAlimentoAves({ lotes }: Props) {
       ) : null}
 
       {subTab === 'alimento' && lote && (
-        <HorariosAlimentacion loteId={lote.id} fincaId={lote.finca_id} />
+        <HorariosAlimentacion loteId={lote.id} fincaId={lote.finca_id} consumoRegistradoKg={alimentoActivo?.consumo_activo_kg} />
+      )}
+
+      {subTab === 'alimento' && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold text-gray-700">Consumo registrado</CardTitle>
+              <p className="text-xs text-gray-400">
+                El último consumo registrado es el que rige para el galpón hasta que se registre otro.
+              </p>
+            </CardHeader>
+            <CardContent className="p-0">
+              {consumos.length === 0 ? (
+                <p className="text-sm text-gray-400 p-4">Sin consumo registrado. Usa &quot;+ Registrar consumo&quot; arriba.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Fecha</TableHead>
+                        <TableHead>Alimento</TableHead>
+                        <TableHead className="text-right">Kg consumidos</TableHead>
+                        <TableHead></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {consumos.map(c => (
+                        <TableRow key={c.id}>
+                          <TableCell className="text-sm">{fmt(c.fecha)}</TableCell>
+                          <TableCell className="text-sm text-gray-600">{tipos.find(t => t.id === c.tipo_alimento_id)?.nombre ?? '—'}</TableCell>
+                          <TableCell className="text-right text-sm">{Number(c.alimento_kg).toFixed(1)}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500"
+                                onClick={() => { setConsumoEditar(c); setModalConsumo(true) }}
+                              >
+                                ✏️
+                              </Button>
+                              <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-red-600" onClick={() => quitarConsumo(c)}>Quitar</Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
       )}
 
       {subTab === 'balance' && (
@@ -383,42 +434,6 @@ export default function TabAlimentoAves({ lotes }: Props) {
             </CardContent>
           </Card>
 
-          {/* Historial de consumo */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold text-gray-700">Consumo registrado</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              {consumos.length === 0 ? (
-                <p className="text-sm text-gray-400 p-4">Sin consumo registrado. Usa &quot;+ Registrar consumo&quot; arriba.</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Fecha</TableHead>
-                        <TableHead>Alimento</TableHead>
-                        <TableHead className="text-right">Kg consumidos</TableHead>
-                        <TableHead></TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {consumos.map(c => (
-                        <TableRow key={c.id}>
-                          <TableCell className="text-sm">{fmt(c.fecha)}</TableCell>
-                          <TableCell className="text-sm text-gray-600">{tipos.find(t => t.id === c.tipo_alimento_id)?.nombre ?? '—'}</TableCell>
-                          <TableCell className="text-right text-sm">{Number(c.alimento_kg).toFixed(1)}</TableCell>
-                          <TableCell>
-                            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-red-600" onClick={() => quitarConsumo(c)}>Quitar</Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
         </>
       )}
 
@@ -444,10 +459,15 @@ export default function TabAlimentoAves({ lotes }: Props) {
           />
           <RegistrarConsumoAlimentoModal
             open={modalConsumo}
-            onClose={() => setModalConsumo(false)}
+            onClose={() => { setModalConsumo(false); setConsumoEditar(null) }}
             loteId={lote.id}
             fincaId={lote.finca_id}
             tiposAlimento={tiposActivos}
+            consumoExistente={consumoEditar}
+            requerimientos={requerimientos}
+            enPostura={lote.estado === 'activo'}
+            avesActuales={lote.aves_actuales}
+            posturaFraccion={posturaFraccion}
             onCreated={fetchAll}
           />
         </>

@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import type { Database } from '@/types/database'
+import { hoyLocal } from '@/lib/fechas'
 
 type LotePollo = Database['public']['Tables']['lotes_pollo']['Row']
 type Parametro = Database['public']['Tables']['parametros_ambientales_pollo']['Row']
@@ -24,7 +25,7 @@ export default function TabAmbientalPollo({ loteActual }: Props) {
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
-    fecha: new Date().toISOString().split('T')[0],
+    fecha: hoyLocal(),
     hora: new Date().toTimeString().slice(0, 5),
     temperatura_interior: '', temperatura_exterior: '',
     humedad_interior: '', nh3_ppm: '', co2_ppm: '', observaciones: '',

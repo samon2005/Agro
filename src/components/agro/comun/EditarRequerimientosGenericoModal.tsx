@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { dbGenerico, type ConfigEspecie } from '@/lib/especiesConfig'
+import { hoyLocal } from '@/lib/fechas'
 
 export interface RequerimientoGenerico {
   id: string
@@ -48,7 +49,7 @@ export default function EditarRequerimientosGenericoModal({ open, onClose, loteI
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState<Record<string, string>>({})
   const [etapa, setEtapa] = useState(nutri.etapas[0]?.value ?? '')
-  const [vigenteDesde, setVigenteDesde] = useState(new Date().toISOString().split('T')[0])
+  const [vigenteDesde, setVigenteDesde] = useState(hoyLocal())
 
   useEffect(() => {
     if (!open) return
@@ -57,7 +58,7 @@ export default function EditarRequerimientosGenericoModal({ open, onClose, loteI
     base[nutri.campoConsumo] = actual ? String(actual[nutri.campoConsumo] ?? 0) : '0'
     setForm(base)
     setEtapa(actual ? String(actual[nutri.campoEtapa] ?? nutri.etapas[0]?.value ?? '') : (nutri.etapas[0]?.value ?? ''))
-    setVigenteDesde(new Date().toISOString().split('T')[0])
+    setVigenteDesde(hoyLocal())
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [actual, open])
 

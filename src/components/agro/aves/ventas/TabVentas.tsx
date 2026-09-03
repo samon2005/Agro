@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { toast } from 'sonner'
 import RegistrarVentaModal from './RegistrarVentaModal'
 import type { Database } from '@/types/database'
+import { hoyLocal } from '@/lib/fechas'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 type Venta = Database['public']['Tables']['ventas_huevos_aves']['Row']
@@ -92,7 +93,7 @@ export default function TabVentas({ loteActual, onLoteUpdated }: Props) {
     return new Date(d + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
   }
 
-  const hoyStr = new Date().toISOString().split('T')[0]
+  const hoyStr = hoyLocal()
   const mesActual = hoyStr.slice(0, 7)
   const ventasHoy = ventas.filter(v => v.fecha === hoyStr)
   const ventasMes = ventas.filter(v => v.fecha.slice(0, 7) === mesActual)

@@ -29,7 +29,9 @@ export default function DashboardSidebar({ user }: { user: User }) {
   const navItems = [
     ...BASE_NAV_ITEMS,
     ...(especiesFinca.length > 0 ? [{ href: '/alimento', label: 'Alimento', icon: '🌾' }] : []),
-    ...ESPECIES_FINCA.filter(esp => especiesFinca.includes(esp.value)),
+    ...ESPECIES_FINCA
+      .filter(esp => especiesFinca.includes(esp.value))
+      .map(esp => ({ ...esp, label: esp.labelNav ?? esp.label })),
     ...(rol !== 'trabajador' ? [{ href: '/operarios', label: 'Operarios', icon: '👷' }] : []),
   ]
 

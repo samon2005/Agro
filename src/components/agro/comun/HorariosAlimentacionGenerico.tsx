@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { dbGenerico, type ConfigEspecie } from '@/lib/especiesConfig'
+import { hoyLocal } from '@/lib/fechas'
 
 interface Horario {
   id: string
@@ -39,7 +40,7 @@ export default function HorariosAlimentacionGenerico({ loteId, fincaId, config, 
   const [editandoEstimado, setEditandoEstimado] = useState(false)
   const [permitirExceder, setPermitirExceder] = useState(false)
 
-  const hoyStr = new Date().toISOString().split('T')[0]
+  const hoyStr = hoyLocal()
 
   const fetchHorarios = useCallback(async () => {
     setLoading(true)

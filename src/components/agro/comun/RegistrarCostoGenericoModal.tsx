@@ -11,6 +11,7 @@ import { CurrencyInput } from '@/components/ui/currency-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { categoriasCosto, categoriasCostoItems } from '@/lib/costos'
 import { dbGenerico, type ConfigEspecie, type CostoGenerico } from '@/lib/especiesConfig'
+import { hoyLocal } from '@/lib/fechas'
 
 interface Props {
   open: boolean
@@ -24,7 +25,7 @@ interface Props {
 
 function defaultForm(costo?: CostoGenerico | null) {
   return {
-    fecha: costo?.fecha ?? new Date().toISOString().split('T')[0],
+    fecha: costo?.fecha ?? hoyLocal(),
     categoria: costo?.categoria ?? '',
     descripcion: costo?.descripcion ?? '',
     monto: costo ? String(costo.monto) : '',

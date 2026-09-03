@@ -8,15 +8,21 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import type { Database } from '@/types/database'
+import { hoyLocal } from '@/lib/fechas'
 
 type Horario = Database['public']['Tables']['horarios_alimentacion_aves']['Row']
 
 interface Props {
   loteId: string
   fincaId: string
+  /**
+   * Consumo registrado del galpón (kg/día). Es fijo hasta que se registre otro y
+   * hace de límite para lo que se puede repartir entre los horarios.
+   */
+  consumoRegistradoKg?: number | null
 }
 
-export default function HorariosAlimentacion({ loteId, fincaId }: Props) {
+export default function HorariosAlimentacion({ loteId, fincaId, consumoRegistradoKg }: Props) {
   const supabase = createClient()
   const [horarios, setHorarios] = useState<Horario[]>([])
   const [completadosHoy, setCompletadosHoy] = useState<Set<string>>(new Set())
@@ -25,57 +31,54 @@ export default function HorariosAlimentacion({ loteId, fincaId }: Props) {
   const [saving, setSaving] = useState(false)
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [formEditar, setFormEditar] = useState({ hora: '', descripcion: '', cantidad_kg: '' })
-  const [estimadoKgDia, setEstimadoKgDia] = useState('')
-  const [editandoEstimado, setEditandoEstimado] = useState(false)
   const [permitirExceder, setPermitirExceder] = useState(false)
 
-  const hoyStr = new Date().toISOString().split('T')[0]
+  const hoyStr = hoyLocal()
+  const limiteKg = consumoRegistradoKg != null ? Number(consumoRegistradoKg) : 0
 
   const fetchHorarios = useCallback(async () => {
     setLoading(true)
-    const [horariosRes, completadosRes, loteRes] = await Promise.all([
+    const [horariosRes, completadosRes] = await Promise.all([
       supabase.from('horarios_alimentacion_aves').select('*').eq('lote_id', loteId).eq('activo', true).order('hora', { ascending: true }),
       supabase.from('horarios_alimentacion_completados').select('horario_id').eq('lote_id', loteId).eq('fecha', hoyStr),
-      supabase.from('lotes_aves').select('consumo_estimado_kg_dia').eq('id', loteId).maybeSingle(),
     ])
     setHorarios(horariosRes.data ?? [])
     setCompletadosHoy(new Set((completadosRes.data ?? []).map(c => c.horario_id)))
-    setEstimadoKgDia(loteRes.data?.consumo_estimado_kg_dia != null ? String(loteRes.data.consumo_estimado_kg_dia) : '')
     setLoading(false)
   }, [loteId, supabase, hoyStr])
 
   useEffect(() => { fetchHorarios() }, [fetchHorarios])
 
-  async function guardarEstimado() {
-    const { error } = await supabase.from('lotes_aves').update({
-      consumo_estimado_kg_dia: estimadoKgDia ? Number(estimadoKgDia) : null,
-    }).eq('id', loteId)
-    if (error) { toast.error('Error al guardar el estimado'); return }
-    setEditandoEstimado(false)
-    setPermitirExceder(false)
-    toast.success('Consumo estimado actualizado')
-  }
+  const totalProgramadoKg = horarios.reduce((s, h) => s + (h.cantidad_kg ?? 0), 0)
+  const parcialKg = horarios.filter(h => completadosHoy.has(h.id)).reduce((s, h) => s + (h.cantidad_kg ?? 0), 0)
+  const sinRepartir = Math.max(0, limiteKg - totalProgramadoKg)
 
   function excedeLimite(totalConCambio: number) {
-    const estimado = Number(estimadoKgDia) || 0
-    return estimado > 0 && !permitirExceder && totalConCambio > estimado
+    return limiteKg > 0 && !permitirExceder && totalConCambio > limiteKg
+  }
+
+  function avisarExceso(total: number) {
+    const exceso = (total - limiteKg).toFixed(1)
+    toast.error(
+      `Estás dando ${exceso} kg más que el consumo registrado del galpón (${limiteKg} kg/día). ` +
+      `Si es intencional, activa "Cambiar límites".`
+    )
   }
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault()
     if (!nuevo.hora) { toast.error('Ingresa la hora de alimentación'); return }
     const kgNuevo = nuevo.cantidad_kg ? Number(nuevo.cantidad_kg) : 0
-    if (excedeLimite(totalProgramadoKg + kgNuevo)) {
-      toast.error(`Superarías el consumo estimado (${estimadoKgDia} kg/día). Usa "Cambiar límites" si es intencional.`)
-      return
-    }
+    const total = totalProgramadoKg + kgNuevo
+    if (excedeLimite(total)) { avisarExceso(total); return }
+
     setSaving(true)
     const { error } = await supabase.from('horarios_alimentacion_aves').insert({
       lote_id: loteId,
       finca_id: fincaId,
       hora: nuevo.hora,
       descripcion: nuevo.descripcion || null,
-      cantidad_kg: nuevo.cantidad_kg ? Number(nuevo.cantidad_kg) : null,
+      cantidad_kg: kgNuevo || null,
     })
     setSaving(false)
     if (error) { toast.error('Error al agregar el horario'); return }
@@ -98,14 +101,13 @@ export default function HorariosAlimentacion({ loteId, fincaId }: Props) {
   async function guardarEdicion(id: string) {
     const kgAnterior = horarios.find(h => h.id === id)?.cantidad_kg ?? 0
     const kgNuevo = formEditar.cantidad_kg ? Number(formEditar.cantidad_kg) : 0
-    if (excedeLimite(totalProgramadoKg - kgAnterior + kgNuevo)) {
-      toast.error(`Superarías el consumo estimado (${estimadoKgDia} kg/día). Usa "Cambiar límites" si es intencional.`)
-      return
-    }
+    const total = totalProgramadoKg - kgAnterior + kgNuevo
+    if (excedeLimite(total)) { avisarExceso(total); return }
+
     const { error } = await supabase.from('horarios_alimentacion_aves').update({
       hora: formEditar.hora,
       descripcion: formEditar.descripcion || null,
-      cantidad_kg: formEditar.cantidad_kg ? Number(formEditar.cantidad_kg) : null,
+      cantidad_kg: kgNuevo || null,
     }).eq('id', id)
     if (error) { toast.error('Error al guardar el horario'); return }
     setEditandoId(null)
@@ -114,9 +116,13 @@ export default function HorariosAlimentacion({ loteId, fincaId }: Props) {
     fetchHorarios()
   }
 
+  /**
+   * Marcar hecho solo registra que esa ración ya se entregó. No suma al consumo:
+   * el consumo del galpón es el que se registró en "Registrar consumo" y los
+   * horarios únicamente reparten ese total a lo largo del día.
+   */
   async function marcarHecho(h: Horario) {
     const yaHecho = completadosHoy.has(h.id)
-    const kg = h.cantidad_kg ?? 0
 
     if (yaHecho) {
       const { error } = await supabase.from('horarios_alimentacion_completados').delete().eq('horario_id', h.id).eq('fecha', hoyStr)
@@ -124,18 +130,6 @@ export default function HorariosAlimentacion({ loteId, fincaId }: Props) {
     } else {
       const { error } = await supabase.from('horarios_alimentacion_completados').insert({ horario_id: h.id, lote_id: loteId, finca_id: fincaId, fecha: hoyStr })
       if (error) { toast.error('Error al marcar como hecho'); return }
-    }
-
-    if (kg > 0) {
-      const delta = yaHecho ? -kg : kg
-      const { data: existente } = await supabase.from('produccion_diaria_aves').select('id, alimento_kg').eq('lote_id', loteId).eq('fecha', hoyStr).maybeSingle()
-      const nuevoTotal = Math.max(0, Number(existente?.alimento_kg ?? 0) + delta)
-      if (existente) {
-        await supabase.from('produccion_diaria_aves').update({ alimento_kg: nuevoTotal }).eq('id', existente.id)
-      } else {
-        await supabase.from('produccion_diaria_aves').insert({ lote_id: loteId, finca_id: fincaId, fecha: hoyStr, alimento_kg: nuevoTotal })
-      }
-      await supabase.from('lotes_aves').update({ consumo_activo_kg: nuevoTotal }).eq('id', loteId)
     }
 
     setCompletadosHoy(prev => {
@@ -153,8 +147,7 @@ export default function HorariosAlimentacion({ loteId, fincaId }: Props) {
     return `${hour12}:${mm} ${ampm}`
   }
 
-  const totalProgramadoKg = horarios.reduce((s, h) => s + (h.cantidad_kg ?? 0), 0)
-  const totalParcialKg = horarios.filter(h => completadosHoy.has(h.id)).reduce((s, h) => s + (h.cantidad_kg ?? 0), 0)
+  const excedido = limiteKg > 0 && totalProgramadoKg > limiteKg
 
   return (
     <Card>
@@ -163,39 +156,39 @@ export default function HorariosAlimentacion({ loteId, fincaId }: Props) {
           <CardTitle className="text-sm font-semibold text-gray-700">🕐 Horarios de Alimentación</CardTitle>
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs font-semibold text-green-700 bg-green-50 border border-green-200 rounded-full px-2.5 py-1">
-              Alimento parcial (hoy): {totalParcialKg.toFixed(1)} kg
+              Parcial (hoy): {parcialKg.toFixed(1)} kg
             </span>
-            <span className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2.5 py-1">
-              Total del día (fijo): {totalProgramadoKg.toFixed(1)} kg
+            <span className={`text-xs font-semibold rounded-full px-2.5 py-1 border ${excedido ? 'text-red-700 bg-red-50 border-red-200' : 'text-amber-700 bg-amber-50 border-amber-200'}`}>
+              Repartido: {totalProgramadoKg.toFixed(1)} kg
             </span>
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap pt-1">
-          {editandoEstimado ? (
+          {limiteKg > 0 ? (
             <>
-              <Label className="text-xs">Consumo estimado (kg/día)</Label>
-              <Input type="number" min="0" step="0.1" className="w-28 h-7" value={estimadoKgDia} onChange={e => setEstimadoKgDia(e.target.value)} />
-              <Button size="sm" className="h-7 text-xs bg-green-700 hover:bg-green-800 text-white" onClick={guardarEstimado}>Guardar</Button>
-              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEditandoEstimado(false)}>Cancelar</Button>
+              <p className="text-xs text-gray-500">
+                Consumo del galpón: <span className="font-semibold text-gray-700">{limiteKg} kg/día</span>
+                {sinRepartir > 0 && ` · quedan ${sinRepartir.toFixed(1)} kg por repartir`}
+              </p>
+              <button
+                type="button"
+                onClick={() => setPermitirExceder(v => !v)}
+                className={`text-xs rounded-full px-2 py-0.5 border ${permitirExceder ? 'bg-red-50 border-red-200 text-red-600' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}
+              >
+                {permitirExceder ? '🔓 Cambiar límites: activo' : '🔒 Cambiar límites'}
+              </button>
             </>
           ) : (
-            <>
-              <p className="text-xs text-gray-400">
-                {estimadoKgDia ? `Límite: ${estimadoKgDia} kg/día` : 'Sin límite de consumo estimado configurado'}
-              </p>
-              <button type="button" onClick={() => setEditandoEstimado(true)} className="text-xs text-amber-600 hover:underline">Configurar límite</button>
-              {estimadoKgDia && (
-                <button
-                  type="button"
-                  onClick={() => setPermitirExceder(v => !v)}
-                  className={`text-xs rounded-full px-2 py-0.5 border ${permitirExceder ? 'bg-red-50 border-red-200 text-red-600' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}
-                >
-                  {permitirExceder ? '🔓 Cambiar límites: activo' : '🔒 Cambiar límites'}
-                </button>
-              )}
-            </>
+            <p className="text-xs text-amber-600">
+              Registra el consumo del galpón en &quot;+ Registrar consumo&quot; para poder repartirlo en horarios.
+            </p>
           )}
         </div>
+        {excedido && (
+          <p className="text-xs text-red-600 pt-1">
+            ⚠️ Estás repartiendo {(totalProgramadoKg - limiteKg).toFixed(1)} kg más que el consumo registrado del galpón.
+          </p>
+        )}
       </CardHeader>
       <CardContent className="space-y-3">
         {loading ? (

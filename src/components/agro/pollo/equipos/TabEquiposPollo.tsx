@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { Database } from '@/types/database'
+import { hoyLocal } from '@/lib/fechas'
 
 type LotePollo = Database['public']['Tables']['lotes_pollo']['Row']
 type Equipo = Database['public']['Tables']['equipos_pollo']['Row']
@@ -76,7 +77,7 @@ export default function TabEquiposPollo({ loteActual }: Props) {
     fetchEquipos()
   }
 
-  const today = new Date().toISOString().split('T')[0]
+  const today = hoyLocal()
   const enFalla = equipos.filter(e => e.estado === 'falla').length
   const vencidos = equipos.filter(e => e.proximo_mantenimiento && e.proximo_mantenimiento < today).length
 

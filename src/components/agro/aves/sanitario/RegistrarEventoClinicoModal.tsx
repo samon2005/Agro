@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toSelectItems } from '@/lib/utils'
 import EncargadoSelect from '@/components/agro/EncargadoSelect'
 import type { Database } from '@/types/database'
+import { hoyLocal } from '@/lib/fechas'
 
 type EventoClinico = Database['public']['Tables']['eventos_clinicos_aves']['Row']
 
@@ -35,7 +36,7 @@ const TIPOS = [
 
 function defaultForm(evento?: EventoClinico | null) {
   return {
-    fecha: evento?.fecha ?? new Date().toISOString().split('T')[0],
+    fecha: evento?.fecha ?? hoyLocal(),
     tipo_evento: evento?.tipo_evento ?? '',
     descripcion: evento?.descripcion ?? '',
     aves_afectadas: evento?.aves_afectadas != null ? String(evento.aves_afectadas) : '',

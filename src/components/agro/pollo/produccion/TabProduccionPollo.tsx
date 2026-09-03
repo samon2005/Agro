@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import type { Database } from '@/types/database'
+import { hoyLocal } from '@/lib/fechas'
 
 type LotePollo = Database['public']['Tables']['lotes_pollo']['Row']
 type ProduccionDiaria = Database['public']['Tables']['produccion_diaria_pollo']['Row']
@@ -32,11 +33,11 @@ export default function TabProduccionPollo({ loteActual, onLoteUpdated }: Props)
   const [saving, setSaving] = useState(false)
 
   const [formDiario, setFormDiario] = useState({
-    fecha: new Date().toISOString().split('T')[0], alimento_kg: '', agua_litros: '',
+    fecha: hoyLocal(), alimento_kg: '', agua_litros: '',
     muertes: '0', causa_muerte: '', observaciones: '',
   })
   const [formPeso, setFormPeso] = useState({
-    fecha: new Date().toISOString().split('T')[0], peso_promedio: '', peso_minimo: '',
+    fecha: hoyLocal(), peso_promedio: '', peso_minimo: '',
     peso_maximo: '', numero_pesados: '', dia_vida: '', metodo: 'manual', observaciones: '',
   })
 

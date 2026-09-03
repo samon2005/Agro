@@ -12,6 +12,7 @@ import { ESPECIES_FINCA, type EspecieFinca } from '@/lib/especies'
 
 type Finca = {
   id: string
+  nombre: string
   altitud_msnm: number | null
   velocidad_viento_kmh: number | null
   clima_predominante: string | null
@@ -30,6 +31,8 @@ interface Props {
   onClose: () => void
   finca: Finca
   onUpdated: () => void
+  /** Se llama después de borrar la finca, para que la pantalla se recargue */
+  onDeleted?: () => void
 }
 
 const TABLA_POR_ESPECIE: Record<EspecieFinca, string> = {
@@ -45,7 +48,7 @@ const CLIMAS = [
   { value: 'paramo', label: 'Páramo (> 3.000 msnm)' },
 ]
 
-export default function EditarFincaModal({ open, onClose, finca, onUpdated }: Props) {
+export default function EditarFincaModal({ open, onClose, finca, onUpdated, onDeleted }: Props) {
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState({
@@ -63,6 +66,8 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated }: Pr
   const [areaUnidad, setAreaUnidad] = useState('ha')
   const [unidadOtra, setUnidadOtra] = useState('')
   const [unidadesGuardadas, setUnidadesGuardadas] = useState<string[]>([])
+  const [confirmarNombre, setConfirmarNombre] = useState('')
+  const [eliminando, setEliminando] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -132,6 +137,18 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated }: Pr
 
   function set(field: string, value: string | null) {
     setForm(prev => ({ ...prev, [field]: value ?? '' }))
+  }
+
+  async function eliminarFinca() {
+    if (confirmarNombre.trim() !== finca.nombre) { toast.error('El nombre no coincide'); return }
+    setEliminando(true)
+    const { error } = await supabase.from('fincas').delete().eq('id', finca.id)
+    setEliminando(false)
+    if (error) { toast.error('Error al eliminar la finca'); return }
+    toast.success(`Finca "${finca.nombre}" eliminada`)
+    onDeleted?.()
+    onUpdated()
+    onClose()
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -275,6 +292,30 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated }: Pr
               })}
             </div>
           </div>
+          <div className="border border-red-200 bg-red-50 rounded-lg p-3 space-y-2">
+            <p className="text-sm font-semibold text-red-800">⚠️ Zona de peligro</p>
+            <p className="text-xs text-red-600">
+              Eliminar esta finca borra para siempre todos sus galpones, corrales y lotes, con su
+              producción, alimento, sanidad, equipos, ventas y costos. No se puede deshacer.
+            </p>
+            <div className="flex items-center gap-2">
+              <Input
+                placeholder={`Escribe "${finca.nombre}" para confirmar`}
+                value={confirmarNombre}
+                onChange={e => setConfirmarNombre(e.target.value)}
+                className="bg-white"
+              />
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={eliminando || confirmarNombre.trim() !== finca.nombre}
+                onClick={eliminarFinca}
+              >
+                {eliminando ? 'Eliminando...' : 'Eliminar finca'}
+              </Button>
+            </div>
+          </div>
+
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
             <Button type="submit" disabled={loading} className="bg-green-700 hover:bg-green-800 text-white">

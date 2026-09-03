@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import RegistrarPesoModal from './RegistrarPesoModal'
 import type { Database } from '@/types/database'
+import { hoyLocal } from '@/lib/fechas'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
 type PesoLote = Database['public']['Tables']['pesos_lote_cerdos']['Row']
@@ -47,13 +48,13 @@ export default function TabCrecimiento({ loteActual, onLoteUpdated }: Props) {
   const [subTab, setSubTab] = useState<'pesos' | 'mortalidad' | 'etapas' | 'movimientos'>('pesos')
 
   // Mortalidad form
-  const [formMort, setFormMort] = useState({ fecha: new Date().toISOString().split('T')[0], cantidad: '1', causa: '', descripcion: '', peso_estimado: '' })
+  const [formMort, setFormMort] = useState({ fecha: hoyLocal(), cantidad: '1', causa: '', descripcion: '', peso_estimado: '' })
   const [savingMort, setSavingMort] = useState(false)
   // Etapa form
-  const [formEtapa, setFormEtapa] = useState({ fecha: new Date().toISOString().split('T')[0], etapa_nueva: '', peso_promedio: '', corral_destino: '', observaciones: '' })
+  const [formEtapa, setFormEtapa] = useState({ fecha: hoyLocal(), etapa_nueva: '', peso_promedio: '', corral_destino: '', observaciones: '' })
   const [savingEtapa, setSavingEtapa] = useState(false)
   // Movimiento form
-  const [formMov, setFormMov] = useState({ fecha: new Date().toISOString().split('T')[0], tipo: '', cantidad: '', peso_promedio: '', destino_origen: '', precio_unitario: '', observaciones: '' })
+  const [formMov, setFormMov] = useState({ fecha: hoyLocal(), tipo: '', cantidad: '', peso_promedio: '', destino_origen: '', precio_unitario: '', observaciones: '' })
   const [savingMov, setSavingMov] = useState(false)
 
   const fetchAll = useCallback(async () => {
@@ -100,7 +101,7 @@ export default function TabCrecimiento({ loteActual, onLoteUpdated }: Props) {
     setSavingMort(false)
     if (error) { toast.error('Error'); return }
     toast.success('Mortalidad registrada')
-    setFormMort({ fecha: new Date().toISOString().split('T')[0], cantidad: '1', causa: '', descripcion: '', peso_estimado: '' })
+    setFormMort({ fecha: hoyLocal(), cantidad: '1', causa: '', descripcion: '', peso_estimado: '' })
     fetchAll(); onLoteUpdated()
   }
 
@@ -121,7 +122,7 @@ export default function TabCrecimiento({ loteActual, onLoteUpdated }: Props) {
     setSavingEtapa(false)
     if (error) { toast.error('Error'); return }
     toast.success('Cambio de etapa registrado')
-    setFormEtapa({ fecha: new Date().toISOString().split('T')[0], etapa_nueva: '', peso_promedio: '', corral_destino: '', observaciones: '' })
+    setFormEtapa({ fecha: hoyLocal(), etapa_nueva: '', peso_promedio: '', corral_destino: '', observaciones: '' })
     fetchAll(); onLoteUpdated()
   }
 
@@ -146,7 +147,7 @@ export default function TabCrecimiento({ loteActual, onLoteUpdated }: Props) {
     setSavingMov(false)
     if (error) { toast.error('Error'); return }
     toast.success('Movimiento registrado')
-    setFormMov({ fecha: new Date().toISOString().split('T')[0], tipo: '', cantidad: '', peso_promedio: '', destino_origen: '', precio_unitario: '', observaciones: '' })
+    setFormMov({ fecha: hoyLocal(), tipo: '', cantidad: '', peso_promedio: '', destino_origen: '', precio_unitario: '', observaciones: '' })
     fetchAll(); onLoteUpdated()
   }
 

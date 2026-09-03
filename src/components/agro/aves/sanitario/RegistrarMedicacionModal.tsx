@@ -13,6 +13,7 @@ import { calcularFechaLiberacion } from '@/lib/sanitario'
 import EncargadoSelect from '@/components/agro/EncargadoSelect'
 import { toSelectItems } from '@/lib/utils'
 import type { Database } from '@/types/database'
+import { hoyLocal, aFechaLocal } from '@/lib/fechas'
 
 type Medicacion = Database['public']['Tables']['medicaciones_aves']['Row']
 type EventoClinico = Database['public']['Tables']['eventos_clinicos_aves']['Row']
@@ -44,7 +45,7 @@ const UNIDAD_POR_VIA: Record<string, string> = {
 function defaultForm(med?: Medicacion | null) {
   const [dosisValor, dosisUnidad] = med?.dosis ? splitDosis(med.dosis) : ['', '']
   return {
-    fecha_inicio: med?.fecha_inicio ?? new Date().toISOString().split('T')[0],
+    fecha_inicio: med?.fecha_inicio ?? hoyLocal(),
     fecha_fin: med?.fecha_fin ?? '',
     medicamento: med?.medicamento ?? '',
     principio_activo: med?.principio_activo ?? '',
@@ -178,7 +179,7 @@ export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaI
       const paso = Number(form.frecuencia_dias)
       const fechas: string[] = []
       for (let d = new Date(inicio); d <= fin && fechas.length < 60; d.setDate(d.getDate() + paso)) {
-        fechas.push(d.toISOString().split('T')[0])
+        fechas.push(aFechaLocal(d))
       }
       if (fechas.length > 0) {
         await supabase.from('recordatorios_medicacion_aves').insert(

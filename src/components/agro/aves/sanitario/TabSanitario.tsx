@@ -17,6 +17,7 @@ import RegistrarMedicacionModal from './RegistrarMedicacionModal'
 import RegistrarEventoClinicoModal from './RegistrarEventoClinicoModal'
 import RegistrarDesinfeccionModal from './RegistrarDesinfeccionModal'
 import type { Database } from '@/types/database'
+import { aFechaLocal } from '@/lib/fechas'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 type Vacunacion = Database['public']['Tables']['vacunaciones_aves']['Row']
@@ -124,7 +125,7 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
   const eventosConTratamiento = new Set(medicaciones.filter(m => m.evento_clinico_id).map(m => m.evento_clinico_id))
 
   const medicamentoPorId = new Map(medicaciones.map(m => [m.id, m.medicamento]))
-  const hoyStr = hoy.toISOString().split('T')[0]
+  const hoyStr = aFechaLocal(hoy)
   const recordatoriosVisibles = recordatorios.slice(0, 5)
 
   function fmt(d: string) {
@@ -366,18 +367,20 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
                               className={cn('inline-block', tieneTratamiento && 'cursor-pointer')}
                             >
                               <Badge className={tieneTratamiento ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : 'bg-gray-100 text-gray-600'}>
-                                {tieneTratamiento ? '📋 En tratamiento' : 'Sin tratamiento'}
+                                {tieneTratamiento ? '📋 En tratamiento' : ev.requiere_medicamento ? 'Sin tratamiento' : 'No aplica'}
                               </Badge>
                             </button>
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center justify-end gap-1">
-                              <Button
-                                size="sm" variant="outline" className="text-xs h-7"
-                                onClick={() => { setEventoClinicoIdActivo(ev.id); setMedEditar(null); setModalMed(true) }}
-                              >
-                                + Tratamiento
-                              </Button>
+                              {ev.requiere_medicamento && (
+                                <Button
+                                  size="sm" variant="outline" className="text-xs h-7"
+                                  onClick={() => { setEventoClinicoIdActivo(ev.id); setMedEditar(null); setModalMed(true) }}
+                                >
+                                  + Tratamiento
+                                </Button>
+                              )}
                               <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={() => { setEventoEditar(ev); setModalEvento(true) }}>✏️</Button>
                               <Button
                                 size="sm" variant="ghost"

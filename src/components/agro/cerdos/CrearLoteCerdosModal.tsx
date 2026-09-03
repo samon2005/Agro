@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { Database } from '@/types/database'
+import { hoyLocal } from '@/lib/fechas'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
 
@@ -32,7 +33,7 @@ export default function CrearLoteCerdosModal({ open, onClose, fincaId, onCreated
   const [form, setForm] = useState({
     nombre: '',
     linea_genetica: '',
-    fecha_ingreso: new Date().toISOString().split('T')[0],
+    fecha_ingreso: hoyLocal(),
     etapa_actual: 'precebo',
     numero_animales: '',
     peso_promedio_inicial: '',

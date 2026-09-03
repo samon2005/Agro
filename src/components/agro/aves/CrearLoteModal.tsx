@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { CurrencyInput } from '@/components/ui/currency-input'
 import type { Database } from '@/types/database'
+import { hoyLocal, aFechaLocal } from '@/lib/fechas'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 
@@ -26,11 +27,11 @@ const SEMANAS_INICIO_POSTURA = 20
 function sumarSemanas(fechaStr: string, semanas: number) {
   const d = new Date(fechaStr + 'T00:00:00')
   d.setDate(d.getDate() + semanas * 7)
-  return d.toISOString().split('T')[0]
+  return aFechaLocal(d)
 }
 
 function defaultForm() {
-  const fechaInicio = new Date().toISOString().split('T')[0]
+  const fechaInicio = hoyLocal()
   return {
     nombre: '',
     linea_genetica: '',
@@ -43,6 +44,7 @@ function defaultForm() {
     fecha_inicio_postura: sumarSemanas(fechaInicio, SEMANAS_INICIO_POSTURA),
     meta_postura_pct: '90',
     meta_huevos_diaria: '',
+    semanas_ciclo_postura: '60',
   }
 }
 
@@ -97,6 +99,7 @@ export default function CrearLoteModal({ open, onClose, fincaId, onCreated }: Pr
         fecha_inicio_postura: form.fecha_inicio_postura || null,
         meta_postura_pct: form.meta_postura_pct ? Number(form.meta_postura_pct) : null,
         meta_huevos_diaria: form.meta_huevos_diaria ? Number(form.meta_huevos_diaria) : null,
+        semanas_ciclo_postura: form.semanas_ciclo_postura ? Number(form.semanas_ciclo_postura) : null,
       })
       .select()
       .single()
@@ -187,9 +190,13 @@ export default function CrearLoteModal({ open, onClose, fincaId, onCreated }: Pr
               <Label>Pico esperado de postura (% meta lote)</Label>
               <Input type="number" min="0" max="100" step="0.1" placeholder="Ej: 90" value={form.meta_postura_pct} onChange={e => set('meta_postura_pct', e.target.value)} />
             </div>
-            <div className="col-span-2 space-y-1">
+            <div className="space-y-1">
               <Label>Meta de huevos puestos por día</Label>
               <Input type="number" min="0" placeholder="Ej: 4500" value={form.meta_huevos_diaria} onChange={e => set('meta_huevos_diaria', e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label>Duración del ciclo (semanas)</Label>
+              <Input type="number" min="1" placeholder="Ej: 60" value={form.semanas_ciclo_postura} onChange={e => set('semanas_ciclo_postura', e.target.value)} />
             </div>
             <div className="col-span-2 space-y-1">
               <Label>Observaciones</Label>

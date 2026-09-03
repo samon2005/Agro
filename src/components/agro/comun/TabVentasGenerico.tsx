@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import RegistrarVentaGenericaModal from './RegistrarVentaGenericaModal'
+import { hoyLocal } from '@/lib/fechas'
 import {
   dbGenerico, kilosVenta, totalVentaAnimales,
   type ConfigEspecie, type VentaGenerica,
@@ -66,7 +67,7 @@ export default function TabVentasGenerico({ loteId, fincaId, config, animalesAct
     onLoteCambiado?.()
   }
 
-  const hoyStr = new Date().toISOString().split('T')[0]
+  const hoyStr = hoyLocal()
   const mesActual = hoyStr.slice(0, 7)
   const ventasMes = ventas.filter(v => v.fecha.slice(0, 7) === mesActual)
   const ingresoMes = ventasMes.reduce((s, v) => s + totalVentaAnimales(v), 0)

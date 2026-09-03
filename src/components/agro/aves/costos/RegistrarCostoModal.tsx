@@ -11,6 +11,7 @@ import { CurrencyInput } from '@/components/ui/currency-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { CATEGORIAS_COSTO, CATEGORIAS_COSTO_ITEMS } from '@/lib/costos'
 import type { Database } from '@/types/database'
+import { hoyLocal } from '@/lib/fechas'
 
 type Costo = Database['public']['Tables']['costos_lote_aves']['Row']
 
@@ -25,7 +26,7 @@ interface Props {
 
 function defaultForm(costo?: Costo | null) {
   return {
-    fecha: costo?.fecha ?? new Date().toISOString().split('T')[0],
+    fecha: costo?.fecha ?? hoyLocal(),
     categoria: costo?.categoria ?? '',
     descripcion: costo?.descripcion ?? '',
     monto: costo ? String(costo.monto) : '',

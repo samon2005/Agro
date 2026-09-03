@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import type { Database } from '@/types/database'
+import { hoyLocal, aFechaLocal } from '@/lib/fechas'
 
 type Revision = Database['public']['Tables']['revisiones_calidad_huevo_aves']['Row']
 type ProduccionDiaria = Database['public']['Tables']['produccion_diaria_aves']['Row']
@@ -34,7 +35,7 @@ const CATEGORIAS: { key: 'cantidad_b' | 'cantidad_a' | 'cantidad_aa' | 'cantidad
 
 function defaultForm() {
   return {
-    fecha: new Date().toISOString().split('T')[0],
+    fecha: hoyLocal(),
     cantidad_b: '0',
     cantidad_a: '0',
     cantidad_aa: '0',
@@ -61,8 +62,8 @@ export default function RevisionCalidadHuevo({ loteId, fincaId, fechaInicioPostu
   const numSemana = Math.floor((hoyDate.getTime() - origenDate.getTime()) / (7 * MS_DIA))
   const inicioSemana = new Date(origenDate.getTime() + numSemana * 7 * MS_DIA)
   const finSemana = new Date(inicioSemana.getTime() + 6 * MS_DIA)
-  const inicioSemanaStr = inicioSemana.toISOString().split('T')[0]
-  const finSemanaStr = finSemana.toISOString().split('T')[0]
+  const inicioSemanaStr = aFechaLocal(inicioSemana)
+  const finSemanaStr = aFechaLocal(finSemana)
 
   // Se deriva directo de los registros diarios ya cargados por el padre,
   // así se mantiene al día apenas se registra/edita/quita un día — antes
@@ -89,7 +90,7 @@ export default function RevisionCalidadHuevo({ loteId, fincaId, fechaInicioPostu
   useEffect(() => {
     if (!modalOpen) return
     setForm({
-      fecha: new Date().toISOString().split('T')[0],
+      fecha: hoyLocal(),
       cantidad_b: String(semanaActual.b),
       cantidad_a: String(semanaActual.a),
       cantidad_aa: String(semanaActual.aa),

@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { semanaDePostura } from '@/lib/postura'
 import type { Database } from '@/types/database'
+import { hoyLocal } from '@/lib/fechas'
 
 type Requerimientos = Database['public']['Tables']['requerimientos_nutricionales_aves']['Row']
 
@@ -43,12 +44,12 @@ export default function EditarRequerimientosModal({ open, onClose, loteId, finca
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState<Record<string, string>>({})
-  const [vigenteDesde, setVigenteDesde] = useState(new Date().toISOString().split('T')[0])
+  const [vigenteDesde, setVigenteDesde] = useState(hoyLocal())
 
   useEffect(() => {
     const base = actual ?? DEFAULTS
     setForm(Object.fromEntries(CAMPOS.map(c => [c.key, String(base[c.key])])))
-    setVigenteDesde(new Date().toISOString().split('T')[0])
+    setVigenteDesde(hoyLocal())
   }, [actual, open])
 
   async function handleSubmit(e: React.FormEvent) {

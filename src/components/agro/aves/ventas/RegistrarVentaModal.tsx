@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { CurrencyInput } from '@/components/ui/currency-input'
 import type { Database } from '@/types/database'
+import { hoyLocal } from '@/lib/fechas'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 type Venta = Database['public']['Tables']['ventas_huevos_aves']['Row']
@@ -39,7 +40,7 @@ function defaultForm(lote: LoteAves, v?: Venta | null) {
       : (lote[t.precioLote] != null ? String(lote[t.precioLote]) : '')
   }
   return {
-    fecha: v?.fecha ?? new Date().toISOString().split('T')[0],
+    fecha: v?.fecha ?? hoyLocal(),
     cantidad_b: cantidad.b, cantidad_a: cantidad.a, cantidad_aa: cantidad.aa, cantidad_aaa: cantidad.aaa, cantidad_jumbo: cantidad.jumbo,
     precio_b: precio.b, precio_a: precio.a, precio_aa: precio.aa, precio_aaa: precio.aaa, precio_jumbo: precio.jumbo,
     cliente: v?.cliente ?? '',

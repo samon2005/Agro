@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { dbGenerico, type ConfigEspecie } from '@/lib/especiesConfig'
 import type { TipoAlimentoGenerico } from './CrearTipoAlimentoGenericoModal'
+import { hoyLocal } from '@/lib/fechas'
 
 interface Props {
   open: boolean
@@ -23,7 +24,7 @@ interface Props {
 
 function defaultForm() {
   return {
-    fecha: new Date().toISOString().split('T')[0],
+    fecha: hoyLocal(),
     tipo_alimento_id: '',
     alimento_kg: '',
   }

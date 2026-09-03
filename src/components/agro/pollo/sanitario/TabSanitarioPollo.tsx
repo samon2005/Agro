@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import type { Database } from '@/types/database'
+import { hoyLocal, aFechaLocal } from '@/lib/fechas'
 
 type LotePollo = Database['public']['Tables']['lotes_pollo']['Row']
 type Vacuna = Database['public']['Tables']['vacunaciones_pollo']['Row']
@@ -42,10 +43,10 @@ export default function TabSanitarioPollo({ loteActual }: Props) {
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
 
-  const [fVacuna, setFVacuna] = useState({ fecha_aplicacion: new Date().toISOString().split('T')[0], vacuna: '', lote_vacuna: '', via_administracion: '', dosis: '', laboratorio: '', numero_aves: '', costo: '', proxima_dosis: '', veterinario: '', observaciones: '' })
-  const [fMed, setFMed] = useState({ fecha_inicio: new Date().toISOString().split('T')[0], fecha_fin: '', medicamento: '', principio_activo: '', via_administracion: '', dosis: '', periodo_retiro_dias: '', motivo: '', costo: '', veterinario: '', observaciones: '' })
-  const [fEvento, setFEvento] = useState({ fecha: new Date().toISOString().split('T')[0], tipo_evento: '', descripcion: '', aves_afectadas: '', aves_muertas: '', accion_tomada: '', veterinario: '', observaciones: '' })
-  const [fDesinf, setFDesinf] = useState({ fecha: new Date().toISOString().split('T')[0], producto: '', previene: '', dosis: '', responsable: '', costo: '', observaciones: '' })
+  const [fVacuna, setFVacuna] = useState({ fecha_aplicacion: hoyLocal(), vacuna: '', lote_vacuna: '', via_administracion: '', dosis: '', laboratorio: '', numero_aves: '', costo: '', proxima_dosis: '', veterinario: '', observaciones: '' })
+  const [fMed, setFMed] = useState({ fecha_inicio: hoyLocal(), fecha_fin: '', medicamento: '', principio_activo: '', via_administracion: '', dosis: '', periodo_retiro_dias: '', motivo: '', costo: '', veterinario: '', observaciones: '' })
+  const [fEvento, setFEvento] = useState({ fecha: hoyLocal(), tipo_evento: '', descripcion: '', aves_afectadas: '', aves_muertas: '', accion_tomada: '', veterinario: '', observaciones: '' })
+  const [fDesinf, setFDesinf] = useState({ fecha: hoyLocal(), producto: '', previene: '', dosis: '', responsable: '', costo: '', observaciones: '' })
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -148,11 +149,11 @@ export default function TabSanitarioPollo({ loteActual }: Props) {
     fetchData()
   }
 
-  const today = new Date().toISOString().split('T')[0]
+  const today = hoyLocal()
   const enRetiro = medicaciones.filter(m => {
     if (!m.fecha_fin || !m.periodo_retiro_dias) return false
     const lib = new Date(m.fecha_fin); lib.setDate(lib.getDate() + m.periodo_retiro_dias)
-    return lib.toISOString().split('T')[0] >= today
+    return aFechaLocal(lib) >= today
   })
 
   function fmt(d: string) { return new Date(d + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' }) }
@@ -305,7 +306,7 @@ export default function TabSanitarioPollo({ loteActual }: Props) {
                 let liberacion: string | null = null
                 if (m.fecha_fin && m.periodo_retiro_dias) {
                   const d = new Date(m.fecha_fin); d.setDate(d.getDate() + m.periodo_retiro_dias)
-                  liberacion = d.toISOString().split('T')[0]
+                  liberacion = aFechaLocal(d)
                 }
                 const enRetiro = liberacion && liberacion >= today
                 return (

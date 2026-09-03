@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { hoyLocal } from '@/lib/fechas'
 
 interface Props {
   open: boolean
@@ -33,7 +34,7 @@ export default function RegistrarAmbientalModal({ open, onClose, loteId, fincaId
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState({
-    fecha: new Date().toISOString().split('T')[0],
+    fecha: hoyLocal(),
     hora: new Date().toTimeString().slice(0, 5),
     temperatura_interior: '',
     temperatura_exterior: '',

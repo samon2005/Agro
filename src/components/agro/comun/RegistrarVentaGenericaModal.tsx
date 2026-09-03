@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { CurrencyInput } from '@/components/ui/currency-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { dbGenerico, type ConfigEspecie, type VentaGenerica } from '@/lib/especiesConfig'
+import { hoyLocal } from '@/lib/fechas'
 
 interface Props {
   open: boolean
@@ -30,7 +31,7 @@ const TIPOS = { pie: 'En pie (peso vivo)', canal: 'En canal' }
 
 function defaultForm(v?: VentaGenerica | null, precioKgObjetivo?: number | null) {
   return {
-    fecha: v?.fecha ?? new Date().toISOString().split('T')[0],
+    fecha: v?.fecha ?? hoyLocal(),
     cantidad: v ? String(v.cantidad) : '',
     peso_promedio_kg: v?.peso_promedio_kg != null ? String(v.peso_promedio_kg) : '',
     modo_precio: v?.modo_precio ?? 'kg',

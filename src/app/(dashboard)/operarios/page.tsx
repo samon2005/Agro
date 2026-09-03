@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
+import { hoyLocal } from '@/lib/fechas'
 
 type Operario = { id: string; full_name: string | null; cargo: string | null; activo: boolean; email: string | null; pago_monto: number | null; pago_periodo: string | null }
 
@@ -49,8 +50,8 @@ export default function OperariosPage() {
   const [modalOperario, setModalOperario] = useState(false)
   const [operarioEditar, setOperarioEditar] = useState<Operario | null>(null)
 
-  const [formTurno, setFormTurno] = useState({ operario_id: '', fecha: new Date().toISOString().split('T')[0], hora_inicio: '', hora_fin: '', area: '' })
-  const [formTarea, setFormTarea] = useState({ operario_id: '', descripcion: '', fecha: new Date().toISOString().split('T')[0] })
+  const [formTurno, setFormTurno] = useState({ operario_id: '', fecha: hoyLocal(), hora_inicio: '', hora_fin: '', area: '' })
+  const [formTarea, setFormTarea] = useState({ operario_id: '', descripcion: '', fecha: hoyLocal() })
   const [showFormTurno, setShowFormTurno] = useState(false)
   const [showFormTarea, setShowFormTarea] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -91,7 +92,7 @@ export default function OperariosPage() {
     })
     setSaving(false)
     setShowFormTurno(false)
-    setFormTurno({ operario_id: '', fecha: new Date().toISOString().split('T')[0], hora_inicio: '', hora_fin: '', area: '' })
+    setFormTurno({ operario_id: '', fecha: hoyLocal(), hora_inicio: '', hora_fin: '', area: '' })
     fetchAll()
   }
 
@@ -107,7 +108,7 @@ export default function OperariosPage() {
     })
     setSaving(false)
     setShowFormTarea(false)
-    setFormTarea({ operario_id: '', descripcion: '', fecha: new Date().toISOString().split('T')[0] })
+    setFormTarea({ operario_id: '', descripcion: '', fecha: hoyLocal() })
     fetchAll()
   }
 

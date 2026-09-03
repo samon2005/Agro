@@ -13,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 import type { Database } from '@/types/database'
+import { hoyLocal } from '@/lib/fechas'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
 type Vacunacion = Database['public']['Tables']['vacunaciones_cerdos']['Row']
@@ -46,14 +47,14 @@ export default function TabSanitarioCerdos({ loteActual }: Props) {
   const [savingDesinf, setSavingDesinf] = useState(false)
 
   const [formVac, setFormVac] = useState({
-    fecha_aplicacion: new Date().toISOString().split('T')[0],
+    fecha_aplicacion: hoyLocal(),
     vacuna: '', vacuna_otra: '', lote_vacuna: '', via_administracion: '',
     dosis: '', laboratorio: '', numero_animales: String(loteActual.animales_actuales),
     costo: '', proxima_dosis: '', veterinario: '', observaciones: '',
   })
 
   const [formDesp, setFormDesp] = useState({
-    fecha: new Date().toISOString().split('T')[0],
+    fecha: hoyLocal(),
     producto: '', producto_otro: '', principio_activo: '', via_administracion: '',
     dosis: '', numero_animales: String(loteActual.animales_actuales),
     periodo_retiro_dias: '', costo: '', veterinario: '',
@@ -61,7 +62,7 @@ export default function TabSanitarioCerdos({ loteActual }: Props) {
   })
 
   const [formDesinf, setFormDesinf] = useState({
-    fecha: new Date().toISOString().split('T')[0],
+    fecha: hoyLocal(),
     producto: '', previene: '', dosis: '', responsable: '', costo: '', observaciones: '',
   })
 

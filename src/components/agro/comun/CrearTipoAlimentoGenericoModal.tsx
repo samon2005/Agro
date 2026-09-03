@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { CurrencyInput } from '@/components/ui/currency-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { dbGenerico, type ConfigEspecie } from '@/lib/especiesConfig'
+import { hoyLocal } from '@/lib/fechas'
 
 export interface TipoAlimentoGenerico {
   id: string
@@ -54,7 +55,7 @@ function defaultForm(tipo?: TipoAlimentoGenerico | null) {
     precio_bulto: tipo?.precio_bulto != null ? String(tipo.precio_bulto) : '',
     peso_bulto_kg: tipo?.peso_bulto_kg != null ? String(tipo.peso_bulto_kg) : '40',
     cantidad_entrada: '',
-    fecha_entrada: new Date().toISOString().split('T')[0],
+    fecha_entrada: hoyLocal(),
   }
 }
 

@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { CurrencyInput } from '@/components/ui/currency-input'
 import EncargadoSelect from '@/components/agro/EncargadoSelect'
 import type { Database } from '@/types/database'
+import { hoyLocal } from '@/lib/fechas'
 
 type Desinfeccion = Database['public']['Tables']['desinfecciones_aves']['Row']
 
@@ -24,7 +25,7 @@ interface Props {
 
 function defaultForm(d?: Desinfeccion | null) {
   return {
-    fecha: d?.fecha ?? new Date().toISOString().split('T')[0],
+    fecha: d?.fecha ?? hoyLocal(),
     producto: d?.producto ?? '',
     previene: d?.previene ?? '',
     dosis: d?.dosis ?? '',

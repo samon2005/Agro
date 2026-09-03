@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { CurrencyInput } from '@/components/ui/currency-input'
 import { toSelectItems } from '@/lib/utils'
 import type { Database } from '@/types/database'
+import { hoyLocal } from '@/lib/fechas'
 
 type Equipo = Database['public']['Tables']['equipos_aves']['Row']
 
@@ -92,7 +93,7 @@ export default function CrearEquipoModal({ open, onClose, loteId, fincaId, equip
       await supabase.from('costos_lote_aves').insert({
         lote_id: loteId,
         finca_id: fincaId,
-        fecha: form.fecha_compra || new Date().toISOString().split('T')[0],
+        fecha: form.fecha_compra || hoyLocal(),
         categoria: 'equipos',
         descripcion: `Equipo: ${equipo.nombre}`,
         monto: Number(form.costo_compra),

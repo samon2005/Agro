@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import type { Database } from '@/types/database'
+import { hoyLocal } from '@/lib/fechas'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
 type NutricionDiaria = Database['public']['Tables']['nutricion_diaria_cerdos']['Row']
@@ -24,7 +25,7 @@ export default function TabNutricion({ loteActual }: Props) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
-    fecha: new Date().toISOString().split('T')[0],
+    fecha: hoyLocal(),
     alimento_kg: '',
     tipo_alimento: '',
     agua_litros: '',
@@ -80,7 +81,7 @@ export default function TabNutricion({ loteActual }: Props) {
     setSaving(false)
     if (error) { toast.error('Error al guardar'); return }
     toast.success(existing ? 'Registro actualizado' : 'Nutrición registrada')
-    setForm({ fecha: new Date().toISOString().split('T')[0], alimento_kg: '', tipo_alimento: '', agua_litros: '', aditivos: '', costo_alimento: '', observaciones: '' })
+    setForm({ fecha: hoyLocal(), alimento_kg: '', tipo_alimento: '', agua_litros: '', aditivos: '', costo_alimento: '', observaciones: '' })
     fetch()
   }
 

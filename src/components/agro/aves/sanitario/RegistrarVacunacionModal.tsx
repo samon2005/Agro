@@ -11,6 +11,7 @@ import { CurrencyInput } from '@/components/ui/currency-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import EncargadoSelect from '@/components/agro/EncargadoSelect'
 import type { Database } from '@/types/database'
+import { hoyLocal } from '@/lib/fechas'
 
 type Vacunacion = Database['public']['Tables']['vacunaciones_aves']['Row']
 
@@ -41,7 +42,7 @@ function defaultForm(vac?: Vacunacion | null) {
   const esComun = vac ? VACUNAS_COMUNES.includes(vac.vacuna) : true
   const [dosisValor, dosisUnidad] = vac?.dosis ? splitDosis(vac.dosis) : ['', '']
   return {
-    fecha_aplicacion: vac?.fecha_aplicacion ?? new Date().toISOString().split('T')[0],
+    fecha_aplicacion: vac?.fecha_aplicacion ?? hoyLocal(),
     vacuna: vac ? (esComun ? vac.vacuna : 'Otra') : '',
     vacuna_otra: vac && !esComun ? vac.vacuna : '',
     lote_vacuna: vac?.lote_vacuna ?? '',

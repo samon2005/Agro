@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { hoyLocal } from '@/lib/fechas'
 
 interface Props {
   open: boolean
@@ -22,7 +23,7 @@ export default function RegistrarPesoModal({ open, onClose, loteId, fincaId, ani
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState({
-    fecha: new Date().toISOString().split('T')[0],
+    fecha: hoyLocal(),
     peso_promedio: '',
     peso_minimo: '',
     peso_maximo: '',

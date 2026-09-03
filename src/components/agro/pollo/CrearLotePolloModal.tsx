@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { Database } from '@/types/database'
+import { hoyLocal } from '@/lib/fechas'
 
 type LotePollo = Database['public']['Tables']['lotes_pollo']['Row']
 
@@ -25,7 +26,7 @@ export default function CrearLotePolloModal({ open, onClose, fincaId, onCreated 
   const supabase = createClient()
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
-    nombre: '', linea_genetica: '', fecha_ingreso: new Date().toISOString().split('T')[0],
+    nombre: '', linea_genetica: '', fecha_ingreso: hoyLocal(),
     pollos_iniciales: '', peso_promedio_inicial: '', origen_pollos: '', galpone: '', observaciones: '',
   })
 
@@ -50,7 +51,7 @@ export default function CrearLotePolloModal({ open, onClose, fincaId, onCreated 
     toast.success('Lote creado')
     onCreated(data)
     onClose()
-    setForm({ nombre: '', linea_genetica: '', fecha_ingreso: new Date().toISOString().split('T')[0], pollos_iniciales: '', peso_promedio_inicial: '', origen_pollos: '', galpone: '', observaciones: '' })
+    setForm({ nombre: '', linea_genetica: '', fecha_ingreso: hoyLocal(), pollos_iniciales: '', peso_promedio_inicial: '', origen_pollos: '', galpone: '', observaciones: '' })
   }
 
   return (

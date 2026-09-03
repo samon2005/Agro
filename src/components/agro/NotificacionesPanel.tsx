@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useFinca } from './FincaProvider'
 import { Badge } from '@/components/ui/badge'
+import { aFechaLocal } from '@/lib/fechas'
 
 type Notificacion = { tipo: 'stock' | 'equipo' | 'recoleccion' | 'postura' | 'ventas'; mensaje: string; href: string }
 
@@ -60,7 +61,7 @@ export default function NotificacionesPanel() {
       for (const lote of lotes ?? []) {
         const [{ data: horarios }, { data: hoyProd }] = await Promise.all([
           supabase.from('horarios_recoleccion_aves').select('hora, descripcion').eq('lote_id', lote.id).eq('activo', true),
-          supabase.from('produccion_diaria_aves').select('id').eq('lote_id', lote.id).eq('fecha', hoy.toISOString().split('T')[0]).maybeSingle(),
+          supabase.from('produccion_diaria_aves').select('id').eq('lote_id', lote.id).eq('fecha', aFechaLocal(hoy)).maybeSingle(),
         ])
         if (!hoyProd && horarios && horarios.length > 0) {
           const horaActual = hoy.toTimeString().slice(0, 5)
@@ -85,7 +86,7 @@ export default function NotificacionesPanel() {
       }
 
       const hace7dias = new Date(hoy); hace7dias.setDate(hoy.getDate() - 7)
-      const desdeStr = hace7dias.toISOString().split('T')[0]
+      const desdeStr = aFechaLocal(hace7dias)
       const [{ data: prodSemana }, { data: ventasSemana }] = await Promise.all([
         supabase.from('produccion_diaria_aves').select('huevos_totales').eq('finca_id', fincaActual.id).gte('fecha', desdeStr),
         supabase.from('ventas_huevos_aves').select('cantidad_b, cantidad_a, cantidad_aa, cantidad_aaa, cantidad_jumbo').eq('finca_id', fincaActual.id).gte('fecha', desdeStr),

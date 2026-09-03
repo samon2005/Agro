@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toSelectItems } from '@/lib/utils'
+import { hoyLocal } from '@/lib/fechas'
 
 interface Props {
   open: boolean
@@ -30,7 +31,7 @@ export default function RegistrarLogEquipoModal({ open, onClose, equipoId, equip
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState({
-    fecha: new Date().toISOString().split('T')[0],
+    fecha: hoyLocal(),
     estado_registrado: 'operativo',
     alerta: false,
     descripcion_alerta: '',
