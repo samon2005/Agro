@@ -15,6 +15,7 @@ import CrearTipoAlimentoModal from './CrearTipoAlimentoModal'
 import EditarRequerimientosModal from './EditarRequerimientosModal'
 import RegistrarConsumoAlimentoModal from './RegistrarConsumoAlimentoModal'
 import HorariosAlimentacion from './HorariosAlimentacion'
+import RegistrarEntradaAlimentoModal from './RegistrarEntradaAlimentoModal'
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
 
@@ -22,10 +23,11 @@ type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 type ProduccionDiaria = Database['public']['Tables']['produccion_diaria_aves']['Row']
 type TipoAlimento = Database['public']['Tables']['tipos_alimento_aves']['Row']
 type Requerimientos = Database['public']['Tables']['requerimientos_nutricionales_aves']['Row']
+type Entrada = Database['public']['Tables']['entradas_alimento_aves']['Row']
 
 interface Props { lotes: LoteAves[] }
 
-type SubTab = 'alimento' | 'balance'
+type SubTab = 'alimento' | 'inventario' | 'balance'
 
 const DEFAULTS = {
   mant_proteina_g: 9, mant_calcio_g: 0.3, mant_fosforo_g: 0.25, mant_grasa_g: 1.5,
@@ -70,6 +72,9 @@ export default function TabAlimentoAves({ lotes }: Props) {
   const [modalRequerimientos, setModalRequerimientos] = useState(false)
   const [modalConsumo, setModalConsumo] = useState(false)
   const [consumoEditar, setConsumoEditar] = useState<ProduccionDiaria | null>(null)
+  const [entradas, setEntradas] = useState<Entrada[]>([])
+  const [modalEntrada, setModalEntrada] = useState(false)
+  const [entradaEditar, setEntradaEditar] = useState<Entrada | null>(null)
   const [confirmandoEliminar, setConfirmandoEliminar] = useState<string | null>(null)
 
   const lote = lotes.find(l => l.id === loteId) ?? lotes[0] ?? null
@@ -77,18 +82,20 @@ export default function TabAlimentoAves({ lotes }: Props) {
   const fetchAll = useCallback(async () => {
     if (!lote) { setLoading(false); return }
     setLoading(true)
-    const [prod, consumosRes, tiposRes, reqRes, loteRes] = await Promise.all([
+    const [prod, consumosRes, tiposRes, reqRes, loteRes, entradasRes] = await Promise.all([
       supabase.from('produccion_diaria_aves').select('*').eq('lote_id', lote.id).order('fecha', { ascending: false }).limit(1).maybeSingle(),
       supabase.from('produccion_diaria_aves').select('*').eq('lote_id', lote.id).gt('alimento_kg', 0).order('fecha', { ascending: false }).limit(30),
       supabase.from('tipos_alimento_aves').select('*').eq('finca_id', lote.finca_id).order('nombre'),
       supabase.from('requerimientos_nutricionales_aves').select('*').eq('lote_id', lote.id).order('vigente_desde', { ascending: false }),
       supabase.from('lotes_aves').select('alimento_activo_id, consumo_activo_kg').eq('id', lote.id).single(),
+      supabase.from('entradas_alimento_aves').select('*').eq('finca_id', lote.finca_id).order('fecha', { ascending: false }).limit(50),
     ])
     setHoy(prod.data ?? null)
     setConsumos(consumosRes.data ?? [])
     setTipos(tiposRes.data ?? [])
     setRequerimientosHistorial(reqRes.data ?? [])
     setAlimentoActivo(loteRes.data ?? null)
+    setEntradas(entradasRes.data ?? [])
     setLoading(false)
   }, [lote, supabase])
 
@@ -112,6 +119,19 @@ export default function TabAlimentoAves({ lotes }: Props) {
     const { error } = await supabase.from('tipos_alimento_aves').delete().eq('id', tipo.id)
     if (error) { toast.error('Error al eliminar el alimento'); return }
     toast.success(`Alimento "${tipo.nombre}" eliminado`)
+    fetchAll()
+  }
+
+  async function eliminarEntrada(entrada: Entrada) {
+    if (confirmandoEliminar !== entrada.id) {
+      setConfirmandoEliminar(entrada.id)
+      toast.warning('Se eliminará también su costo en Finanzas. Presiona de nuevo para confirmar.')
+      return
+    }
+    setConfirmandoEliminar(null)
+    const { error } = await supabase.from('entradas_alimento_aves').delete().eq('id', entrada.id)
+    if (error) { toast.error('Error al eliminar la entrada'); return }
+    toast.success('Entrada eliminada')
     fetchAll()
   }
 
@@ -167,6 +187,7 @@ export default function TabAlimentoAves({ lotes }: Props) {
 
   const subTabItems: { id: SubTab; label: string }[] = [
     { id: 'alimento', label: '🌾 Alimento' },
+    { id: 'inventario', label: '📦 Inventario' },
     { id: 'balance', label: '⚖️ Balance' },
   ]
 
@@ -188,10 +209,24 @@ export default function TabAlimentoAves({ lotes }: Props) {
             <Button variant="outline" className="text-sm" onClick={() => { setTipoEditar(null); setModalTipo(true) }}>
               + Tipo de alimento
             </Button>
-            <Button className="bg-green-700 hover:bg-green-800 text-white text-sm" onClick={() => { setConsumoEditar(null); setModalConsumo(true) }}>
+            <Button
+              className="bg-green-700 hover:bg-green-800 text-white text-sm"
+              disabled={tiposActivos.length === 0}
+              title={tiposActivos.length === 0 ? 'Primero registra un tipo de alimento' : undefined}
+              onClick={() => { setConsumoEditar(null); setModalConsumo(true) }}
+            >
               + Registrar consumo
             </Button>
           </div>
+        ) : subTab === 'inventario' ? (
+          <Button
+            className="bg-green-700 hover:bg-green-800 text-white text-sm"
+            disabled={tiposActivos.length === 0}
+            title={tiposActivos.length === 0 ? 'Primero registra un tipo de alimento' : undefined}
+            onClick={() => { setEntradaEditar(null); setModalEntrada(true) }}
+          >
+            + Registrar entrada
+          </Button>
         ) : (
           <Button variant="outline" className="text-sm" onClick={() => setModalRequerimientos(true)}>🎯 Requerimientos</Button>
         )}
@@ -272,7 +307,25 @@ export default function TabAlimentoAves({ lotes }: Props) {
         </Card>
       ) : null}
 
-      {subTab === 'alimento' && lote && (
+      {subTab === 'alimento' && tiposActivos.length === 0 && (
+        <div className="px-4 py-3 rounded-lg border border-amber-200 bg-amber-50">
+          <p className="text-sm font-semibold text-amber-800">Empieza por registrar un tipo de alimento</p>
+          <p className="text-xs text-amber-700 mt-0.5">
+            Sin un tipo de alimento no se puede registrar consumo, y sin consumo no se pueden armar los horarios.
+          </p>
+        </div>
+      )}
+
+      {subTab === 'alimento' && tiposActivos.length > 0 && !alimentoActivo?.consumo_activo_kg && (
+        <div className="px-4 py-3 rounded-lg border border-amber-200 bg-amber-50">
+          <p className="text-sm font-semibold text-amber-800">Falta registrar el consumo del galpón</p>
+          <p className="text-xs text-amber-700 mt-0.5">
+            Registra cuántos kg come el galpón al día para poder repartirlos en horarios.
+          </p>
+        </div>
+      )}
+
+      {subTab === 'alimento' && lote && alimentoActivo?.consumo_activo_kg != null && (
         <HorariosAlimentacion loteId={lote.id} fincaId={lote.finca_id} consumoRegistradoKg={alimentoActivo?.consumo_activo_kg} />
       )}
 
@@ -323,6 +376,106 @@ export default function TabAlimentoAves({ lotes }: Props) {
               )}
             </CardContent>
           </Card>
+      )}
+
+      {subTab === 'inventario' && (
+        <>
+          {tiposActivos.length === 0 && (
+            <div className="px-4 py-3 rounded-lg border border-amber-200 bg-amber-50">
+              <p className="text-sm font-semibold text-amber-800">Primero registra un tipo de alimento</p>
+              <p className="text-xs text-amber-700 mt-0.5">
+                El inventario se maneja por tipo de alimento: créalo en la pestaña Alimento y vuelve aquí.
+              </p>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {tiposActivos.map(t => {
+              const bultos = entradas.filter(e => e.tipo_alimento_id === t.id)
+                .reduce((acc, e) => acc + Number(e.cantidad_bultos), 0)
+              return (
+                <Card key={t.id} className="border-amber-200 bg-amber-50">
+                  <CardContent className="p-4">
+                    <p className="text-xs text-amber-700 font-medium truncate">{t.nombre}</p>
+                    <p className="text-2xl font-bold text-amber-800">{bultos.toLocaleString('es-CO')}</p>
+                    <p className="text-xs text-amber-600 mt-0.5">
+                      bultos ingresados · {(bultos * (t.peso_bulto_kg ?? 40)).toLocaleString('es-CO')} kg
+                    </p>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold text-gray-700">Entradas de alimento</CardTitle>
+              <p className="text-xs text-gray-400">
+                Cada entrada suma al inventario de la finca y queda registrada como costo en Finanzas.
+              </p>
+            </CardHeader>
+            <CardContent className="p-0">
+              {entradas.length === 0 ? (
+                <p className="text-sm text-gray-400 p-4">Sin entradas registradas. Usa &quot;+ Registrar entrada&quot; arriba.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Fecha</TableHead>
+                        <TableHead>Alimento</TableHead>
+                        <TableHead className="text-right">Bultos</TableHead>
+                        <TableHead className="text-right">Kg</TableHead>
+                        {puedeVerCostos && <TableHead className="text-right">Costo</TableHead>}
+                        <TableHead>Proveedor</TableHead>
+                        <TableHead></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {entradas.map(e => {
+                        const t = tipos.find(x => x.id === e.tipo_alimento_id)
+                        const precio = e.precio_bulto ?? t?.precio_bulto ?? 0
+                        return (
+                          <TableRow key={e.id}>
+                            <TableCell className="text-sm">{fmt(e.fecha)}</TableCell>
+                            <TableCell className="text-sm text-gray-600">{t?.nombre ?? '—'}</TableCell>
+                            <TableCell className="text-right text-sm">{Number(e.cantidad_bultos).toLocaleString('es-CO')}</TableCell>
+                            <TableCell className="text-right text-sm text-gray-500">
+                              {(Number(e.cantidad_bultos) * (t?.peso_bulto_kg ?? 40)).toLocaleString('es-CO')}
+                            </TableCell>
+                            {puedeVerCostos && (
+                              <TableCell className="text-right text-sm font-medium">
+                                {precio > 0 ? cop(Number(e.cantidad_bultos) * precio) : '—'}
+                              </TableCell>
+                            )}
+                            <TableCell className="text-sm text-gray-500">{e.proveedor ?? '—'}</TableCell>
+                            <TableCell>
+                              <div className="flex items-center justify-end gap-1">
+                                <Button
+                                  size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500"
+                                  onClick={() => { setEntradaEditar(e); setModalEntrada(true) }}
+                                >
+                                  ✏️
+                                </Button>
+                                <Button
+                                  size="sm" variant="ghost"
+                                  className={confirmandoEliminar === e.id ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
+                                  onClick={() => eliminarEntrada(e)}
+                                >
+                                  {confirmandoEliminar === e.id ? '¿Confirmar?' : '🗑️'}
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </>
       )}
 
       {subTab === 'balance' && (
@@ -443,7 +596,6 @@ export default function TabAlimentoAves({ lotes }: Props) {
             open={modalTipo}
             onClose={() => { setModalTipo(false); setTipoEditar(null) }}
             fincaId={lote.finca_id}
-            loteId={lote.id}
             tipoExistente={tipoEditar}
             onCreated={fetchAll}
           />
@@ -457,6 +609,15 @@ export default function TabAlimentoAves({ lotes }: Props) {
             fechaInicioPostura={lote.fecha_inicio_postura}
             onUpdated={fetchAll}
           />
+          <RegistrarEntradaAlimentoModal
+            open={modalEntrada}
+            onClose={() => { setModalEntrada(false); setEntradaEditar(null) }}
+            loteId={lote.id}
+            fincaId={lote.finca_id}
+            tiposAlimento={tiposActivos}
+            entradaExistente={entradaEditar}
+            onCreated={fetchAll}
+          />
           <RegistrarConsumoAlimentoModal
             open={modalConsumo}
             onClose={() => { setModalConsumo(false); setConsumoEditar(null) }}
@@ -468,6 +629,7 @@ export default function TabAlimentoAves({ lotes }: Props) {
             enPostura={lote.estado === 'activo'}
             avesActuales={lote.aves_actuales}
             posturaFraccion={posturaFraccion}
+            consumoActualKg={alimentoActivo?.consumo_activo_kg}
             onCreated={fetchAll}
           />
         </>

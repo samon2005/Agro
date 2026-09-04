@@ -10,7 +10,6 @@ import { Label } from '@/components/ui/label'
 import { CurrencyInput } from '@/components/ui/currency-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { Database } from '@/types/database'
-import { hoyLocal } from '@/lib/fechas'
 
 type TipoAlimento = Database['public']['Tables']['tipos_alimento_aves']['Row']
 
@@ -18,7 +17,6 @@ interface Props {
   open: boolean
   onClose: () => void
   fincaId: string
-  loteId: string
   tipoExistente?: TipoAlimento | null
   onCreated: () => void
 }
@@ -52,12 +50,10 @@ function defaultForm(tipo?: TipoAlimento | null) {
     fosforo_pct: tipo?.fosforo_pct != null ? String(tipo.fosforo_pct) : '',
     precio_bulto: tipo?.precio_bulto != null ? String(tipo.precio_bulto) : '',
     peso_bulto_kg: tipo?.peso_bulto_kg != null ? String(tipo.peso_bulto_kg) : '40',
-    cantidad_entrada: '',
-    fecha_entrada: hoyLocal(),
   }
 }
 
-export default function CrearTipoAlimentoModal({ open, onClose, fincaId, loteId, tipoExistente, onCreated }: Props) {
+export default function CrearTipoAlimentoModal({ open, onClose, fincaId, tipoExistente, onCreated }: Props) {
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState(() => defaultForm(tipoExistente))
@@ -82,10 +78,6 @@ export default function CrearTipoAlimentoModal({ open, onClose, fincaId, loteId,
     set('nombre', value)
   }
 
-  const costoTotal = form.precio_bulto && form.cantidad_entrada
-    ? Number(form.precio_bulto) * Number(form.cantidad_entrada)
-    : 0
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!form.nombre.trim()) { toast.error('El nombre del alimento es requerido'); return }
@@ -104,24 +96,8 @@ export default function CrearTipoAlimentoModal({ open, onClose, fincaId, loteId,
     }
     const { data: tipo, error } = tipoExistente
       ? await supabase.from('tipos_alimento_aves').update(payload).eq('id', tipoExistente.id).select().single()
-      : await supabase.from('tipos_alimento_aves').insert({
-          ...payload,
-          finca_id: fincaId,
-          cantidad_entrada: form.cantidad_entrada ? Number(form.cantidad_entrada) : null,
-          fecha_entrada: form.cantidad_entrada ? form.fecha_entrada : null,
-        }).select().single()
+      : await supabase.from('tipos_alimento_aves').insert({ ...payload, finca_id: fincaId }).select().single()
 
-    if (!error && !tipoExistente && tipo && costoTotal > 0 && loteId) {
-      await supabase.from('costos_lote_aves').insert({
-        lote_id: loteId,
-        finca_id: fincaId,
-        fecha: form.fecha_entrada,
-        categoria: 'alimento',
-        descripcion: `Compra de alimento: ${form.marca ? form.marca + ' - ' : ''}${form.nombre.trim()} (${form.cantidad_entrada} bultos)`,
-        monto: costoTotal,
-        tipo_alimento_id: tipo.id,
-      })
-    }
 
     setLoading(false)
     if (error) { toast.error(tipoExistente ? 'Error al actualizar el alimento' : 'Error al registrar el alimento'); return }
@@ -135,7 +111,10 @@ export default function CrearTipoAlimentoModal({ open, onClose, fincaId, loteId,
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{tipoExistente ? '✏️ Editar Tipo de Alimento' : '🌾 Nuevo Tipo de Alimento'}</DialogTitle>
-          <p className="text-sm text-gray-500">Composición nutricional según la ficha técnica del fabricante</p>
+          <p className="text-sm text-gray-500">
+            Composición nutricional según la ficha técnica del fabricante. Las entradas de bultos
+            se registran en la pestaña Inventario.
+          </p>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -185,24 +164,7 @@ export default function CrearTipoAlimentoModal({ open, onClose, fincaId, loteId,
               <Label>Peso del bulto (kg)</Label>
               <Input type="number" min="1" value={form.peso_bulto_kg} onChange={e => set('peso_bulto_kg', e.target.value)} />
             </div>
-            {!tipoExistente && (
-              <>
-                <div className="space-y-1">
-                  <Label>Cantidad de entrada (bultos)</Label>
-                  <Input type="number" min="0" step="0.1" placeholder="Ej: 20" value={form.cantidad_entrada} onChange={e => set('cantidad_entrada', e.target.value)} />
-                </div>
-                <div className="space-y-1">
-                  <Label>Fecha de entrada</Label>
-                  <Input type="date" value={form.fecha_entrada} onChange={e => set('fecha_entrada', e.target.value)} />
-                </div>
-              </>
-            )}
           </div>
-          {!tipoExistente && costoTotal > 0 && (
-            <p className="text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-lg p-2">
-              Esta entrada se registrará en Costos por <span className="font-semibold">{costoTotal.toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })}</span> ({form.cantidad_entrada} bultos × precio por bulto)
-            </p>
-          )}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
             <Button type="submit" disabled={loading} className="bg-green-700 hover:bg-green-800 text-white">

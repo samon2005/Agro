@@ -24,9 +24,10 @@ type Vacunacion = Database['public']['Tables']['vacunaciones_aves']['Row']
 type Medicacion = Database['public']['Tables']['medicaciones_aves']['Row']
 type EventoClinico = Database['public']['Tables']['eventos_clinicos_aves']['Row']
 type Desinfeccion = Database['public']['Tables']['desinfecciones_aves']['Row']
+type RegistroMuerte = Pick<Database['public']['Tables']['produccion_diaria_aves']['Row'], 'id' | 'fecha' | 'muertes' | 'causa_muerte'>
 type Recordatorio = Database['public']['Tables']['recordatorios_medicacion_aves']['Row']
 
-type SubTab = 'vacunas' | 'medicaciones' | 'eventos' | 'desinfecciones'
+type SubTab = 'vacunas' | 'medicaciones' | 'eventos' | 'desinfecciones' | 'muertes'
 
 interface Props { loteActual: LoteAves; onChange?: () => void }
 
@@ -46,6 +47,7 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
   const [medicaciones, setMedicaciones] = useState<Medicacion[]>([])
   const [eventos, setEventos] = useState<EventoClinico[]>([])
   const [desinfecciones, setDesinfecciones] = useState<Desinfeccion[]>([])
+  const [muertes, setMuertes] = useState<RegistroMuerte[]>([])
   const [recordatorios, setRecordatorios] = useState<Recordatorio[]>([])
   const [loading, setLoading] = useState(true)
   const [modalVacuna, setModalVacuna] = useState(false)
@@ -62,18 +64,20 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
-    const [v, m, ev, d, r] = await Promise.all([
+    const [v, m, ev, d, r, mu] = await Promise.all([
       supabase.from('vacunaciones_aves').select('*').eq('lote_id', loteActual.id).order('fecha_aplicacion', { ascending: false }),
       supabase.from('medicaciones_aves').select('*').eq('lote_id', loteActual.id).order('fecha_inicio', { ascending: false }),
       supabase.from('eventos_clinicos_aves').select('*').eq('lote_id', loteActual.id).order('fecha', { ascending: false }),
       supabase.from('desinfecciones_aves').select('*').eq('lote_id', loteActual.id).order('fecha', { ascending: false }),
       supabase.from('recordatorios_medicacion_aves').select('*').eq('lote_id', loteActual.id).eq('completado', false).order('fecha'),
+      supabase.from('produccion_diaria_aves').select('id, fecha, muertes, causa_muerte').eq('lote_id', loteActual.id).gt('muertes', 0).order('fecha', { ascending: false }),
     ])
     setVacunas(v.data ?? [])
     setMedicaciones(m.data ?? [])
     setEventos(ev.data ?? [])
     setDesinfecciones(d.data ?? [])
     setRecordatorios(r.data ?? [])
+    setMuertes(mu.data ?? [])
     setLoading(false)
     onChange?.()
   }, [loteActual.id, supabase, onChange])
@@ -145,6 +149,7 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
     { id: 'medicaciones', label: '💊 Tratamientos', count: medicaciones.length },
     { id: 'vacunas', label: '💉 Vacunaciones', count: vacunas.length },
     { id: 'desinfecciones', label: '🧴 Desinfección', count: desinfecciones.length },
+    { id: 'muertes', label: '☠️ Muertes', count: muertes.length },
   ]
 
   return (
@@ -344,7 +349,6 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
                       <TableHead>Descripción</TableHead>
                       <TableHead className="text-right">Afectadas</TableHead>
                       <TableHead className="text-right">Muertas</TableHead>
-                      <TableHead>Acción</TableHead>
                       <TableHead>Estado</TableHead>
                       <TableHead></TableHead>
                     </TableRow>
@@ -359,7 +363,6 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
                           <TableCell className="text-sm max-w-[200px] truncate">{ev.descripcion}</TableCell>
                           <TableCell className="text-right text-sm">{ev.aves_afectadas ?? '—'}</TableCell>
                           <TableCell className="text-right text-sm text-red-600">{ev.aves_muertas || '—'}</TableCell>
-                          <TableCell className="text-sm text-gray-500 max-w-[150px] truncate">{ev.accion_tomada ?? '—'}</TableCell>
                           <TableCell>
                             <button
                               type="button"
@@ -394,6 +397,43 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
                         </TableRow>
                       )
                     })}
+                  </TableBody>
+                </Table>
+              </div>
+            )
+          ) : subTab === 'muertes' ? (
+            muertes.length === 0 ? (
+              <div className="py-10 text-center">
+                <p className="text-4xl mb-2">☠️</p>
+                <p className="text-gray-600 font-medium">Sin muertes registradas</p>
+                <p className="text-sm text-gray-400">La mortalidad se registra en el día a día, desde Producción.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <div className="px-4 py-2 flex items-center gap-4 text-sm border-b border-gray-100">
+                  <span className="text-gray-500">Total de muertes registradas:</span>
+                  <span className="font-semibold text-red-700">
+                    {muertes.reduce((acc, m) => acc + m.muertes, 0).toLocaleString('es-CO')} aves
+                  </span>
+                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Fecha</TableHead>
+                      <TableHead className="text-right">Muertes</TableHead>
+                      <TableHead>Causa</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {muertes.map(m => (
+                      <TableRow key={m.id}>
+                        <TableCell className="text-sm">{fmt(m.fecha)}</TableCell>
+                        <TableCell className="text-right">
+                          <Badge variant="destructive" className="text-xs">{m.muertes}</Badge>
+                        </TableCell>
+                        <TableCell className="text-sm text-gray-600">{m.causa_muerte ?? '—'}</TableCell>
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
               </div>

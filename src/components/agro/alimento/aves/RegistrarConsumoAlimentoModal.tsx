@@ -31,6 +31,8 @@ interface Props {
   avesActuales?: number
   /** % de postura del último día registrado, para el requerimiento de producción */
   posturaFraccion?: number
+  /** Consumo que rige hoy en el galpón, para avisar si cambia */
+  consumoActualKg?: number | null
   onCreated: () => void
 }
 
@@ -44,7 +46,7 @@ function defaultForm(c?: ProduccionDiaria | null) {
 
 export default function RegistrarConsumoAlimentoModal({
   open, onClose, loteId, fincaId, tiposAlimento, consumoExistente,
-  requerimientos, enPostura, avesActuales = 0, posturaFraccion = 0, onCreated,
+  requerimientos, enPostura, avesActuales = 0, posturaFraccion = 0, consumoActualKg, onCreated,
 }: Props) {
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
@@ -80,11 +82,36 @@ export default function RegistrarConsumoAlimentoModal({
 
     // Este consumo queda como el activo del galpón: rige hasta que se registre otro,
     // y es el que limita cuántos kg se pueden repartir en los horarios.
+    const nuevoConsumo = Number(form.alimento_kg)
     if (!error) {
       await supabase.from('lotes_aves').update({
         alimento_activo_id: form.tipo_alimento_id,
-        consumo_activo_kg: Number(form.alimento_kg),
+        consumo_activo_kg: nuevoConsumo,
       }).eq('id', loteId)
+
+      // Si el consumo cambió y el galpón ya tenía horarios, se re-reparten las
+      // porciones proporcionalmente para que sigan sumando el nuevo total.
+      const anterior = consumoActualKg != null ? Number(consumoActualKg) : 0
+      if (anterior > 0 && Math.abs(nuevoConsumo - anterior) > 0.001) {
+        const { data: horarios } = await supabase
+          .from('horarios_alimentacion_aves')
+          .select('id, cantidad_kg')
+          .eq('lote_id', loteId).eq('activo', true)
+        const conPorcion = (horarios ?? []).filter(h => h.cantidad_kg && h.cantidad_kg > 0)
+        const totalAnterior = conPorcion.reduce((acc, h) => acc + Number(h.cantidad_kg), 0)
+        if (conPorcion.length > 0 && totalAnterior > 0) {
+          const factor = nuevoConsumo / totalAnterior
+          await Promise.all(conPorcion.map(h =>
+            supabase.from('horarios_alimentacion_aves')
+              .update({ cantidad_kg: Math.round(Number(h.cantidad_kg) * factor * 100) / 100 })
+              .eq('id', h.id)
+          ))
+          toast.warning(
+            `El consumo pasó de ${anterior} a ${nuevoConsumo} kg/día: se repartieron de nuevo ` +
+            `los ${conPorcion.length} horarios para que sumen el nuevo total.`
+          )
+        }
+      }
     }
 
     setLoading(false)
@@ -109,11 +136,16 @@ export default function RegistrarConsumoAlimentoModal({
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{consumoExistente ? '✏️ Editar Consumo de Alimento' : '🌾 Registrar Consumo de Alimento'}</DialogTitle>
-          <p className="text-sm text-gray-500">
-            Este consumo queda fijo para el galpón hasta que registres uno nuevo. No hay que registrarlo todos los días.
-          </p>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg">
+            <p className="text-sm font-semibold text-amber-800">⚠️ Este consumo queda fijo</p>
+            <p className="text-xs text-amber-700 mt-0.5">
+              Lo que registres aquí rige para el galpón todos los días hasta que registres uno nuevo.
+              No hay que registrarlo a diario. Si cambias el valor y ya hay horarios, se vuelven a
+              repartir solos.
+            </p>
+          </div>
           <div className="space-y-1">
             <Label>Fecha</Label>
             <Input type="date" value={form.fecha} onChange={e => set('fecha', e.target.value)} />

@@ -100,10 +100,11 @@ export default function RegistrarEventoClinicoModal({ open, onClose, loteId, fin
             </div>
             <div className="space-y-1">
               <Label>Tipo de signo *</Label>
-              <Select value={form.tipo_evento} onValueChange={v => set('tipo_evento', v)} items={toSelectItems(TIPOS)}>
-                <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
-                <SelectContent>{TIPOS.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
-              </Select>
+              <Input
+                placeholder="Escríbelo: respiratorio, digestivo, otro..."
+                value={form.tipo_evento}
+                onChange={e => set('tipo_evento', e.target.value)}
+              />
             </div>
             <div className="col-span-2 space-y-1">
               <Label>Descripción de signos clínicos *</Label>

@@ -74,6 +74,7 @@ function defaultForm(avesActuales: number, r?: ProduccionDiaria | null) {
     observaciones: r?.observaciones ?? '',
     evento_tipo: '',
     evento_causa: '',
+    evento_afectadas: '',
     evento_descripcion: '',
   }
 }
@@ -195,12 +196,12 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
 
     // Basta con elegir tipo o causa: antes solo se creaba si había descripción escrita,
     // y por eso el evento no aparecía después en la pestaña de Sanidad.
-    const tipoElegido = form.evento_tipo && form.evento_tipo !== SIN_TIPO ? form.evento_tipo : ''
-    const hayEvento = !!(tipoElegido || form.evento_causa || form.evento_descripcion.trim())
+    const tipoElegido = form.evento_tipo.trim()
+    const hayEvento = !!(tipoElegido || form.evento_causa || form.evento_afectadas || form.evento_descripcion.trim())
     if (!error && hayEvento) {
       const descripcion = form.evento_descripcion.trim()
         || form.evento_causa
-        || TIPOS_EVENTO_CLINICO.find(t => t.value === tipoElegido)?.label
+        || tipoElegido
         || 'Evento clínico'
       const { error: errorEvento } = await supabase.from('eventos_clinicos_aves').insert({
         lote_id: loteId,
@@ -208,6 +209,8 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
         fecha: form.fecha,
         tipo_evento: tipoElegido || 'otro',
         causa: form.evento_causa || null,
+        aves_afectadas: form.evento_afectadas ? Number(form.evento_afectadas) : null,
+        aves_muertas: Number(form.muertes) || null,
         descripcion,
       })
       if (errorEvento) toast.error('El día se guardó, pero el evento clínico no')
@@ -308,12 +311,11 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
           {Number(form.muertes) > 0 && (
             <div className="space-y-1">
               <Label>Causa probable de muerte</Label>
-              <Select value={form.causa_muerte} onValueChange={v => set('causa_muerte', v)}>
-                <SelectTrigger><SelectValue placeholder="Seleccionar causa..." /></SelectTrigger>
-                <SelectContent>
-                  {CAUSAS_MUERTE.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <Input
+                placeholder="Escríbela: Newcastle, estrés calórico, accidente..."
+                value={form.causa_muerte}
+                onChange={e => set('causa_muerte', e.target.value)}
+              />
             </div>
           )}
 
@@ -322,29 +324,31 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs">Causa</Label>
-                <Select
+                <Input
+                  placeholder="Escríbela: coccidiosis, golpe de calor..."
                   value={form.evento_causa}
-                  onValueChange={v => set('evento_causa', v)}
-                  items={Object.fromEntries(causasDisponibles.map(c => [c, c]))}
-                >
-                  <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
-                  <SelectContent>
-                    {causasDisponibles.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                  onChange={e => set('evento_causa', e.target.value)}
+                  list="causas-sugeridas"
+                />
+                <datalist id="causas-sugeridas">
+                  {causasDisponibles.map(c => <option key={c} value={c} />)}
+                </datalist>
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Tipo</Label>
-                <Select
+                <Input
+                  placeholder="Respiratorio, digestivo, otro..."
                   value={form.evento_tipo}
-                  onValueChange={v => set('evento_tipo', v)}
-                  items={Object.fromEntries(TIPOS_EVENTO_CLINICO.map(t => [t.value, t.label]))}
-                >
-                  <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
-                  <SelectContent>
-                    {TIPOS_EVENTO_CLINICO.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                  onChange={e => set('evento_tipo', e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Aves afectadas</Label>
+                <Input type="number" min="0" placeholder="0" value={form.evento_afectadas} onChange={e => set('evento_afectadas', e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Aves muertas</Label>
+                <Input disabled value={form.muertes || '0'} />
               </div>
               <div className="col-span-2">
                 {agregandoCausa ? (

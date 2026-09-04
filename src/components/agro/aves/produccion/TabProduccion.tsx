@@ -12,6 +12,8 @@ import ConfigurarGalponModal from './ConfigurarGalponModal'
 import HorariosRecoleccion from './HorariosRecoleccion'
 import RevisionCalidadHuevo from './RevisionCalidadHuevo'
 import GraficaProduccionHuevos from './GraficaProduccionHuevos'
+import GraficaCurvaPostura from './GraficaCurvaPostura'
+import ConfigurarRecoleccionModal from './ConfigurarRecoleccionModal'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import { estadoPostura } from '@/lib/postura'
@@ -53,6 +55,8 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
   const [tipoAlimentoActivo, setTipoAlimentoActivo] = useState<TipoAlimento | null>(null)
   const [eventosClinicos, setEventosClinicos] = useState<EventoClinico[]>([])
   const [hayAlimentoRegistrado, setHayAlimentoRegistrado] = useState(true)
+  const [guardandoSinNovedades, setGuardandoSinNovedades] = useState(false)
+  const [modalRecoleccionObligatoria, setModalRecoleccionObligatoria] = useState(false)
 
   const fetchRegistros = useCallback(async () => {
     setLoading(true)
@@ -85,8 +89,8 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
   // El aviso es por galpón: mira si ESTE lote ya tiene alimento asignado, no si la
   // finca tiene catálogo. Así también sale en los galpones creados después del primero.
   useEffect(() => {
-    setHayAlimentoRegistrado(loteActual.alimento_activo_id != null)
-  }, [loteActual.alimento_activo_id])
+    setHayAlimentoRegistrado(loteActual.alimento_activo_id != null && loteActual.consumo_activo_kg != null)
+  }, [loteActual.alimento_activo_id, loteActual.consumo_activo_kg])
 
   useEffect(() => { fetchRegistros() }, [fetchRegistros])
   useEffect(() => { fetchEventosClinicos() }, [fetchEventosClinicos])
@@ -131,6 +135,16 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
   const semanasFaltantesPostura = !estadoPosturaHoy.iniciada ? estadoPosturaHoy.semanasFaltantes : null
   /** Mientras el galpón esté en preparación no se muestra nada de huevos. */
   const enPostura = loteActual.estado !== 'preparacion'
+
+  // Un galpón nuevo no puede registrar días hasta tener alimento y consumo definidos.
+  const tieneAlimento = loteActual.alimento_activo_id != null
+  const tieneConsumo = loteActual.consumo_activo_kg != null
+  const listoParaRegistrar = tieneAlimento && tieneConsumo
+  const faltaParaRegistrar = !tieneAlimento
+    ? 'Primero registra un tipo de alimento y el consumo del galpón en la sección Alimento.'
+    : !tieneConsumo
+      ? 'Falta registrar el consumo diario del galpón en la sección Alimento.'
+      : ''
   let fechaFinEstimada: Date | null = null
   if (loteActual.fecha_inicio_postura && loteActual.semanas_ciclo_postura) {
     const inicio = new Date(loteActual.fecha_inicio_postura + 'T00:00:00')
@@ -202,7 +216,42 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
     (hoyDate.getTime() - new Date(loteActual.fecha_inicio + 'T00:00:00').getTime()) / (7 * MS_DIA)
   ))
 
+  /** Registra el día con el consumo vigente y su costo, sin pedir nada más. */
+  async function registrarDiaSinNovedades() {
+    if (!listoParaRegistrar) { toast.error(faltaParaRegistrar); return }
+    setGuardandoSinNovedades(true)
+    const consumo = Number(loteActual.consumo_activo_kg ?? 0)
+    const { data: existente } = await supabase
+      .from('produccion_diaria_aves')
+      .select('id')
+      .eq('lote_id', loteActual.id)
+      .eq('fecha', hoyStr)
+      .maybeSingle()
+
+    const payload = {
+      alimento_kg: consumo,
+      tipo_alimento_id: loteActual.alimento_activo_id,
+      muertes: 0,
+    }
+    const { error } = existente
+      ? await supabase.from('produccion_diaria_aves').update(payload).eq('id', existente.id)
+      : await supabase.from('produccion_diaria_aves').insert({
+          ...payload, lote_id: loteActual.id, finca_id: loteActual.finca_id, fecha: hoyStr,
+        })
+
+    setGuardandoSinNovedades(false)
+    if (error) { toast.error('Error al registrar el día'); return }
+    toast.success(`Día sin novedades: ${consumo} kg de alimento${costoAlimentoHoy > 0 ? ` · ${cop(costoAlimentoHoy)}` : ''}`)
+    fetchRegistros()
+    onLoteUpdated()
+  }
+
+  /**
+   * Arranque de postura: activa el lote, deja puestos los requerimientos de
+   * producción y encadena los horarios de recolección con el registro del día.
+   */
   async function marcarInicioPostura() {
+    if (!listoParaRegistrar) { toast.error(faltaParaRegistrar); return }
     const { data, error } = await supabase
       .from('lotes_aves')
       .update({ estado: 'activo', fecha_inicio_postura: hoyStr })
@@ -210,8 +259,33 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
       .select()
       .single()
     if (error) { toast.error('Error al actualizar el lote'); return }
+
+    // Los requerimientos de producción se ponen solos: en preparación estaban en
+    // cero porque el ave no ponía; al arrancar la postura ya necesita el aporte
+    // extra por huevo.
+    const { data: reqExistente } = await supabase
+      .from('requerimientos_nutricionales_aves')
+      .select('id, prod_proteina_g')
+      .eq('lote_id', loteActual.id)
+      .order('vigente_desde', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (!reqExistente || Number(reqExistente.prod_proteina_g) === 0) {
+      await supabase.from('requerimientos_nutricionales_aves').insert({
+        lote_id: loteActual.id,
+        finca_id: loteActual.finca_id,
+        vigente_desde: hoyStr,
+        mant_proteina_g: 9, mant_calcio_g: 0.3, mant_fosforo_g: 0.25, mant_grasa_g: 1.5,
+        prod_proteina_g: 4.2, prod_calcio_g: 3.8, prod_fosforo_g: 0.45, prod_grasa_g: 1.0,
+      })
+      toast.success('Requerimientos de producción cargados para la postura')
+    }
+
     toast.success('Lote marcado como activo en producción')
     onLoteUpdated(data)
+    // Primero los horarios de recolección, y al guardarlos se abre el registro del día
+    setModalRecoleccionObligatoria(true)
   }
 
   function formatDate(d: string) {
@@ -224,6 +298,19 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
   function semanaDeFecha(fecha: string) {
     const d = new Date(fecha + 'T00:00:00')
     return Math.floor((d.getTime() - origenSemanasDate.getTime()) / (7 * MS_DIA))
+  }
+
+  // El consumo rige hasta que se cambie: un día sin consumo propio hereda el del
+  // último día que sí lo tuvo, para que el historial no muestre huecos.
+  const consumoEfectivoPorFecha = new Map<string, number>()
+  {
+    const porFechaAsc = [...registros].sort((a, b) => a.fecha.localeCompare(b.fecha))
+    let ultimo = 0
+    for (const r of porFechaAsc) {
+      const propio = Number(r.alimento_kg) || 0
+      if (propio > 0) ultimo = propio
+      consumoEfectivoPorFecha.set(r.fecha, ultimo)
+    }
   }
 
   const eventosPorFecha = new Map<string, EventoClinico[]>()
@@ -257,42 +344,50 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-base font-semibold text-gray-800">Producción y Crecimiento</h2>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Button onClick={() => setConfigOpen(true)} variant="outline" className="text-sm">
             ⚙️ Configurar galpón
           </Button>
-          <Button onClick={() => { setRegistroEditar(null); setModalOpen(true) }} className="bg-green-700 hover:bg-green-800 text-white text-sm">
+          {!enPostura && (
+            <Button
+              onClick={marcarInicioPostura}
+              disabled={!listoParaRegistrar}
+              title={!listoParaRegistrar ? faltaParaRegistrar : undefined}
+              className="bg-blue-700 hover:bg-blue-800 text-white text-sm"
+            >
+              🥚 Marcar inicio de postura
+            </Button>
+          )}
+          {!enPostura && (
+            <Button
+              onClick={registrarDiaSinNovedades}
+              disabled={!listoParaRegistrar || guardandoSinNovedades}
+              title={!listoParaRegistrar ? faltaParaRegistrar : undefined}
+              variant="outline"
+              className="text-sm"
+            >
+              {guardandoSinNovedades ? 'Guardando...' : '✓ Día sin novedades'}
+            </Button>
+          )}
+          <Button
+            onClick={() => { setRegistroEditar(null); setModalOpen(true) }}
+            disabled={!listoParaRegistrar}
+            title={!listoParaRegistrar ? faltaParaRegistrar : undefined}
+            className="bg-green-700 hover:bg-green-800 text-white text-sm"
+          >
             + Registrar día
           </Button>
         </div>
       </div>
 
-      {loteActual.estado === 'preparacion' && (
-        <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg border border-blue-200 bg-blue-50">
-          <div>
-            <p className="text-sm font-semibold text-blue-800">🐣 Semana de preparación {semanasEnGalpon + 1} (levante)</p>
-            <p className="text-xs text-blue-600 mt-0.5">
-              {loteActual.fecha_inicio_postura
-                ? `Fecha tentativa de inicio de postura: ${new Date(loteActual.fecha_inicio_postura + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'long', year: 'numeric' })}`
-                : 'Aún no hay fecha estimada de postura — configúrala en "⚙️ Configurar galpón"'}
-            </p>
-            {semanasFaltantesPostura != null && (
-              <p className="text-xs text-blue-600">
-                Faltan {semanasFaltantesPostura} semana{semanasFaltantesPostura === 1 ? '' : 's'}
-              </p>
-            )}
-          </div>
-          <Button size="sm" onClick={marcarInicioPostura} className="bg-blue-700 hover:bg-blue-800 text-white text-xs">
-            🥚 Marcar inicio de postura
-          </Button>
-        </div>
-      )}
-
-      {!hayAlimentoRegistrado && (
+      {!listoParaRegistrar && (
         <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg border border-amber-200 bg-amber-50">
-          <p className="text-sm font-semibold text-amber-800">
-            ⚠️ Este galpón todavía no tiene alimento registrado
-          </p>
+          <div>
+            <p className="text-sm font-semibold text-amber-800">
+              ⚠️ Este galpón todavía no tiene alimento registrado
+            </p>
+            <p className="text-xs text-amber-700 mt-0.5">{faltaParaRegistrar}</p>
+          </div>
           <Link href="/alimento">
             <Button size="sm" className="bg-amber-700 hover:bg-amber-800 text-white text-xs">Registrar alimento</Button>
           </Link>
@@ -407,6 +502,24 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
           </CardContent>
         </Card>
         </>)}
+        {!enPostura && (
+          <Card className="border-blue-200 bg-blue-50">
+            <CardContent className="p-4">
+              <p className="text-xs text-blue-700 font-medium">Semana de preparación</p>
+              <p className="text-2xl font-bold text-blue-800">{semanasEnGalpon + 1}</p>
+              <p className="text-xs text-blue-600 mt-0.5">
+                {semanasFaltantesPostura != null
+                  ? `Faltan ${semanasFaltantesPostura} semana${semanasFaltantesPostura === 1 ? '' : 's'} para postura`
+                  : 'Aún no inicia postura'}
+              </p>
+              {loteActual.fecha_inicio_postura && (
+                <p className="text-xs text-blue-500 mt-0.5">
+                  Tentativa: {new Date(loteActual.fecha_inicio_postura + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        )}
         <Card className="border-orange-200 bg-orange-50">
           <CardContent className="p-4">
             <p className="text-xs text-orange-700 font-medium">Densidad</p>
@@ -450,12 +563,6 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
 
       {enPostura && (
         <>
-          <GraficaProduccionHuevos
-            registros={registros}
-            semanasFaltantesPostura={semanasFaltantesPostura}
-            enPreparacion={false}
-          />
-
           <HorariosRecoleccion loteId={loteActual.id} fincaId={loteActual.finca_id} />
           <RevisionCalidadHuevo
             loteId={loteActual.id}
@@ -494,6 +601,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
                 <TableHeader>
                   <TableRow>
                     <TableHead>Fecha</TableHead>
+                    {enPostura && <TableHead className="text-right">Huevos</TableHead>}
                     <TableHead className="text-right">Alimento kg</TableHead>
                     <TableHead className="text-right">Muertes</TableHead>
                     <TableHead>Causa</TableHead>
@@ -506,7 +614,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
                     if (fila.tipo === 'separador') {
                       return (
                         <TableRow key={fila.key} className="bg-purple-50 hover:bg-purple-50 border-y border-purple-200">
-                          <TableCell colSpan={6} className="py-2">
+                          <TableCell colSpan={enPostura ? 7 : 6} className="py-2">
                             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-purple-800 font-medium">
                               <span>
                                 📅 Semana {fila.inicio.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })} – {fila.fin.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}
@@ -522,7 +630,22 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
                     return (
                       <TableRow key={fila.key}>
                         <TableCell className="font-medium text-sm">{formatDate(r.fecha)}</TableCell>
-                        <TableCell className="text-right">{Number(r.alimento_kg) > 0 ? Number(r.alimento_kg).toFixed(1) : '—'}</TableCell>
+                        {enPostura && (
+                          <TableCell className="text-right font-medium">
+                            {r.huevos_totales > 0 ? r.huevos_totales.toLocaleString('es-CO') : '—'}
+                          </TableCell>
+                        )}
+                        <TableCell className="text-right">
+                          {Number(r.alimento_kg) > 0
+                            ? Number(r.alimento_kg).toFixed(1)
+                            : (consumoEfectivoPorFecha.get(r.fecha) ?? 0) > 0
+                              ? (
+                                <span className="text-gray-400" title="Mismo consumo del último día registrado">
+                                  {(consumoEfectivoPorFecha.get(r.fecha) ?? 0).toFixed(1)}
+                                </span>
+                              )
+                              : '—'}
+                        </TableCell>
                         <TableCell className="text-right">
                           {r.muertes > 0 ? <Badge variant="destructive" className="text-xs">{r.muertes}</Badge> : '—'}
                         </TableCell>
@@ -553,6 +676,33 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
           )}
         </CardContent>
       </Card>
+
+      {enPostura && (
+        <>
+          <GraficaProduccionHuevos
+            registros={registros}
+            semanasFaltantesPostura={semanasFaltantesPostura}
+            enPreparacion={false}
+          />
+          <GraficaCurvaPostura
+            fincaId={loteActual.finca_id}
+            fechaInicioLote={loteActual.fecha_inicio}
+            registros={registros}
+          />
+        </>
+      )}
+
+      <ConfigurarRecoleccionModal
+        open={modalRecoleccionObligatoria}
+        loteId={loteActual.id}
+        fincaId={loteActual.finca_id}
+        onListo={() => {
+          setModalRecoleccionObligatoria(false)
+          // Encadena con el registro del primer día de postura
+          setRegistroEditar(null)
+          setModalOpen(true)
+        }}
+      />
 
       <RegistrarProduccionModal
         open={modalOpen}

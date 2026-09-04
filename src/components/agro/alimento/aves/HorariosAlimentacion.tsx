@@ -68,7 +68,9 @@ export default function HorariosAlimentacion({ loteId, fincaId, consumoRegistrad
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault()
     if (!nuevo.hora) { toast.error('Ingresa la hora de alimentación'); return }
-    const kgNuevo = nuevo.cantidad_kg ? Number(nuevo.cantidad_kg) : 0
+    if (!nuevo.descripcion.trim()) { toast.error('Ponle una descripción al horario'); return }
+    if (!nuevo.cantidad_kg || Number(nuevo.cantidad_kg) <= 0) { toast.error('Ingresa la porción en kg'); return }
+    const kgNuevo = Number(nuevo.cantidad_kg)
     const total = totalProgramadoKg + kgNuevo
     if (excedeLimite(total)) { avisarExceso(total); return }
 
@@ -99,8 +101,11 @@ export default function HorariosAlimentacion({ loteId, fincaId, consumoRegistrad
   }
 
   async function guardarEdicion(id: string) {
+    if (!formEditar.hora) { toast.error('Ingresa la hora de alimentación'); return }
+    if (!formEditar.descripcion.trim()) { toast.error('Ponle una descripción al horario'); return }
+    if (!formEditar.cantidad_kg || Number(formEditar.cantidad_kg) <= 0) { toast.error('Ingresa la porción en kg'); return }
     const kgAnterior = horarios.find(h => h.id === id)?.cantidad_kg ?? 0
-    const kgNuevo = formEditar.cantidad_kg ? Number(formEditar.cantidad_kg) : 0
+    const kgNuevo = Number(formEditar.cantidad_kg)
     const total = totalProgramadoKg - kgAnterior + kgNuevo
     if (excedeLimite(total)) { avisarExceso(total); return }
 
@@ -148,6 +153,7 @@ export default function HorariosAlimentacion({ loteId, fincaId, consumoRegistrad
   }
 
   const excedido = limiteKg > 0 && totalProgramadoKg > limiteKg
+  const faltaPorRepartir = limiteKg > 0 && totalProgramadoKg > 0 && totalProgramadoKg < limiteKg
 
   return (
     <Card>
@@ -187,6 +193,11 @@ export default function HorariosAlimentacion({ loteId, fincaId, consumoRegistrad
         {excedido && (
           <p className="text-xs text-red-600 pt-1">
             ⚠️ Estás repartiendo {(totalProgramadoKg - limiteKg).toFixed(1)} kg más que el consumo registrado del galpón.
+          </p>
+        )}
+        {faltaPorRepartir && (
+          <p className="text-xs text-amber-600 pt-1">
+            ⚠️ Faltan {sinRepartir.toFixed(1)} kg para cumplir con el consumo registrado ({limiteKg} kg/día).
           </p>
         )}
       </CardHeader>

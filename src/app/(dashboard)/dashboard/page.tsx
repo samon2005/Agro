@@ -6,6 +6,7 @@ import { useFinca } from '@/components/agro/FincaProvider'
 import CrearFincaModal from '@/components/agro/CrearFincaModal'
 import ResumenEspecies from '@/components/agro/ResumenEspecies'
 import ResumenFinanciero from '@/components/agro/ResumenFinanciero'
+import EditarFincaModal from '@/components/agro/EditarFincaModal'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -21,6 +22,7 @@ export default function DashboardPage() {
   const { fincas, fincaActual, loading, refetch } = useFinca()
   const [stats, setStats] = useState<Stats | null>(null)
   const [userName, setUserName] = useState('')
+  const [fincaAEditar, setFincaAEditar] = useState<typeof fincas[number] | null>(null)
 
   useEffect(() => {
     const supabase = createClient()
@@ -82,6 +84,16 @@ export default function DashboardPage() {
 
   return (
     <>
+      {fincaAEditar && (
+        <EditarFincaModal
+          open={!!fincaAEditar}
+          onClose={() => setFincaAEditar(null)}
+          finca={fincaAEditar}
+          onUpdated={refetch}
+          onDeleted={() => setFincaAEditar(null)}
+        />
+      )}
+
       <CrearFincaModal open={!loading && fincas.length === 0} onCreated={refetch} />
 
       <div className="p-8">
@@ -130,7 +142,16 @@ export default function DashboardPage() {
                         <p className="font-medium text-green-900">{f.nombre}</p>
                         {f.municipio && <p className="text-xs text-gray-500">{f.municipio}, {f.departamento}</p>}
                       </div>
-                      {f.area_valor && <Badge variant="secondary">{f.area_valor} {f.area_unidad === 'ha' ? 'ha' : f.area_unidad === 'm2' ? 'm²' : f.area_unidad}</Badge>}
+                      <div className="flex items-center gap-2">
+                        {f.area_valor && <Badge variant="secondary">{f.area_valor} {f.area_unidad === 'ha' ? 'ha' : f.area_unidad === 'm2' ? 'm²' : f.area_unidad}</Badge>}
+                        <button
+                          type="button"
+                          onClick={() => setFincaAEditar(f)}
+                          className="text-xs text-gray-500 hover:text-gray-800 border border-gray-200 rounded px-2 py-1 bg-white"
+                        >
+                          ⚙️ Configurar
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>

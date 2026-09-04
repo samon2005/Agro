@@ -168,6 +168,12 @@ export interface Database {
         Update: { id?: string; lote_id?: string; finca_id?: string; fecha?: string; tipo_evento?: string; descripcion?: string; aves_afectadas?: number | null; aves_muertas?: number | null; accion_tomada?: string | null; veterinario?: string | null; resuelto?: boolean; observaciones?: string | null; requiere_medicamento?: boolean; causa?: string | null; registrado_por?: string | null; created_at?: string }
         Relationships: []
       }
+      entradas_alimento_aves: {
+        Row: { id: string; finca_id: string; lote_id: string | null; tipo_alimento_id: string; fecha: string; cantidad_bultos: number; precio_bulto: number | null; proveedor: string | null; observaciones: string | null; registrado_por: string | null; created_at: string }
+        Insert: { id?: string; finca_id: string; lote_id?: string | null; tipo_alimento_id: string; fecha?: string; cantidad_bultos: number; precio_bulto?: number | null; proveedor?: string | null; observaciones?: string | null; registrado_por?: string | null; created_at?: string }
+        Update: { id?: string; finca_id?: string; lote_id?: string | null; tipo_alimento_id?: string; fecha?: string; cantidad_bultos?: number; precio_bulto?: number | null; proveedor?: string | null; observaciones?: string | null; registrado_por?: string | null; created_at?: string }
+        Relationships: []
+      }
       causas_clinicas_aves: {
         Row: { id: string; finca_id: string; nombre: string; created_at: string }
         Insert: { id?: string; finca_id: string; nombre: string; created_at?: string }
@@ -175,9 +181,9 @@ export interface Database {
         Relationships: []
       }
       costos_lote_aves: {
-        Row: { id: string; lote_id: string; finca_id: string; fecha: string; categoria: string; descripcion: string; monto: number; proveedor: string | null; observaciones: string | null; equipo_id: string | null; medicacion_id: string | null; vacunacion_id: string | null; desinfeccion_id: string | null; tipo_alimento_id: string | null; registrado_por: string | null; created_at: string }
-        Insert: { id?: string; lote_id: string; finca_id: string; fecha?: string; categoria: string; descripcion: string; monto: number; proveedor?: string | null; observaciones?: string | null; equipo_id?: string | null; medicacion_id?: string | null; vacunacion_id?: string | null; desinfeccion_id?: string | null; tipo_alimento_id?: string | null; registrado_por?: string | null; created_at?: string }
-        Update: { id?: string; lote_id?: string; finca_id?: string; fecha?: string; categoria?: string; descripcion?: string; monto?: number; proveedor?: string | null; observaciones?: string | null; equipo_id?: string | null; medicacion_id?: string | null; vacunacion_id?: string | null; desinfeccion_id?: string | null; tipo_alimento_id?: string | null; registrado_por?: string | null; created_at?: string }
+        Row: { id: string; lote_id: string; finca_id: string; fecha: string; categoria: string; descripcion: string; monto: number; proveedor: string | null; observaciones: string | null; equipo_id: string | null; medicacion_id: string | null; vacunacion_id: string | null; desinfeccion_id: string | null; tipo_alimento_id: string | null; entrada_alimento_id: string | null; registrado_por: string | null; created_at: string }
+        Insert: { id?: string; lote_id: string; finca_id: string; fecha?: string; categoria: string; descripcion: string; monto: number; proveedor?: string | null; observaciones?: string | null; equipo_id?: string | null; medicacion_id?: string | null; vacunacion_id?: string | null; desinfeccion_id?: string | null; tipo_alimento_id?: string | null; entrada_alimento_id?: string | null; registrado_por?: string | null; created_at?: string }
+        Update: { id?: string; lote_id?: string; finca_id?: string; fecha?: string; categoria?: string; descripcion?: string; monto?: number; proveedor?: string | null; observaciones?: string | null; equipo_id?: string | null; medicacion_id?: string | null; vacunacion_id?: string | null; desinfeccion_id?: string | null; tipo_alimento_id?: string | null; entrada_alimento_id?: string | null; registrado_por?: string | null; created_at?: string }
         Relationships: []
       }
       ventas_huevos_aves: {
@@ -468,9 +474,9 @@ export interface Database {
       }
       // ── Datos de referencia por especie (plantillas del sistema) ──────
       curvas_referencia: {
-        Row: { id: string; finca_id: string | null; especie: string; linea_genetica: string; dia: number; peso_g: number | null; consumo_acum_g: number | null; conversion: number | null; created_at: string }
-        Insert: { id?: string; finca_id?: string | null; especie: string; linea_genetica: string; dia: number; peso_g?: number | null; consumo_acum_g?: number | null; conversion?: number | null; created_at?: string }
-        Update: { id?: string; finca_id?: string | null; especie?: string; linea_genetica?: string; dia?: number; peso_g?: number | null; consumo_acum_g?: number | null; conversion?: number | null; created_at?: string }
+        Row: { id: string; finca_id: string | null; especie: string; linea_genetica: string; dia: number; semana: number | null; peso_g: number | null; consumo_acum_g: number | null; conversion: number | null; postura_pct: number | null; created_at: string }
+        Insert: { id?: string; finca_id?: string | null; especie: string; linea_genetica: string; dia: number; semana?: number | null; peso_g?: number | null; consumo_acum_g?: number | null; conversion?: number | null; postura_pct?: number | null; created_at?: string }
+        Update: { id?: string; finca_id?: string | null; especie?: string; linea_genetica?: string; dia?: number; semana?: number | null; peso_g?: number | null; consumo_acum_g?: number | null; conversion?: number | null; postura_pct?: number | null; created_at?: string }
         Relationships: []
       }
       planes_sanitarios: {
