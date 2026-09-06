@@ -110,6 +110,11 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, 
               <Input disabled value={densidad ? `${densidad} aves/m²` : '—'} />
             </div>
             <div className="space-y-1">
+              <Label>Fecha de entrada al galpón</Label>
+              <Input disabled value={new Date(lote.fecha_inicio + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'long', year: 'numeric' })} />
+              <p className="text-xs text-gray-400">Se registró al crear el galpón</p>
+            </div>
+            <div className="space-y-1">
               <Label>Fecha de inicio real de postura</Label>
               <Input type="date" value={form.fecha_inicio_postura} onChange={e => set('fecha_inicio_postura', e.target.value)} />
               <p className="text-xs text-gray-400">Se usa para contar la semana de postura del lote</p>

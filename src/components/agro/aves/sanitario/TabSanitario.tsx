@@ -67,7 +67,7 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
     const [v, m, ev, d, r, mu] = await Promise.all([
       supabase.from('vacunaciones_aves').select('*').eq('lote_id', loteActual.id).order('fecha_aplicacion', { ascending: false }),
       supabase.from('medicaciones_aves').select('*').eq('lote_id', loteActual.id).order('fecha_inicio', { ascending: false }),
-      supabase.from('eventos_clinicos_aves').select('*').eq('lote_id', loteActual.id).order('fecha', { ascending: false }),
+      supabase.from('eventos_clinicos_aves').select('*').eq('lote_id', loteActual.id).eq('origen', 'clinico').order('fecha', { ascending: false }),
       supabase.from('desinfecciones_aves').select('*').eq('lote_id', loteActual.id).order('fecha', { ascending: false }),
       supabase.from('recordatorios_medicacion_aves').select('*').eq('lote_id', loteActual.id).eq('completado', false).order('fecha'),
       supabase.from('produccion_diaria_aves').select('id, fecha, muertes, causa_muerte').eq('lote_id', loteActual.id).gt('muertes', 0).order('fecha', { ascending: false }),

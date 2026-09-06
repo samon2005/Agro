@@ -11,7 +11,6 @@ import RegistrarProduccionModal from './RegistrarProduccionModal'
 import ConfigurarGalponModal from './ConfigurarGalponModal'
 import HorariosRecoleccion from './HorariosRecoleccion'
 import RevisionCalidadHuevo from './RevisionCalidadHuevo'
-import GraficaProduccionHuevos from './GraficaProduccionHuevos'
 import GraficaCurvaPostura from './GraficaCurvaPostura'
 import ConfigurarRecoleccionModal from './ConfigurarRecoleccionModal'
 import { toast } from 'sonner'
@@ -108,8 +107,12 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
     onLoteUpdated()
   }
 
-  const hoy = registros[0]
   const ultimos30 = registros.slice(0, 30)
+  const hoyDate = new Date()
+  const hoyStr = aFechaLocal(hoyDate)
+  // Solo cuenta como "hoy" el registro que sea realmente de la fecha de hoy:
+  // al pasar la medianoche el contador arranca de nuevo en 0.
+  const hoy = registros.find(r => r.fecha === hoyStr)
 
   const posturaHoy = hoy && hoy.aves_en_dia && hoy.aves_en_dia > 0
     ? ((hoy.huevos_totales / hoy.aves_en_dia) * 100).toFixed(1)
@@ -126,8 +129,6 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
 
   // ── Ciclo de postura ──
   const metaPostura = loteActual.meta_postura_pct ?? 90
-  const hoyDate = new Date()
-  const hoyStr = aFechaLocal(hoyDate)
   const estadoPosturaHoy = estadoPostura(loteActual.fecha_inicio_postura, hoyStr)
   const semanaPostura = estadoPosturaHoy.iniciada ? estadoPosturaHoy.semana : null
   const inicioSemanaActual = estadoPosturaHoy.iniciada ? estadoPosturaHoy.inicioSemana : null
@@ -321,8 +322,20 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
   }
 
   type FilaHistorial =
-    | { tipo: 'separador'; key: string; inicio: Date; fin: Date; totalAlimento: number; mortalidad: number }
+    | { tipo: 'separador'; key: string; inicio: Date; fin: Date; etiquetaSemana: string; totalAlimento: number; mortalidad: number }
+    | { tipo: 'hito'; key: string; etiqueta: string; fecha: string; color: 'azul' | 'verde' }
     | { tipo: 'dato'; key: string; registro: ProduccionDiaria; eventos: EventoClinico[] }
+
+  /** Qué semana es la del separador: de preparación mientras no haya postura, de postura después. */
+  function etiquetaDeSemana(fechaInicioSemana: Date): string {
+    const fechaStr = aFechaLocal(fechaInicioSemana)
+    const est = estadoPostura(loteActual.fecha_inicio_postura, fechaStr)
+    if (est.iniciada) return `Semana ${est.semana} de postura`
+    const semanasDesdeEntrada = Math.floor(
+      (fechaInicioSemana.getTime() - new Date(loteActual.fecha_inicio + 'T00:00:00').getTime()) / (7 * MS_DIA)
+    )
+    return `Semana ${Math.max(1, semanasDesdeEntrada + 1)} de preparación`
+  }
 
   const filasHistorial: FilaHistorial[] = []
   let semanaAnterior: number | null = null
@@ -330,15 +343,41 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
     const semana = semanaDeFecha(r.fecha)
     if (semana !== semanaAnterior) {
       const grupo = registros.filter(x => semanaDeFecha(x.fecha) === semana)
-      const totalAlimento = grupo.reduce((s, x) => s + Number(x.alimento_kg), 0)
+      // El alimento de la semana usa el consumo vigente de cada día, no solo los
+      // días que tienen consumo propio: si no se cambió, sigue siendo el mismo.
+      const totalAlimento = grupo.reduce((s, x) => s + (consumoEfectivoPorFecha.get(x.fecha) ?? 0), 0)
       const mortalidad = grupo.reduce((s, x) => s + x.muertes, 0)
       const inicio = new Date(origenSemanasDate.getTime() + semana * 7 * MS_DIA)
       const fin = new Date(inicio.getTime() + 6 * MS_DIA)
-      filasHistorial.push({ tipo: 'separador', key: `sep-${semana}`, inicio, fin, totalAlimento, mortalidad })
+      filasHistorial.push({
+        tipo: 'separador', key: `sep-${semana}`, inicio, fin,
+        etiquetaSemana: etiquetaDeSemana(inicio), totalAlimento, mortalidad,
+      })
       semanaAnterior = semana
     }
     filasHistorial.push({ tipo: 'dato', key: r.id, registro: r, eventos: eventosPorFecha.get(r.fecha) ?? [] })
   }
+
+  // Hito de inicio de postura: separa la preparación de la producción.
+  if (loteActual.fecha_inicio_postura && enPostura) {
+    const fechaPostura = loteActual.fecha_inicio_postura
+    const idx = filasHistorial.findIndex(f =>
+      (f.tipo === 'dato' && f.registro.fecha < fechaPostura) ||
+      (f.tipo === 'separador' && aFechaLocal(f.inicio) < fechaPostura)
+    )
+    const hito: FilaHistorial = {
+      tipo: 'hito', key: 'hito-postura', color: 'verde',
+      etiqueta: '🥚 Inicio de postura', fecha: fechaPostura,
+    }
+    if (idx === -1) filasHistorial.push(hito)
+    else filasHistorial.splice(idx, 0, hito)
+  }
+
+  // Y al final del todo, el día en que el lote entró al galpón.
+  filasHistorial.push({
+    tipo: 'hito', key: 'hito-entrada', color: 'azul',
+    etiqueta: '🐣 Entrada al galpón', fecha: loteActual.fecha_inicio,
+  })
 
   return (
     <div className="space-y-4">
@@ -616,11 +655,29 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
                         <TableRow key={fila.key} className="bg-purple-50 hover:bg-purple-50 border-y border-purple-200">
                           <TableCell colSpan={enPostura ? 7 : 6} className="py-2">
                             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-purple-800 font-medium">
+                              <span className="font-semibold">📅 {fila.etiquetaSemana}</span>
                               <span>
-                                📅 Semana {fila.inicio.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })} – {fila.fin.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}
+                                {fila.inicio.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })} – {fila.fin.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}
                               </span>
                               <span>Alimento: {fila.totalAlimento.toFixed(1)} kg</span>
                               <span>Mortalidad: {fila.mortalidad}</span>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    }
+                    if (fila.tipo === 'hito') {
+                      const cls = fila.color === 'verde'
+                        ? 'bg-green-50 hover:bg-green-50 border-y border-green-200 text-green-800'
+                        : 'bg-blue-50 hover:bg-blue-50 border-y border-blue-200 text-blue-800'
+                      return (
+                        <TableRow key={fila.key} className={cls}>
+                          <TableCell colSpan={enPostura ? 7 : 6} className="py-2">
+                            <div className="flex items-center gap-3 text-xs font-medium">
+                              <span>{fila.etiqueta}</span>
+                              <span className="font-normal opacity-80">
+                                {new Date(fila.fecha + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'long', year: 'numeric' })}
+                              </span>
                             </div>
                           </TableCell>
                         </TableRow>
@@ -636,15 +693,9 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
                           </TableCell>
                         )}
                         <TableCell className="text-right">
-                          {Number(r.alimento_kg) > 0
-                            ? Number(r.alimento_kg).toFixed(1)
-                            : (consumoEfectivoPorFecha.get(r.fecha) ?? 0) > 0
-                              ? (
-                                <span className="text-gray-400" title="Mismo consumo del último día registrado">
-                                  {(consumoEfectivoPorFecha.get(r.fecha) ?? 0).toFixed(1)}
-                                </span>
-                              )
-                              : '—'}
+                          {(consumoEfectivoPorFecha.get(r.fecha) ?? 0) > 0
+                            ? (consumoEfectivoPorFecha.get(r.fecha) ?? 0).toFixed(1)
+                            : '—'}
                         </TableCell>
                         <TableCell className="text-right">
                           {r.muertes > 0 ? <Badge variant="destructive" className="text-xs">{r.muertes}</Badge> : '—'}
@@ -679,14 +730,9 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
 
       {enPostura && (
         <>
-          <GraficaProduccionHuevos
-            registros={registros}
-            semanasFaltantesPostura={semanasFaltantesPostura}
-            enPreparacion={false}
-          />
           <GraficaCurvaPostura
-            fincaId={loteActual.finca_id}
             fechaInicioLote={loteActual.fecha_inicio}
+            metaPosturaPct={loteActual.meta_postura_pct}
             registros={registros}
           />
         </>

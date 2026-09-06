@@ -89,28 +89,37 @@ export default function RegistrarConsumoAlimentoModal({
         consumo_activo_kg: nuevoConsumo,
       }).eq('id', loteId)
 
-      // Si el consumo cambió y el galpón ya tenía horarios, se re-reparten las
-      // porciones proporcionalmente para que sigan sumando el nuevo total.
+      // El consumo cambió: NO se reparte solo. Se avisa para que el usuario ajuste
+      // a mano las porciones de los horarios de alimentación y revise la recolección.
       const anterior = consumoActualKg != null ? Number(consumoActualKg) : 0
-      if (anterior > 0 && Math.abs(nuevoConsumo - anterior) > 0.001) {
-        const { data: horarios } = await supabase
-          .from('horarios_alimentacion_aves')
-          .select('id, cantidad_kg')
-          .eq('lote_id', loteId).eq('activo', true)
-        const conPorcion = (horarios ?? []).filter(h => h.cantidad_kg && h.cantidad_kg > 0)
-        const totalAnterior = conPorcion.reduce((acc, h) => acc + Number(h.cantidad_kg), 0)
-        if (conPorcion.length > 0 && totalAnterior > 0) {
-          const factor = nuevoConsumo / totalAnterior
-          await Promise.all(conPorcion.map(h =>
-            supabase.from('horarios_alimentacion_aves')
-              .update({ cantidad_kg: Math.round(Number(h.cantidad_kg) * factor * 100) / 100 })
-              .eq('id', h.id)
-          ))
+      const cambio = anterior > 0 && Math.abs(nuevoConsumo - anterior) > 0.001
+
+      const [{ count: horariosAlim }, { count: horariosRecol }] = await Promise.all([
+        supabase.from('horarios_alimentacion_aves').select('id', { count: 'exact', head: true })
+          .eq('lote_id', loteId).eq('activo', true),
+        supabase.from('horarios_recoleccion_aves').select('id', { count: 'exact', head: true })
+          .eq('lote_id', loteId).eq('activo', true),
+      ])
+
+      if (cambio) {
+        const subio = nuevoConsumo > anterior
+        toast.warning(
+          `El consumo pasó de ${anterior} a ${nuevoConsumo} kg/día (${subio ? 'subió' : 'bajó'} ` +
+          `${Math.abs(nuevoConsumo - anterior).toFixed(1)} kg). Ajusta a mano las porciones de los ` +
+          `${horariosAlim ?? 0} horarios de alimentación para que sumen el nuevo total.`,
+          { duration: 10000 }
+        )
+        if ((horariosRecol ?? 0) > 0) {
           toast.warning(
-            `El consumo pasó de ${anterior} a ${nuevoConsumo} kg/día: se repartieron de nuevo ` +
-            `los ${conPorcion.length} horarios para que sumen el nuevo total.`
+            'Revisa también los horarios de recolección: si cambió el consumo, la postura puede cambiar.',
+            { duration: 8000 }
           )
         }
+      } else if ((horariosAlim ?? 0) === 0) {
+        toast.warning(
+          'Ahora registra los horarios de alimentación para repartir estos kg a lo largo del día.',
+          { duration: 8000 }
+        )
       }
     }
 
@@ -142,8 +151,8 @@ export default function RegistrarConsumoAlimentoModal({
             <p className="text-sm font-semibold text-amber-800">⚠️ Este consumo queda fijo</p>
             <p className="text-xs text-amber-700 mt-0.5">
               Lo que registres aquí rige para el galpón todos los días hasta que registres uno nuevo.
-              No hay que registrarlo a diario. Si cambias el valor y ya hay horarios, se vuelven a
-              repartir solos.
+              No hay que registrarlo a diario. Si lo cambias y ya hay horarios, tendrás que ajustar
+              las porciones a mano.
             </p>
           </div>
           <div className="space-y-1">

@@ -45,6 +45,7 @@ const CAUSA_A_TIPO_EVENTO: Record<string, string> = {
 }
 
 const SIN_TIPO = '__ninguno__'
+const AGREGAR_CAUSA = '__agregar_causa__'
 
 const TIPOS_EVENTO_CLINICO = [
   { value: SIN_TIPO, label: '— Ninguno' },
@@ -75,6 +76,7 @@ function defaultForm(avesActuales: number, r?: ProduccionDiaria | null) {
     evento_tipo: '',
     evento_causa: '',
     evento_afectadas: '',
+    evento_muertas: '',
     evento_descripcion: '',
   }
 }
@@ -86,6 +88,7 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
   const [causasPropias, setCausasPropias] = useState<string[]>([])
   const [agregandoCausa, setAgregandoCausa] = useState(false)
   const [causaNuevaTexto, setCausaNuevaTexto] = useState('')
+  const [campoCausa, setCampoCausa] = useState<'muerte' | 'evento'>('evento')
   const enPreparacion = estadoLote === 'preparacion'
 
   useEffect(() => {
@@ -107,7 +110,9 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
     )
     if (error) { toast.error('Error al guardar la causa'); return }
     setCausasPropias(prev => prev.includes(nombre) ? prev : [...prev, nombre].sort())
-    setForm(prev => ({ ...prev, evento_causa: nombre }))
+    setForm(prev => campoCausa === 'muerte'
+      ? { ...prev, causa_muerte: nombre }
+      : { ...prev, evento_causa: nombre })
     setCausaNuevaTexto('')
     setAgregandoCausa(false)
     toast.success(`Causa "${nombre}" agregada`)
@@ -188,6 +193,7 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
         descripcion: `Mortalidad reportada: ${form.causa_muerte}`,
         aves_muertas: Number(form.muertes),
         causa: form.causa_muerte,
+        origen: 'mortalidad',
         // El ave ya murió: este evento no debe ofrecer tratamiento.
         requiere_medicamento: false,
       })
@@ -196,12 +202,12 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
 
     // Basta con elegir tipo o causa: antes solo se creaba si había descripción escrita,
     // y por eso el evento no aparecía después en la pestaña de Sanidad.
-    const tipoElegido = form.evento_tipo.trim()
-    const hayEvento = !!(tipoElegido || form.evento_causa || form.evento_afectadas || form.evento_descripcion.trim())
+    const tipoElegido = form.evento_tipo && form.evento_tipo !== SIN_TIPO ? form.evento_tipo : ''
+    const hayEvento = !!(tipoElegido || form.evento_causa || form.evento_afectadas || form.evento_muertas || form.evento_descripcion.trim())
     if (!error && hayEvento) {
       const descripcion = form.evento_descripcion.trim()
         || form.evento_causa
-        || tipoElegido
+        || TIPOS_EVENTO_CLINICO.find(t => t.value === tipoElegido)?.label
         || 'Evento clínico'
       const { error: errorEvento } = await supabase.from('eventos_clinicos_aves').insert({
         lote_id: loteId,
@@ -210,7 +216,8 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
         tipo_evento: tipoElegido || 'otro',
         causa: form.evento_causa || null,
         aves_afectadas: form.evento_afectadas ? Number(form.evento_afectadas) : null,
-        aves_muertas: Number(form.muertes) || null,
+        aves_muertas: form.evento_muertas ? Number(form.evento_muertas) : null,
+        origen: 'clinico',
         descripcion,
       })
       if (errorEvento) toast.error('El día se guardó, pero el evento clínico no')
@@ -311,11 +318,17 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
           {Number(form.muertes) > 0 && (
             <div className="space-y-1">
               <Label>Causa probable de muerte</Label>
-              <Input
-                placeholder="Escríbela: Newcastle, estrés calórico, accidente..."
+              <Select
                 value={form.causa_muerte}
-                onChange={e => set('causa_muerte', e.target.value)}
-              />
+                onValueChange={v => { if (v === AGREGAR_CAUSA) { setAgregandoCausa(true); setCampoCausa('muerte') } else set('causa_muerte', v) }}
+                items={{ ...Object.fromEntries(causasDisponibles.map(c => [c, c])), [AGREGAR_CAUSA]: '+ Añadir causa...' }}
+              >
+                <SelectTrigger><SelectValue placeholder="Seleccionar causa..." /></SelectTrigger>
+                <SelectContent>
+                  {causasDisponibles.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  <SelectItem value={AGREGAR_CAUSA}>+ Añadir causa...</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           )}
 
@@ -324,56 +337,61 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs">Causa</Label>
-                <Input
-                  placeholder="Escríbela: coccidiosis, golpe de calor..."
+                <Select
                   value={form.evento_causa}
-                  onChange={e => set('evento_causa', e.target.value)}
-                  list="causas-sugeridas"
-                />
-                <datalist id="causas-sugeridas">
-                  {causasDisponibles.map(c => <option key={c} value={c} />)}
-                </datalist>
+                  onValueChange={v => { if (v === AGREGAR_CAUSA) { setAgregandoCausa(true); setCampoCausa('evento') } else set('evento_causa', v) }}
+                  items={{ ...Object.fromEntries(causasDisponibles.map(c => [c, c])), [AGREGAR_CAUSA]: '+ Añadir causa...' }}
+                >
+                  <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                  <SelectContent>
+                    {causasDisponibles.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    <SelectItem value={AGREGAR_CAUSA}>+ Añadir causa...</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Tipo</Label>
-                <Input
-                  placeholder="Respiratorio, digestivo, otro..."
+                <Select
                   value={form.evento_tipo}
-                  onChange={e => set('evento_tipo', e.target.value)}
-                />
+                  onValueChange={v => set('evento_tipo', v)}
+                  items={Object.fromEntries(TIPOS_EVENTO_CLINICO.map(t => [t.value, t.label]))}
+                >
+                  <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                  <SelectContent>
+                    {TIPOS_EVENTO_CLINICO.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Aves afectadas</Label>
                 <Input type="number" min="0" placeholder="0" value={form.evento_afectadas} onChange={e => set('evento_afectadas', e.target.value)} />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Aves muertas</Label>
-                <Input disabled value={form.muertes || '0'} />
+                <Label className="text-xs">Aves muertas por este evento</Label>
+                <Input type="number" min="0" placeholder="0" value={form.evento_muertas} onChange={e => set('evento_muertas', e.target.value)} />
+                <p className="text-[11px] text-gray-400">Aparte de las muertes de arriba, que van por su propia causa</p>
               </div>
-              <div className="col-span-2">
-                {agregandoCausa ? (
-                  <div className="flex items-end gap-2">
-                    <div className="flex-1 space-y-1">
-                      <Label className="text-xs">Nueva causa</Label>
-                      <Input
-                        placeholder="Ej: Golpe de calor nocturno"
-                        value={causaNuevaTexto}
-                        onChange={e => setCausaNuevaTexto(e.target.value)}
-                      />
-                    </div>
-                    <Button type="button" size="sm" className="bg-red-600 hover:bg-red-700 text-white" onClick={guardarCausaNueva}>
-                      Guardar
-                    </Button>
-                    <Button type="button" size="sm" variant="outline" onClick={() => { setAgregandoCausa(false); setCausaNuevaTexto('') }}>
-                      Cancelar
-                    </Button>
+              {agregandoCausa && (
+                <div className="col-span-2 flex items-end gap-2 p-2 bg-white border border-red-200 rounded-lg">
+                  <div className="flex-1 space-y-1">
+                    <Label className="text-xs">
+                      Nueva causa {campoCausa === 'muerte' ? '(para la muerte)' : '(para el evento clínico)'}
+                    </Label>
+                    <Input
+                      autoFocus
+                      placeholder="Ej: Golpe de calor nocturno"
+                      value={causaNuevaTexto}
+                      onChange={e => setCausaNuevaTexto(e.target.value)}
+                    />
                   </div>
-                ) : (
-                  <button type="button" onClick={() => setAgregandoCausa(true)} className="text-xs text-red-600 hover:underline">
-                    + Añadir causa
-                  </button>
-                )}
-              </div>
+                  <Button type="button" size="sm" className="bg-red-600 hover:bg-red-700 text-white" onClick={guardarCausaNueva}>
+                    Guardar
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" onClick={() => { setAgregandoCausa(false); setCausaNuevaTexto('') }}>
+                    Cancelar
+                  </Button>
+                </div>
+              )}
               <div className="col-span-2 space-y-1">
                 <Label className="text-xs">Descripción</Label>
                 <Input placeholder="Ej: Se observaron aves con letargo..." value={form.evento_descripcion} onChange={e => set('evento_descripcion', e.target.value)} />
