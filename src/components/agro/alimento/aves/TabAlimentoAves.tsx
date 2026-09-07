@@ -280,9 +280,18 @@ export default function TabAlimentoAves({ lotes }: Props) {
                         <TableCell className="text-sm text-gray-600">{t.tipo_alimento_categoria ? CATEGORIA_LABEL[t.tipo_alimento_categoria] ?? t.tipo_alimento_categoria : '—'}</TableCell>
                         <TableCell className="text-right text-xs text-gray-500">
                           {(() => {
+                            // La entrada más reciente entre las registradas en Inventario y la
+                            // que quedó guardada en el catálogo antes de que existiera esa
+                            // pestaña — si no, los alimentos viejos se veían siempre vacíos.
                             const ult = entradas.find(e => e.tipo_alimento_id === t.id)
-                            return ult
-                              ? `${Number(ult.cantidad_bultos).toLocaleString('es-CO')} bultos · ${new Date(ult.fecha + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}`
+                            const delCatalogo = t.fecha_entrada && t.cantidad_entrada != null
+                              ? { fecha: t.fecha_entrada, cantidad_bultos: t.cantidad_entrada }
+                              : null
+                            const mostrar = ult && delCatalogo
+                              ? (ult.fecha >= delCatalogo.fecha ? ult : delCatalogo)
+                              : (ult ?? delCatalogo)
+                            return mostrar
+                              ? `${Number(mostrar.cantidad_bultos).toLocaleString('es-CO')} bultos · ${new Date(mostrar.fecha + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: '2-digit' })}`
                               : '—'
                           })()}
                         </TableCell>
@@ -439,6 +448,7 @@ export default function TabAlimentoAves({ lotes }: Props) {
                         <TableHead>Fecha</TableHead>
                         <TableHead>Alimento</TableHead>
                         <TableHead className="text-right">Bultos</TableHead>
+                        {puedeVerCostos && <TableHead className="text-right">Precio por bulto</TableHead>}
                         {puedeVerCostos && <TableHead className="text-right">Costo</TableHead>}
                         <TableHead>Proveedor</TableHead>
                         <TableHead></TableHead>
@@ -453,6 +463,14 @@ export default function TabAlimentoAves({ lotes }: Props) {
                             <TableCell className="text-sm">{fmt(e.fecha)}</TableCell>
                             <TableCell className="text-sm text-gray-600">{t?.nombre ?? '—'}</TableCell>
                             <TableCell className="text-right text-sm">{Number(e.cantidad_bultos).toLocaleString('es-CO')}</TableCell>
+                            {puedeVerCostos && (
+                              <TableCell className="text-right text-sm">
+                                {precio > 0 ? cop(precio) : '—'}
+                                {e.precio_bulto == null && precio > 0 && (
+                                  <span className="block text-[11px] text-gray-400">del catálogo</span>
+                                )}
+                              </TableCell>
+                            )}
                             {puedeVerCostos && (
                               <TableCell className="text-right text-sm font-medium">
                                 {precio > 0 ? cop(Number(e.cantidad_bultos) * precio) : '—'}

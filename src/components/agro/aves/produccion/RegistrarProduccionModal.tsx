@@ -122,7 +122,9 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
     setForm(prev => ({ ...prev, [field]: value ?? '' }))
   }
 
-  const causasDisponibles = [...CAUSAS_MUERTE.filter(c => c !== 'Otra'), ...causasPropias, 'Otra']
+  // Sin repetidas: si la finca agregó una causa que ya existía, se muestra una sola vez
+  // (dos opciones con el mismo valor rompen la lista y hacían desaparecer "Otra").
+  const causasDisponibles = [...new Set([...CAUSAS_MUERTE.filter(c => c !== 'Otra'), ...causasPropias, 'Otra'])]
 
   const totalHuevos = (Number(form.huevos_b) || 0) + (Number(form.huevos_a) || 0) + (Number(form.huevos_aa) || 0) + (Number(form.huevos_aaa) || 0) + (Number(form.huevos_jumbo) || 0)
 
@@ -324,7 +326,9 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
                 items={{ ...Object.fromEntries(causasDisponibles.map(c => [c, c])), [AGREGAR_CAUSA]: '+ Añadir causa...' }}
               >
                 <SelectTrigger><SelectValue placeholder="Seleccionar causa..." /></SelectTrigger>
-                <SelectContent>
+                {/* Sin alinear con el disparador: si no, la lista se recorta contra el
+                    borde del modal y las últimas opciones ("Otra") quedaban fuera de vista. */}
+                <SelectContent alignItemWithTrigger={false} className="max-h-64">
                   {causasDisponibles.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                   <SelectItem value={AGREGAR_CAUSA}>+ Añadir causa...</SelectItem>
                 </SelectContent>
@@ -343,7 +347,7 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
                   items={{ ...Object.fromEntries(causasDisponibles.map(c => [c, c])), [AGREGAR_CAUSA]: '+ Añadir causa...' }}
                 >
                   <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
-                  <SelectContent>
+                  <SelectContent alignItemWithTrigger={false} className="max-h-64">
                     {causasDisponibles.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                     <SelectItem value={AGREGAR_CAUSA}>+ Añadir causa...</SelectItem>
                   </SelectContent>

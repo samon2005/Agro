@@ -105,7 +105,7 @@ export default function RegistrarConsumoAlimentoModal({
         const subio = nuevoConsumo > anterior
         toast.warning(
           `El consumo pasó de ${anterior} a ${nuevoConsumo} kg/día (${subio ? 'subió' : 'bajó'} ` +
-          `${Math.abs(nuevoConsumo - anterior).toFixed(1)} kg). Ajusta a mano las porciones de los ` +
+          `${Math.abs(nuevoConsumo - anterior).toFixed(1)} kg). Ajusta manualmente las porciones de los ` +
           `${horariosAlim ?? 0} horarios de alimentación para que sumen el nuevo total.`,
           { duration: 10000 }
         )
@@ -152,7 +152,7 @@ export default function RegistrarConsumoAlimentoModal({
             <p className="text-xs text-amber-700 mt-0.5">
               Lo que registres aquí rige para el galpón todos los días hasta que registres uno nuevo.
               No hay que registrarlo a diario. Si lo cambias y ya hay horarios, tendrás que ajustar
-              las porciones a mano.
+              las porciones manualmente.
             </p>
           </div>
           <div className="space-y-1">

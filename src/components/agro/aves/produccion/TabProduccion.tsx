@@ -43,6 +43,12 @@ const CAUSAS_LABEL: Record<string, string> = {
   'Accidente': 'Accidente', 'Estrés calórico': 'Estrés calórico', 'Otra': 'Otra'
 }
 
+const TIPO_EVENTO_LABEL: Record<string, string> = {
+  respiratorio: '🫁 Respiratorio', locomotor: '🦴 Locomotor', digestivo: '🫃 Digestivo',
+  reproductivo: '🥚 Reproductivo', nervioso: '🧠 Nervioso', piel: '🐾 Piel / Plumas',
+  otro: '❓ Otro',
+}
+
 export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted }: Props) {
   const supabase = createClient()
   const [registros, setRegistros] = useState<ProduccionDiaria[]>([])
@@ -314,8 +320,12 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
     }
   }
 
+  // Los eventos de origen "mortalidad" son el reflejo de las muertes del día, que ya
+  // salen en su propia fila: si se mostraran otra vez quedarían duplicadas. Solo se
+  // listan los clínicos, y cada uno va en su propia fila, aparte de las muertes.
+  const eventosVisibles = eventosClinicos.filter(ev => ev.origen !== 'mortalidad')
   const eventosPorFecha = new Map<string, EventoClinico[]>()
-  for (const ev of eventosClinicos) {
+  for (const ev of eventosVisibles) {
     const lista = eventosPorFecha.get(ev.fecha) ?? []
     lista.push(ev)
     eventosPorFecha.set(ev.fecha, lista)
@@ -324,7 +334,8 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
   type FilaHistorial =
     | { tipo: 'separador'; key: string; inicio: Date; fin: Date; etiquetaSemana: string; totalAlimento: number; mortalidad: number }
     | { tipo: 'hito'; key: string; etiqueta: string; fecha: string; color: 'azul' | 'verde' }
-    | { tipo: 'dato'; key: string; registro: ProduccionDiaria; eventos: EventoClinico[] }
+    | { tipo: 'dato'; key: string; registro: ProduccionDiaria }
+    | { tipo: 'evento'; key: string; evento: EventoClinico }
 
   /** Qué semana es la del separador: de preparación mientras no haya postura, de postura después. */
   function etiquetaDeSemana(fechaInicioSemana: Date): string {
@@ -337,16 +348,27 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
     return `Semana ${Math.max(1, semanasDesdeEntrada + 1)} de preparación`
   }
 
+  // Una fila por día y, debajo, una fila por cada evento clínico de ese día. Un evento
+  // registrado desde Sanidad puede caer en un día sin registro propio: también se lista.
+  const registroPorFecha = new Map(registros.map(r => [r.fecha, r]))
+  const fechasHistorial = [...new Set([...registros.map(r => r.fecha), ...eventosVisibles.map(e => e.fecha)])]
+    .sort((a, b) => b.localeCompare(a))
+
   const filasHistorial: FilaHistorial[] = []
   let semanaAnterior: number | null = null
-  for (const r of registros) {
-    const semana = semanaDeFecha(r.fecha)
+  for (const fecha of fechasHistorial) {
+    const semana = semanaDeFecha(fecha)
     if (semana !== semanaAnterior) {
       const grupo = registros.filter(x => semanaDeFecha(x.fecha) === semana)
       // El alimento de la semana usa el consumo vigente de cada día, no solo los
       // días que tienen consumo propio: si no se cambió, sigue siendo el mismo.
       const totalAlimento = grupo.reduce((s, x) => s + (consumoEfectivoPorFecha.get(x.fecha) ?? 0), 0)
+      // La mortalidad de la semana suma las muertes del día y las de los eventos
+      // clínicos, que son aparte, para que cuadre con las filas de abajo.
       const mortalidad = grupo.reduce((s, x) => s + x.muertes, 0)
+        + eventosVisibles
+          .filter(ev => semanaDeFecha(ev.fecha) === semana)
+          .reduce((s, ev) => s + (ev.aves_muertas ?? 0), 0)
       const inicio = new Date(origenSemanasDate.getTime() + semana * 7 * MS_DIA)
       const fin = new Date(inicio.getTime() + 6 * MS_DIA)
       filasHistorial.push({
@@ -355,7 +377,11 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
       })
       semanaAnterior = semana
     }
-    filasHistorial.push({ tipo: 'dato', key: r.id, registro: r, eventos: eventosPorFecha.get(r.fecha) ?? [] })
+    const registro = registroPorFecha.get(fecha)
+    if (registro) filasHistorial.push({ tipo: 'dato', key: registro.id, registro })
+    for (const ev of eventosPorFecha.get(fecha) ?? []) {
+      filasHistorial.push({ tipo: 'evento', key: `ev-${ev.id}`, evento: ev })
+    }
   }
 
   // Hito de inicio de postura: separa la preparación de la producción.
@@ -615,15 +641,18 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-semibold text-gray-700">Historial (alimento, muertes y eventos clínicos)</CardTitle>
-          <p className="text-xs text-gray-400">La producción de huevos se ve en la gráfica de arriba y en Ventas — aquí solo lo demás.</p>
+          <CardTitle className="text-sm font-semibold text-gray-700">Historial (alimento y muertes)</CardTitle>
+          <p className="text-xs text-gray-400">
+            Cada día es una fila con sus muertes y su causa. Si ese día hubo además un evento clínico,
+            va en su propia fila debajo, con sus aves afectadas y sus muertes aparte.
+          </p>
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
             <div className="p-4 space-y-2">
               {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}
             </div>
-          ) : registros.length === 0 ? (
+          ) : fechasHistorial.length === 0 ? (
             <div className="py-12 text-center">
               <p className="text-4xl mb-2">📋</p>
               <p className="text-gray-600 font-medium">Sin registros todavía</p>
@@ -644,7 +673,6 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
                     <TableHead className="text-right">Alimento kg</TableHead>
                     <TableHead className="text-right">Muertes</TableHead>
                     <TableHead>Causa</TableHead>
-                    <TableHead>Eventos clínicos</TableHead>
                     <TableHead></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -653,7 +681,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
                     if (fila.tipo === 'separador') {
                       return (
                         <TableRow key={fila.key} className="bg-purple-50 hover:bg-purple-50 border-y border-purple-200">
-                          <TableCell colSpan={enPostura ? 7 : 6} className="py-2">
+                          <TableCell colSpan={enPostura ? 6 : 5} className="py-2">
                             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-purple-800 font-medium">
                               <span className="font-semibold">📅 {fila.etiquetaSemana}</span>
                               <span>
@@ -672,12 +700,44 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
                         : 'bg-blue-50 hover:bg-blue-50 border-y border-blue-200 text-blue-800'
                       return (
                         <TableRow key={fila.key} className={cls}>
-                          <TableCell colSpan={enPostura ? 7 : 6} className="py-2">
+                          <TableCell colSpan={enPostura ? 6 : 5} className="py-2">
                             <div className="flex items-center gap-3 text-xs font-medium">
                               <span>{fila.etiqueta}</span>
                               <span className="font-normal opacity-80">
                                 {new Date(fila.fecha + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'long', year: 'numeric' })}
                               </span>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    }
+                    // El evento clínico va en su propia fila, debajo del día: sus aves
+                    // afectadas y sus muertes son aparte de las muertes del día.
+                    if (fila.tipo === 'evento') {
+                      const ev = fila.evento
+                      return (
+                        <TableRow key={fila.key} className="bg-red-50/60 hover:bg-red-50">
+                          <TableCell className="text-xs text-red-700 pl-6">
+                            🩺 {formatDate(ev.fecha)}
+                            <span className="block text-[11px] text-red-500">Evento clínico</span>
+                          </TableCell>
+                          {enPostura && <TableCell className="text-right text-xs text-gray-400">—</TableCell>}
+                          <TableCell className="text-right text-xs text-gray-400">—</TableCell>
+                          <TableCell className="text-right">
+                            {(ev.aves_muertas ?? 0) > 0
+                              ? <Badge variant="destructive" className="text-xs">{ev.aves_muertas}</Badge>
+                              : <span className="text-xs text-gray-400">—</span>}
+                          </TableCell>
+                          <TableCell className="text-xs text-gray-600">
+                            {ev.causa ? CAUSAS_LABEL[ev.causa] ?? ev.causa : ev.descripcion || '—'}
+                            <span className="block text-[11px] text-gray-400">
+                              {TIPO_EVENTO_LABEL[ev.tipo_evento] ?? ev.tipo_evento}
+                              {(ev.aves_afectadas ?? 0) > 0 ? ` · ${ev.aves_afectadas} afectadas` : ''}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center justify-end">
+                              <span className="text-[11px] text-gray-400">Se edita en Sanitario</span>
                             </div>
                           </TableCell>
                         </TableRow>
@@ -701,11 +761,6 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
                           {r.muertes > 0 ? <Badge variant="destructive" className="text-xs">{r.muertes}</Badge> : '—'}
                         </TableCell>
                         <TableCell className="text-xs text-gray-500">{r.causa_muerte ? CAUSAS_LABEL[r.causa_muerte] ?? r.causa_muerte : '—'}</TableCell>
-                        <TableCell className="text-xs text-gray-500">
-                          {fila.eventos.length > 0
-                            ? fila.eventos.map(ev => ev.descripcion).join(' · ')
-                            : '—'}
-                        </TableCell>
                         <TableCell>
                           <div className="flex items-center justify-end gap-1">
                             <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={() => { setRegistroEditar(r); setModalOpen(true) }}>✏️</Button>
