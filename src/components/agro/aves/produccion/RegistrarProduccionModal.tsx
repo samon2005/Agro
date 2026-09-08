@@ -29,7 +29,7 @@ interface Props {
 
 const CAUSAS_MUERTE = [
   'Marek', 'Newcastle', 'Bronquitis', 'Gumboro', 'Laringotraqueitis',
-  'Coccidiosis', 'Micoplasmosis', 'Accidente', 'Estrés calórico', 'Otra'
+  'Coccidiosis', 'Micoplasmosis', 'Accidente', 'Estrés calórico',
 ]
 
 const CAUSAS_SIN_FARMACO = new Set(['Accidente', 'Estrés calórico'])
@@ -44,7 +44,6 @@ const CAUSA_A_TIPO_EVENTO: Record<string, string> = {
   'Micoplasmosis': 'respiratorio',
   'Accidente': 'otro',
   'Estrés calórico': 'otro',
-  'Otra': 'otro',
 }
 
 const SIN_TIPO = '__ninguno__'
@@ -125,9 +124,9 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
     setForm(prev => ({ ...prev, [field]: value ?? '' }))
   }
 
-  // Sin repetidas: si la finca agregó una causa que ya existía, se muestra una sola vez
-  // (dos opciones con el mismo valor rompen la lista y hacían desaparecer "Otra").
-  const causasDisponibles = [...new Set([...CAUSAS_MUERTE.filter(c => c !== 'Otra'), ...causasPropias, 'Otra'])]
+  // Sin repetidas y sin "Otra": si la causa no está en la lista se usa "+ Añadir causa",
+  // que la guarda con su nombre real en vez de dejarla como un genérico.
+  const causasDisponibles = [...new Set([...CAUSAS_MUERTE, ...causasPropias])]
 
   const totalHuevos = (Number(form.huevos_b) || 0) + (Number(form.huevos_a) || 0) + (Number(form.huevos_aa) || 0) + (Number(form.huevos_aaa) || 0) + (Number(form.huevos_jumbo) || 0)
 

@@ -19,15 +19,26 @@ const ESTADO_BADGE_CLASS: Record<string, string> = {
   vendido: 'bg-blue-100 text-blue-900 border-blue-300',
 }
 
+/** Vistas que abarcan toda la finca en vez de un galpón concreto. */
+export type VistaGlobal = 'huevos' | 'ventas'
+
+const VISTAS_GLOBALES: { id: VistaGlobal; label: string }[] = [
+  { id: 'huevos', label: '🥚 Huevos (toda la finca)' },
+  { id: 'ventas', label: '🧾 Ventas (toda la finca)' },
+]
+
 interface Props {
   lotes: LoteAves[]
   loteActual: LoteAves | null
+  /** Si hay una vista global activa, ningún galpón está seleccionado */
+  vistaGlobal: VistaGlobal | null
   onSelect: (lote: LoteAves) => void
+  onSelectVistaGlobal: (vista: VistaGlobal) => void
   onNuevoLote: () => void
   loading: boolean
 }
 
-export default function LoteSelector({ lotes, loteActual, onSelect, onNuevoLote, loading }: Props) {
+export default function LoteSelector({ lotes, loteActual, vistaGlobal, onSelect, onSelectVistaGlobal, onNuevoLote, loading }: Props) {
   if (loading) {
     return (
       <div className="flex gap-2 flex-wrap">
@@ -49,7 +60,7 @@ export default function LoteSelector({ lotes, loteActual, onSelect, onNuevoLote,
           onClick={() => onSelect(lote)}
           className={cn(
             'px-4 py-1.5 rounded-full text-sm font-medium border transition-colors',
-            loteActual?.id === lote.id
+            !vistaGlobal && loteActual?.id === lote.id
               ? 'bg-green-700 text-white border-green-700'
               : 'bg-white text-gray-700 border-gray-300 hover:border-green-400 hover:text-green-700'
           )}
@@ -75,6 +86,27 @@ export default function LoteSelector({ lotes, loteActual, onSelect, onNuevoLote,
       >
         + Nuevo Lote
       </Button>
+
+      {/* El huevo y las ventas no son de un galpón: son de la finca entera */}
+      {lotes.length > 0 && (
+        <>
+          <span className="mx-1 h-5 w-px bg-gray-200" aria-hidden />
+          {VISTAS_GLOBALES.map(v => (
+            <button
+              key={v.id}
+              onClick={() => onSelectVistaGlobal(v.id)}
+              className={cn(
+                'px-4 py-1.5 rounded-full text-sm font-medium border transition-colors',
+                vistaGlobal === v.id
+                  ? 'bg-yellow-500 text-white border-yellow-500'
+                  : 'bg-white text-gray-700 border-gray-300 hover:border-yellow-400 hover:text-yellow-700'
+              )}
+            >
+              {v.label}
+            </button>
+          ))}
+        </>
+      )}
     </div>
   )
 }

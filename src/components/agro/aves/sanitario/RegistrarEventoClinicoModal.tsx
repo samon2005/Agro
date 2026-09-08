@@ -75,7 +75,8 @@ export default function RegistrarEventoClinicoModal({ open, onClose, loteId, fin
       .then(({ data }) => setCausasPropias((data ?? []).map(c => c.nombre)))
   }, [open, fincaId, supabase])
 
-  const causasDisponibles = [...new Set([...CAUSAS_BASE, ...causasPropias, 'Otra'])]
+  // Sin "Otra": la causa que no esté en la lista se agrega con "+ Añadir causa"
+  const causasDisponibles = [...new Set([...CAUSAS_BASE, ...causasPropias])]
 
   /** Si la causa no está en la lista, se escribe a mano y queda guardada para la finca. */
   async function guardarCausaNueva() {

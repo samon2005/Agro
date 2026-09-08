@@ -255,7 +255,7 @@ export default function TabAlimentoAves({ lotes }: Props) {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold text-gray-700">Tipos de alimento registrados</CardTitle>
-            <p className="text-xs text-gray-400">El catálogo creado aquí es el que se selecciona al registrar consumo en Balance</p>
+            <p className="text-xs text-gray-400">El catálogo creado aquí es el que se selecciona al registrar consumo en Balance. Las entradas de cada alimento se ven en la pestaña Inventario.</p>
           </CardHeader>
           <CardContent className="p-0">
             {tipos.length === 0 ? (
@@ -268,7 +268,6 @@ export default function TabAlimentoAves({ lotes }: Props) {
                       <TableHead>Nombre</TableHead>
                       <TableHead>Marca</TableHead>
                       <TableHead>Tipo</TableHead>
-                      <TableHead className="text-right whitespace-nowrap">Última entrada</TableHead>
                       <TableHead></TableHead>
                     </TableRow>
                   </TableHeader>
@@ -278,23 +277,6 @@ export default function TabAlimentoAves({ lotes }: Props) {
                         <TableCell className="font-medium text-sm">{t.nombre}</TableCell>
                         <TableCell className="text-sm text-gray-600">{t.marca || '—'}</TableCell>
                         <TableCell className="text-sm text-gray-600">{t.tipo_alimento_categoria ? CATEGORIA_LABEL[t.tipo_alimento_categoria] ?? t.tipo_alimento_categoria : '—'}</TableCell>
-                        <TableCell className="text-right text-xs text-gray-500 whitespace-nowrap">
-                          {(() => {
-                            // La entrada más reciente entre las registradas en Inventario y la
-                            // que quedó guardada en el catálogo antes de que existiera esa
-                            // pestaña — si no, los alimentos viejos se veían siempre vacíos.
-                            const ult = entradas.find(e => e.tipo_alimento_id === t.id)
-                            const delCatalogo = t.fecha_entrada && t.cantidad_entrada != null
-                              ? { fecha: t.fecha_entrada, cantidad_bultos: t.cantidad_entrada }
-                              : null
-                            const mostrar = ult && delCatalogo
-                              ? (ult.fecha >= delCatalogo.fecha ? ult : delCatalogo)
-                              : (ult ?? delCatalogo)
-                            return mostrar
-                              ? `${Number(mostrar.cantidad_bultos).toLocaleString('es-CO')} bultos · ${new Date(mostrar.fecha + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: '2-digit' })}`
-                              : '—'
-                          })()}
-                        </TableCell>
                         <TableCell>
                           <div className="flex items-center justify-end gap-1">
                             <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={() => { setTipoEditar(t); setModalTipo(true) }}>✏️</Button>

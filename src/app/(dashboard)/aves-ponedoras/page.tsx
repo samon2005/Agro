@@ -6,7 +6,9 @@ import { useFinca } from '@/components/agro/FincaProvider'
 import { useRol } from '@/components/agro/RolProvider'
 import AccesoRestringido from '@/components/agro/AccesoRestringido'
 import { cn } from '@/lib/utils'
-import LoteSelector from '@/components/agro/aves/LoteSelector'
+import LoteSelector, { type VistaGlobal } from '@/components/agro/aves/LoteSelector'
+import HuevosFinca from '@/components/agro/aves/global/HuevosFinca'
+import VentasFinca from '@/components/agro/aves/global/VentasFinca'
 import CrearLoteModal from '@/components/agro/aves/CrearLoteModal'
 import EditarFincaModal from '@/components/agro/EditarFincaModal'
 import TabProduccion from '@/components/agro/aves/produccion/TabProduccion'
@@ -47,6 +49,8 @@ export default function AvesPonedorasPage() {
   const [loadingLotes, setLoadingLotes] = useState(true)
   const [activeTab, setActiveTab] = useState<Tab>('produccion')
   const [modalNuevoLote, setModalNuevoLote] = useState(false)
+  // Huevos y ventas de toda la finca: no cuelgan de un galpón concreto
+  const [vistaGlobal, setVistaGlobal] = useState<VistaGlobal | null>(null)
   const [modalFinca, setModalFinca] = useState(false)
 
   // Alertas cross-módulo
@@ -173,11 +177,13 @@ export default function AvesPonedorasPage() {
         <LoteSelector
           lotes={lotes}
           loteActual={loteActual}
-          onSelect={l => { setLoteActual(l); setAlertas([]) }}
+          vistaGlobal={vistaGlobal}
+          onSelect={l => { setLoteActual(l); setVistaGlobal(null); setAlertas([]) }}
+          onSelectVistaGlobal={v => setVistaGlobal(v)}
           onNuevoLote={() => setModalNuevoLote(true)}
           loading={loadingLotes}
         />
-        {loteActual && (
+        {!vistaGlobal && loteActual && (
           <p className="text-xs text-gray-400">
             {loteActual.linea_genetica && `${loteActual.linea_genetica} · `}
             {loteActual.aves_actuales.toLocaleString('es-CO')} aves activas
@@ -186,7 +192,12 @@ export default function AvesPonedorasPage() {
         )}
       </div>
 
-      {!loteActual && !loadingLotes && (
+      {vistaGlobal === 'huevos' && <HuevosFinca fincaId={fincaActual.id} lotes={lotes} />}
+      {vistaGlobal === 'ventas' && (
+        rol === 'trabajador' ? <AccesoRestringido /> : <VentasFinca fincaId={fincaActual.id} lotes={lotes} />
+      )}
+
+      {!vistaGlobal && !loteActual && !loadingLotes && (
         <div className="py-16 text-center">
           <p className="text-5xl mb-3">🐔</p>
           <p className="text-xl font-semibold text-gray-700 mb-1">Sin lotes activos</p>
@@ -200,7 +211,7 @@ export default function AvesPonedorasPage() {
         </div>
       )}
 
-      {loteActual && (
+      {!vistaGlobal && loteActual && (
         <>
           {/* Tab bar */}
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
