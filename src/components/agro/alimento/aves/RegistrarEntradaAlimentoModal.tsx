@@ -95,6 +95,24 @@ export default function RegistrarEntradaAlimentoModal({ open, onClose, loteId, f
       await sumarAInventario()
     }
 
+    // La última entrada queda guardada en el propio alimento, para que la columna
+    // "Última entrada" del catálogo siempre muestre algo y se actualice al instante.
+    if (!error && entrada) {
+      const { data: ultima } = await supabase
+        .from('entradas_alimento_aves')
+        .select('fecha, cantidad_bultos')
+        .eq('tipo_alimento_id', form.tipo_alimento_id)
+        .order('fecha', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (ultima) {
+        await supabase.from('tipos_alimento_aves').update({
+          fecha_entrada: ultima.fecha,
+          cantidad_entrada: ultima.cantidad_bultos,
+        }).eq('id', form.tipo_alimento_id)
+      }
+    }
+
     setLoading(false)
     if (error) { toast.error('Error al registrar la entrada'); return }
     toast.success(entradaExistente ? 'Entrada actualizada' : `${bultos} bultos agregados al inventario`)

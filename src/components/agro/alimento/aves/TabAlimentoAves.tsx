@@ -268,7 +268,7 @@ export default function TabAlimentoAves({ lotes }: Props) {
                       <TableHead>Nombre</TableHead>
                       <TableHead>Marca</TableHead>
                       <TableHead>Tipo</TableHead>
-                      <TableHead className="text-right">Última entrada</TableHead>
+                      <TableHead className="text-right whitespace-nowrap">Última entrada</TableHead>
                       <TableHead></TableHead>
                     </TableRow>
                   </TableHeader>
@@ -278,7 +278,7 @@ export default function TabAlimentoAves({ lotes }: Props) {
                         <TableCell className="font-medium text-sm">{t.nombre}</TableCell>
                         <TableCell className="text-sm text-gray-600">{t.marca || '—'}</TableCell>
                         <TableCell className="text-sm text-gray-600">{t.tipo_alimento_categoria ? CATEGORIA_LABEL[t.tipo_alimento_categoria] ?? t.tipo_alimento_categoria : '—'}</TableCell>
-                        <TableCell className="text-right text-xs text-gray-500">
+                        <TableCell className="text-right text-xs text-gray-500 whitespace-nowrap">
                           {(() => {
                             // La entrada más reciente entre las registradas en Inventario y la
                             // que quedó guardada en el catálogo antes de que existiera esa
@@ -298,15 +298,19 @@ export default function TabAlimentoAves({ lotes }: Props) {
                         <TableCell>
                           <div className="flex items-center justify-end gap-1">
                             <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={() => { setTipoEditar(t); setModalTipo(true) }}>✏️</Button>
-                            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-gray-500" onClick={() => toggleActivo(t)}>
-                              {t.activo ? 'Desactivar' : 'Reactivar'}
+                            <Button
+                              size="sm" variant="ghost" className="h-7 px-2 text-xs text-gray-500"
+                              title={t.activo ? 'Desactivar' : 'Reactivar'}
+                              onClick={() => toggleActivo(t)}
+                            >
+                              {t.activo ? '🚫' : '↩️'}
                             </Button>
                             <Button
                               size="sm" variant="ghost"
                               className={confirmandoEliminar === t.id ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
                               onClick={() => eliminarTipo(t)}
                             >
-                              {confirmandoEliminar === t.id ? '¿Confirmar?' : '🗑️ Eliminar'}
+                              {confirmandoEliminar === t.id ? '¿Confirmar?' : '🗑️'}
                             </Button>
                           </div>
                         </TableCell>

@@ -66,7 +66,9 @@ export default function ResumenEspecies({ fincaId, especies }: { fincaId: string
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-gray-700">{esp.label}</p>
+                      {/* En el resumen la especie va por su nombre ("Aves ponedoras"), no
+                          por el nombre del espacio donde vive ("Galpones"). */}
+                      <p className="text-sm font-medium text-gray-700">{esp.labelNav ?? esp.label}</p>
                       {loading ? (
                         <p className="text-xs text-gray-400 mt-1">Cargando...</p>
                       ) : (

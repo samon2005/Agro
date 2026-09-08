@@ -10,11 +10,17 @@ import { CurrencyInput } from '@/components/ui/currency-input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { toast } from 'sonner'
 import RegistrarVentaModal from './RegistrarVentaModal'
+import RegistrarEncargoModal from './RegistrarEncargoModal'
+import { cn } from '@/lib/utils'
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
+import { ajustarHuevos, nombreItemHuevos } from '@/lib/inventario'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 type Venta = Database['public']['Tables']['ventas_huevos_aves']['Row']
+type Encargo = Database['public']['Tables']['encargos_huevos_aves']['Row']
+
+type SubTab = 'ventas' | 'encargos'
 
 interface Props { loteActual: LoteAves; onLoteUpdated?: (lote: LoteAves) => void }
 
@@ -30,7 +36,7 @@ function cop(n: number) {
   return n.toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })
 }
 
-function totalHuevos(v: Venta) {
+function totalHuevos(v: Venta | Encargo) {
   return v.cantidad_b + v.cantidad_a + v.cantidad_aa + v.cantidad_aaa + v.cantidad_jumbo
 }
 
@@ -41,7 +47,12 @@ function totalVenta(v: Venta) {
 
 export default function TabVentas({ loteActual, onLoteUpdated }: Props) {
   const supabase = createClient()
+  const [subTab, setSubTab] = useState<SubTab>('ventas')
   const [ventas, setVentas] = useState<Venta[]>([])
+  const [encargos, setEncargos] = useState<Encargo[]>([])
+  const [modalEncargo, setModalEncargo] = useState(false)
+  const [encargoEditar, setEncargoEditar] = useState<Encargo | null>(null)
+  const [huevosInventario, setHuevosInventario] = useState(0)
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
   const [ventaEditar, setVentaEditar] = useState<Venta | null>(null)
@@ -73,18 +84,65 @@ export default function TabVentas({ loteActual, onLoteUpdated }: Props) {
 
   const fetchVentas = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase.from('ventas_huevos_aves').select('*').eq('lote_id', loteActual.id).order('fecha', { ascending: false }).limit(60)
-    setVentas(data ?? [])
+    const [ventasRes, encargosRes, inventarioRes] = await Promise.all([
+      supabase.from('ventas_huevos_aves').select('*').eq('lote_id', loteActual.id).order('fecha', { ascending: false }).limit(60),
+      supabase.from('encargos_huevos_aves').select('*').eq('lote_id', loteActual.id).order('fecha_entrega', { ascending: true }).limit(60),
+      supabase.from('inventario').select('cantidad_actual').eq('finca_id', loteActual.finca_id).eq('nombre', nombreItemHuevos(loteActual.nombre)).maybeSingle(),
+    ])
+    setVentas(ventasRes.data ?? [])
+    setEncargos(encargosRes.data ?? [])
+    setHuevosInventario(Number(inventarioRes.data?.cantidad_actual ?? 0))
     setLoading(false)
-  }, [loteActual.id, supabase])
+  }, [loteActual.id, loteActual.finca_id, loteActual.nombre, supabase])
 
   useEffect(() => { fetchVentas() }, [fetchVentas])
+
+  async function eliminarEncargo(e: Encargo) {
+    if (confirmandoEliminar !== e.id) { setConfirmandoEliminar(e.id); return }
+    setConfirmandoEliminar(null)
+    const { error } = await supabase.from('encargos_huevos_aves').delete().eq('id', e.id)
+    if (error) { toast.error('Error al eliminar el encargo'); return }
+    toast.success('Encargo eliminado')
+    fetchVentas()
+  }
+
+  /**
+   * Al entregar un encargo se convierte en venta con los precios vigentes del galpón:
+   * así el huevo comprometido sale del inventario una sola vez, al entregarse.
+   */
+  async function entregarEncargo(e: Encargo) {
+    const { data: venta, error } = await supabase.from('ventas_huevos_aves').insert({
+      lote_id: loteActual.id,
+      finca_id: loteActual.finca_id,
+      fecha: hoyLocal(),
+      cantidad_b: e.cantidad_b, cantidad_a: e.cantidad_a, cantidad_aa: e.cantidad_aa,
+      cantidad_aaa: e.cantidad_aaa, cantidad_jumbo: e.cantidad_jumbo,
+      precio_b: loteActual.precio_huevo_b, precio_a: loteActual.precio_huevo_a,
+      precio_aa: loteActual.precio_huevo_aa, precio_aaa: loteActual.precio_huevo_aaa,
+      precio_jumbo: loteActual.precio_huevo_jumbo,
+      cliente: e.cliente,
+      observaciones: `Entrega del encargo del ${e.fecha_pedido}`,
+    }).select('id').single()
+
+    if (error || !venta) { toast.error('Error al convertir el encargo en venta'); return }
+
+    await supabase.from('encargos_huevos_aves').update({ estado: 'entregado', venta_id: venta.id }).eq('id', e.id)
+    if (totalHuevos(e) > 0) {
+      await ajustarHuevos(supabase, loteActual.finca_id, loteActual.nombre, -totalHuevos(e))
+    }
+    toast.success('Encargo entregado y registrado como venta')
+    fetchVentas()
+  }
 
   async function eliminar(v: Venta) {
     if (confirmandoEliminar !== v.id) { setConfirmandoEliminar(v.id); return }
     setConfirmandoEliminar(null)
     const { error } = await supabase.from('ventas_huevos_aves').delete().eq('id', v.id)
     if (error) { toast.error('Error al eliminar la venta'); return }
+    // Los huevos de una venta borrada vuelven al inventario del galpón
+    if (totalHuevos(v) > 0) {
+      await ajustarHuevos(supabase, loteActual.finca_id, loteActual.nombre, totalHuevos(v))
+    }
     toast.success('Venta eliminada')
     fetchVentas()
   }
@@ -100,16 +158,46 @@ export default function TabVentas({ loteActual, onLoteUpdated }: Props) {
   const ingresoHoy = ventasHoy.reduce((s, v) => s + totalVenta(v), 0)
   const ingresoMes = ventasMes.reduce((s, v) => s + totalVenta(v), 0)
   const huevosVendidosMes = ventasMes.reduce((s, v) => s + totalHuevos(v), 0)
+  const encargosPendientes = encargos.filter(e => e.estado !== 'entregado')
+  const comprometidos = encargosPendientes.reduce((s, e) => s + totalHuevos(e), 0)
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-base font-semibold text-gray-800">Ventas de Huevo</h2>
-        <Button onClick={() => { setVentaEditar(null); setModalOpen(true) }} className="bg-green-700 hover:bg-green-800 text-white text-sm">
-          + Registrar venta
-        </Button>
+        {subTab === 'ventas' ? (
+          <Button onClick={() => { setVentaEditar(null); setModalOpen(true) }} className="bg-green-700 hover:bg-green-800 text-white text-sm">
+            + Registrar venta
+          </Button>
+        ) : (
+          <Button onClick={() => { setEncargoEditar(null); setModalEncargo(true) }} className="bg-green-700 hover:bg-green-800 text-white text-sm">
+            + Registrar encargo
+          </Button>
+        )}
       </div>
 
+      {/* Un navbar para lo ya vendido y otro para lo que está comprometido a futuro */}
+      <div className="flex gap-2 border-b border-gray-200 pb-0">
+        {([
+          { id: 'ventas' as const, label: '🧾 Ventas', count: ventas.length },
+          { id: 'encargos' as const, label: '📋 Encargos futuros', count: encargosPendientes.length },
+        ]).map(item => (
+          <button
+            key={item.id}
+            onClick={() => setSubTab(item.id)}
+            className={cn(
+              'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+              subTab === item.id ? 'border-green-600 text-green-700' : 'border-transparent text-gray-500 hover:text-gray-700'
+            )}
+          >
+            {item.label}
+            {item.count > 0 && <span className="ml-1.5 bg-gray-100 text-gray-600 text-xs px-1.5 py-0.5 rounded-full">{item.count}</span>}
+          </button>
+        ))}
+      </div>
+
+      {subTab === 'ventas' && (
+      <>
       <Card>
         <CardHeader className="pb-2 flex flex-row items-center justify-between">
           <CardTitle className="text-sm font-semibold text-gray-700">💲 Precio de venta por tamaño de huevo</CardTitle>
@@ -221,12 +309,105 @@ export default function TabVentas({ loteActual, onLoteUpdated }: Props) {
           )}
         </CardContent>
       </Card>
+      </>
+      )}
+
+      {subTab === 'encargos' && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold text-gray-700">📋 Encargos futuros</CardTitle>
+            <p className="text-xs text-gray-400">
+              Huevo ya comprometido con un cliente que todavía no se entrega. Al marcarlo como
+              entregado se convierte en venta y se descuenta del inventario.
+              {huevosInventario > 0 && ` Hoy hay ${huevosInventario.toLocaleString('es-CO')} huevos en inventario.`}
+            </p>
+            {comprometidos > 0 && (
+              <p className="text-xs text-amber-600">
+                ⚠️ Comprometidos sin entregar: {comprometidos.toLocaleString('es-CO')} huevos
+                {huevosInventario > 0 && comprometidos > huevosInventario && ' — más de lo que hay hoy en inventario'}
+              </p>
+            )}
+          </CardHeader>
+          <CardContent className="p-0">
+            {loading ? (
+              <div className="p-4 space-y-2">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}</div>
+            ) : encargos.length === 0 ? (
+              <div className="py-12 text-center">
+                <p className="text-4xl mb-2">📋</p>
+                <p className="text-gray-600 font-medium">Sin encargos registrados</p>
+                <Button onClick={() => { setEncargoEditar(null); setModalEncargo(true) }} className="mt-4 bg-green-700 hover:bg-green-800 text-white">
+                  + Registrar encargo
+                </Button>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Entrega</TableHead>
+                      <TableHead>Cliente</TableHead>
+                      <TableHead className="text-right">Huevos</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {encargos.map(e => {
+                      const entregado = e.estado === 'entregado'
+                      const vencido = !entregado && e.fecha_entrega < hoyStr
+                      return (
+                        <TableRow key={e.id} className={vencido ? 'bg-red-50' : ''}>
+                          <TableCell className="text-sm">{fmt(e.fecha_entrega)}</TableCell>
+                          <TableCell className="text-sm text-gray-600">{e.cliente ?? '—'}</TableCell>
+                          <TableCell className="text-right text-sm">{totalHuevos(e).toLocaleString('es-CO')}</TableCell>
+                          <TableCell className="text-xs">
+                            {entregado
+                              ? <span className="text-green-700">✓ Entregado</span>
+                              : vencido
+                                ? <span className="text-red-600 font-medium">⏰ Vencido sin entregar</span>
+                                : <span className="text-amber-600">Pendiente</span>}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center justify-end gap-1">
+                              {!entregado && (
+                                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => entregarEncargo(e)}>
+                                  Marcar entregado
+                                </Button>
+                              )}
+                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={() => { setEncargoEditar(e); setModalEncargo(true) }}>✏️</Button>
+                              <Button
+                                size="sm" variant="ghost"
+                                className={confirmandoEliminar === e.id ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
+                                onClick={() => eliminarEncargo(e)}
+                              >
+                                {confirmandoEliminar === e.id ? '¿Confirmar?' : '🗑️'}
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <RegistrarVentaModal
         open={modalOpen}
         onClose={() => { setModalOpen(false); setVentaEditar(null) }}
         lote={loteActual}
         ventaExistente={ventaEditar}
+        onCreated={fetchVentas}
+      />
+      <RegistrarEncargoModal
+        open={modalEncargo}
+        onClose={() => { setModalEncargo(false); setEncargoEditar(null) }}
+        lote={loteActual}
+        encargoExistente={encargoEditar}
+        huevosEnInventario={huevosInventario}
         onCreated={fetchVentas}
       />
     </div>

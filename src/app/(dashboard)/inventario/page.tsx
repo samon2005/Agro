@@ -32,7 +32,7 @@ export default function InventarioPage() {
   const [items, setItems] = useState<Item[]>([])
   const [loading, setLoading] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
-  const [tab, setTab] = useState<'insumos' | 'alimento' | 'farmacos' | 'equipos'>('insumos')
+  const [tab, setTab] = useState<'insumos' | 'alimento' | 'huevos' | 'farmacos' | 'equipos'>('insumos')
   const [borrandoId, setBorrandoId] = useState<string | null>(null)
   const [confirmandoId, setConfirmandoId] = useState<string | null>(null)
 
@@ -77,8 +77,9 @@ export default function InventarioPage() {
   const itemsVista = items.filter(i => {
     const cat = i.inventario_categorias?.nombre ? normaliza(i.inventario_categorias.nombre) : ''
     if (tab === 'alimento') return cat === 'alimento'
+    if (tab === 'huevos') return cat === 'huevos'
     if (tab === 'farmacos') return cat === 'farmacos' || cat === 'medicamentos'
-    if (tab === 'insumos') return cat !== 'alimento' && cat !== 'farmacos' && cat !== 'medicamentos'
+    if (tab === 'insumos') return cat !== 'alimento' && cat !== 'huevos' && cat !== 'farmacos' && cat !== 'medicamentos'
     return true
   })
 
@@ -89,7 +90,7 @@ export default function InventarioPage() {
     return diff <= 30 && diff >= 0
   })
 
-  const categoriaSugeridaPorTab: Record<string, string | undefined> = { alimento: 'Alimento', farmacos: 'Fármacos' }
+  const categoriaSugeridaPorTab: Record<string, string | undefined> = { alimento: 'Alimento', huevos: 'Huevos', farmacos: 'Fármacos' }
 
   if (fincaLoading) return <PageSkeleton />
 
@@ -128,6 +129,7 @@ export default function InventarioPage() {
           {([
             { id: 'insumos' as const, label: '📦 Insumos' },
             { id: 'alimento' as const, label: '🌾 Alimento' },
+            { id: 'huevos' as const, label: '🥚 Huevos' },
             { id: 'farmacos' as const, label: '💊 Fármacos' },
             { id: 'equipos' as const, label: '⚙️ Equipos' },
           ]).map(t => (
@@ -174,7 +176,7 @@ export default function InventarioPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">
-              {tab === 'alimento' ? 'Alimento en Inventario' : tab === 'farmacos' ? 'Fármacos en Inventario' : 'Inventario General'}
+              {tab === 'alimento' ? 'Alimento en Inventario' : tab === 'huevos' ? 'Huevos en Inventario' : tab === 'farmacos' ? 'Fármacos en Inventario' : 'Inventario General'}
             </CardTitle>
           </CardHeader>
           <CardContent>

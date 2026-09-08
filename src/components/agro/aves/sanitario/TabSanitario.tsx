@@ -25,6 +25,8 @@ type Medicacion = Database['public']['Tables']['medicaciones_aves']['Row']
 type EventoClinico = Database['public']['Tables']['eventos_clinicos_aves']['Row']
 type Desinfeccion = Database['public']['Tables']['desinfecciones_aves']['Row']
 type RegistroMuerte = Pick<Database['public']['Tables']['produccion_diaria_aves']['Row'], 'id' | 'fecha' | 'muertes' | 'causa_muerte'>
+/** Una línea de mortalidad: puede venir del día o de un evento clínico de ese mismo día. */
+type FilaMuerte = { id: string; fecha: string; muertes: number; causa: string | null; origen: 'dia' | 'evento' }
 type Recordatorio = Database['public']['Tables']['recordatorios_medicacion_aves']['Row']
 
 type SubTab = 'vacunas' | 'medicaciones' | 'eventos' | 'desinfecciones' | 'muertes'
@@ -128,6 +130,23 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
 
   const eventosConTratamiento = new Set(medicaciones.filter(m => m.evento_clinico_id).map(m => m.evento_clinico_id))
 
+  // La mortalidad no vive solo en el registro del día: un evento clínico puede traer
+  // sus propias muertas. Si el mismo día hubo muertes por dos causas, son dos líneas.
+  const filasMuertes: FilaMuerte[] = [
+    ...muertes.map(m => ({ id: m.id, fecha: m.fecha, muertes: m.muertes, causa: m.causa_muerte, origen: 'dia' as const })),
+    ...eventos
+      .filter(ev => (ev.aves_muertas ?? 0) > 0)
+      .map(ev => ({ id: ev.id, fecha: ev.fecha, muertes: ev.aves_muertas ?? 0, causa: ev.causa || ev.descripcion, origen: 'evento' as const })),
+  ].sort((a, b) => b.fecha.localeCompare(a.fecha))
+  const totalMuertes = filasMuertes.reduce((acc, m) => acc + m.muertes, 0)
+
+  /** El motivo de un tratamiento es la razón del evento clínico que lo originó. */
+  const eventoPorId = new Map(eventos.map(ev => [ev.id, ev]))
+  function motivoDeTratamiento(m: Medicacion) {
+    const ev = m.evento_clinico_id ? eventoPorId.get(m.evento_clinico_id) : null
+    return (ev ? (ev.causa || ev.descripcion) : null) ?? m.motivo ?? '—'
+  }
+
   const medicamentoPorId = new Map(medicaciones.map(m => [m.id, m.medicamento]))
   const hoyStr = aFechaLocal(hoy)
   const recordatoriosVisibles = recordatorios.slice(0, 5)
@@ -149,7 +168,7 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
     { id: 'medicaciones', label: '💊 Tratamientos', count: medicaciones.length },
     { id: 'vacunas', label: '💉 Vacunaciones', count: vacunas.length },
     { id: 'desinfecciones', label: '🧴 Desinfección', count: desinfecciones.length },
-    { id: 'muertes', label: '☠️ Muertes', count: muertes.length },
+    { id: 'muertes', label: '☠️ Muertes', count: filasMuertes.length },
   ]
 
   return (
@@ -276,6 +295,13 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
               <EmptyState emoji="💊" label="Sin tratamientos registrados" action={() => { setEventoClinicoIdActivo(null); setModalMed(true) }} actionLabel="+ Registrar tratamiento" />
             ) : (
               <div className="overflow-x-auto">
+                <div className="px-4 py-2 border-b border-gray-100 text-xs text-gray-500">
+                  <strong className="text-gray-600">Liberación</strong> es el día en que el huevo vuelve a
+                  poderse vender: se cuenta desde el día siguiente al fin del tratamiento y suma los días
+                  de <strong className="text-gray-600">período de retiro</strong> del medicamento, que es
+                  lo que tarda el fármaco en salir del cuerpo del ave y dejar de pasar al huevo. Antes de
+                  esa fecha el huevo tiene residuos y no es comercializable.
+                </div>
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -303,7 +329,7 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
                           <TableCell className="text-sm">{m.fecha_fin ? fmt(m.fecha_fin) : '—'}</TableCell>
                           <TableCell className="font-medium text-sm">{m.medicamento}</TableCell>
                           <TableCell className="text-sm text-gray-500">{m.principio_activo ?? '—'}</TableCell>
-                          <TableCell className="text-sm text-gray-500">{m.motivo ?? '—'}</TableCell>
+                          <TableCell className="text-sm text-gray-500">{motivoDeTratamiento(m)}</TableCell>
                           <TableCell className="text-right text-sm">{m.periodo_retiro_dias ?? '—'}</TableCell>
                           <TableCell className="text-sm font-medium text-amber-700">
                             {sinRetiro ? '—' : liberacion ? liberacion.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }) : '—'}
@@ -402,7 +428,7 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
               </div>
             )
           ) : subTab === 'muertes' ? (
-            muertes.length === 0 ? (
+            filasMuertes.length === 0 ? (
               <div className="py-10 text-center">
                 <p className="text-4xl mb-2">☠️</p>
                 <p className="text-gray-600 font-medium">Sin muertes registradas</p>
@@ -413,7 +439,10 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
                 <div className="px-4 py-2 flex items-center gap-4 text-sm border-b border-gray-100">
                   <span className="text-gray-500">Total de muertes registradas:</span>
                   <span className="font-semibold text-red-700">
-                    {muertes.reduce((acc, m) => acc + m.muertes, 0).toLocaleString('es-CO')} aves
+                    {totalMuertes.toLocaleString('es-CO')} aves
+                  </span>
+                  <span className="text-xs text-gray-400">
+                    Incluye las muertes del día y las de los eventos clínicos
                   </span>
                 </div>
                 <Table>
@@ -425,13 +454,18 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {muertes.map(m => (
-                      <TableRow key={m.id}>
+                    {filasMuertes.map(m => (
+                      <TableRow key={`${m.origen}-${m.id}`}>
                         <TableCell className="text-sm">{fmt(m.fecha)}</TableCell>
                         <TableCell className="text-right">
                           <Badge variant="destructive" className="text-xs">{m.muertes}</Badge>
                         </TableCell>
-                        <TableCell className="text-sm text-gray-600">{m.causa_muerte ?? '—'}</TableCell>
+                        <TableCell className="text-sm text-gray-600">
+                          {m.causa ?? '—'}
+                          {m.origen === 'evento' && (
+                            <span className="ml-2 text-[11px] text-red-500">🩺 por evento clínico</span>
+                          )}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -543,9 +577,31 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
                   return (
                     <div key={m.id} className="border-l-2 border-blue-300 pl-3 py-1">
                       <p className="text-xs text-gray-400">{fmt(m.fecha_inicio)}{m.fecha_fin ? ` – ${fmt(m.fecha_fin)}` : ''}</p>
-                      <p className="text-sm font-medium text-gray-800">
-                        {m.medicamento}{m.dosis ? ` · ${m.dosis}` : ''}
-                      </p>
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm font-medium text-gray-800">
+                          {m.medicamento}{m.dosis ? ` · ${m.dosis}` : ''}
+                        </p>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button
+                            size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500"
+                            onClick={() => {
+                              setSeguimientoEventoId(null)
+                              setEventoClinicoIdActivo(m.evento_clinico_id)
+                              setMedEditar(m)
+                              setModalMed(true)
+                            }}
+                          >
+                            ✏️
+                          </Button>
+                          <Button
+                            size="sm" variant="ghost"
+                            className={confirmandoEliminar === `medicaciones_aves-${m.id}` ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
+                            onClick={() => eliminar('medicaciones_aves', m.id)}
+                          >
+                            {confirmandoEliminar === `medicaciones_aves-${m.id}` ? '¿Confirmar?' : '🗑️'}
+                          </Button>
+                        </div>
+                      </div>
                       {(cambioMed || cambioDosis) && (
                         <p className="text-xs text-amber-600">
                           ⚠️ {cambioMed ? `Cambió el medicamento (antes: ${anterior.medicamento})` : ''}
@@ -558,6 +614,9 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
                   )
                 })}
                 {historial.length === 0 && <p className="text-sm text-gray-400">Sin tratamientos registrados para este evento</p>}
+                <p className="text-xs text-gray-400 pt-2 border-t border-gray-100">
+                  Desde aquí puedes editar o borrar cada tratamiento de este evento, sin ir a la pestaña de Tratamientos.
+                </p>
               </div>
             )
           })()}

@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { CurrencyInput } from '@/components/ui/currency-input'
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
+import { ajustarHuevos } from '@/lib/inventario'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 type Venta = Database['public']['Tables']['ventas_huevos_aves']['Row']
@@ -89,6 +90,15 @@ export default function RegistrarVentaModal({ open, onClose, lote, ventaExistent
     const { error } = ventaExistente
       ? await supabase.from('ventas_huevos_aves').update(payload).eq('id', ventaExistente.id)
       : await supabase.from('ventas_huevos_aves').insert({ ...payload, lote_id: lote.id, finca_id: lote.finca_id })
+
+    // Lo vendido sale del inventario de huevos del galpón. Al editar una venta solo
+    // se descuenta (o se devuelve) la diferencia con lo que ya estaba registrado.
+    const vendidosAntes = ventaExistente
+      ? TAMANOS.reduce((s, t) => s + Number(ventaExistente[`cantidad_${t.key}` as keyof Venta] ?? 0), 0)
+      : 0
+    if (!error && totalHuevos - vendidosAntes !== 0) {
+      await ajustarHuevos(supabase, lote.finca_id, lote.nombre, -(totalHuevos - vendidosAntes))
+    }
 
     setLoading(false)
     if (error) { toast.error(ventaExistente ? 'Error al actualizar la venta' : 'Error al registrar la venta'); return }

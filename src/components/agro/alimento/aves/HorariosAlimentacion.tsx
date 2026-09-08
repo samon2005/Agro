@@ -154,6 +154,12 @@ export default function HorariosAlimentacion({ loteId, fincaId, consumoRegistrad
 
   const excedido = limiteKg > 0 && totalProgramadoKg > limiteKg
   const faltaPorRepartir = limiteKg > 0 && totalProgramadoKg > 0 && totalProgramadoKg < limiteKg
+  /**
+   * Si lo repartido no cuadra con el consumo registrado, cada horario avisa que hay
+   * que cambiar su porción, y se le sugiere en cuánto quedaría repartiendo parejo.
+   */
+  const desajustado = excedido || faltaPorRepartir
+  const porcionSugerida = horarios.length > 0 ? limiteKg / horarios.length : 0
 
   return (
     <Card>
@@ -235,6 +241,11 @@ export default function HorariosAlimentacion({ loteId, fincaId, consumoRegistrad
                   <span className="font-semibold text-amber-800">{fmtHora(h.hora)}</span>
                   {h.descripcion && <span className="text-amber-600 text-xs">{h.descripcion}</span>}
                   {h.cantidad_kg != null && <span className="text-amber-600 text-xs">· porción: {h.cantidad_kg} kg</span>}
+                  {desajustado && (
+                    <span className={`text-[11px] rounded-full border px-2 py-0.5 ${excedido ? 'bg-red-50 border-red-200 text-red-600' : 'bg-amber-100 border-amber-300 text-amber-700'}`}>
+                      ⚠️ Hay que cambiar esta porción · parejo serían {porcionSugerida.toFixed(1)} kg
+                    </span>
+                  )}
                   <div className="flex-1" />
                   <Button
                     size="sm"

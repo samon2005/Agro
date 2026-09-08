@@ -18,6 +18,7 @@ import Link from 'next/link'
 import { estadoPostura } from '@/lib/postura'
 import type { Database } from '@/types/database'
 import { aFechaLocal } from '@/lib/fechas'
+import { ajustarHuevos } from '@/lib/inventario'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 type ProduccionDiaria = Database['public']['Tables']['produccion_diaria_aves']['Row']
@@ -103,13 +104,32 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
   async function eliminarRegistro(r: ProduccionDiaria) {
     if (confirmandoEliminar !== r.id) { setConfirmandoEliminar(r.id); return }
     setConfirmandoEliminar(null)
+
+    // Los eventos clínicos que se registraron con este día se van con él (la base
+    // los borra en cascada), así que primero se mira cuántas aves aportaban.
+    const { data: eventosDelDia } = await supabase
+      .from('eventos_clinicos_aves')
+      .select('aves_muertas')
+      .eq('produccion_id', r.id)
+    const muertasEventos = (eventosDelDia ?? []).reduce((s, ev) => s + (ev.aves_muertas ?? 0), 0)
+
     const { error } = await supabase.from('produccion_diaria_aves').delete().eq('id', r.id)
     if (error) { toast.error('Error al eliminar el registro'); return }
-    if (r.muertes > 0) {
-      await supabase.from('lotes_aves').update({ aves_actuales: loteActual.aves_actuales + r.muertes }).eq('id', loteActual.id)
+
+    const devolver = r.muertes + muertasEventos
+    if (devolver > 0) {
+      await supabase.from('lotes_aves').update({ aves_actuales: loteActual.aves_actuales + devolver }).eq('id', loteActual.id)
     }
-    toast.success('Registro eliminado')
+    // Los huevos de ese día también salen del inventario de la finca
+    if (r.huevos_totales > 0) {
+      await ajustarHuevos(supabase, loteActual.finca_id, loteActual.nombre, -r.huevos_totales)
+    }
+
+    toast.success(muertasEventos > 0 || eventosDelDia?.length
+      ? 'Día eliminado junto con su evento clínico'
+      : 'Registro eliminado')
     fetchRegistros()
+    fetchEventosClinicos()
     onLoteUpdated()
   }
 
@@ -128,7 +148,10 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
   const totalAlimento30 = ultimos30.reduce((s, r) => s + Number(r.alimento_kg), 0)
   const ica = totalHuevos30 > 0 ? (totalAlimento30 / (totalHuevos30 / 12)).toFixed(2) : null
 
+  // La mortalidad acumulada cuenta las muertes del día y las de los eventos clínicos:
+  // ambas descuentan aves del galpón, así que ambas suman aquí.
   const mortAcum = registros.reduce((s, r) => s + r.muertes, 0)
+    + eventosClinicos.filter(ev => ev.origen !== 'mortalidad').reduce((s, ev) => s + (ev.aves_muertas ?? 0), 0)
   const mortPct = loteActual.aves_iniciales > 0
     ? ((mortAcum / loteActual.aves_iniciales) * 100).toFixed(1)
     : '0.0'
@@ -334,8 +357,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
   type FilaHistorial =
     | { tipo: 'separador'; key: string; inicio: Date; fin: Date; etiquetaSemana: string; totalAlimento: number; mortalidad: number }
     | { tipo: 'hito'; key: string; etiqueta: string; fecha: string; color: 'azul' | 'verde' }
-    | { tipo: 'dato'; key: string; registro: ProduccionDiaria }
-    | { tipo: 'evento'; key: string; evento: EventoClinico }
+    | { tipo: 'dato'; key: string; registro: ProduccionDiaria; eventos: EventoClinico[] }
 
   /** Qué semana es la del separador: de preparación mientras no haya postura, de postura después. */
   function etiquetaDeSemana(fechaInicioSemana: Date): string {
@@ -348,11 +370,10 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
     return `Semana ${Math.max(1, semanasDesdeEntrada + 1)} de preparación`
   }
 
-  // Una fila por día y, debajo, una fila por cada evento clínico de ese día. Un evento
-  // registrado desde Sanidad puede caer en un día sin registro propio: también se lista.
+  // Una fila por día. El evento clínico de ese día va dentro de la misma fila, en un
+  // cuadro aparte con sus afectadas y sus muertas, para no partir el día en dos.
   const registroPorFecha = new Map(registros.map(r => [r.fecha, r]))
-  const fechasHistorial = [...new Set([...registros.map(r => r.fecha), ...eventosVisibles.map(e => e.fecha)])]
-    .sort((a, b) => b.localeCompare(a))
+  const fechasHistorial = [...new Set(registros.map(r => r.fecha))].sort((a, b) => b.localeCompare(a))
 
   const filasHistorial: FilaHistorial[] = []
   let semanaAnterior: number | null = null
@@ -378,9 +399,8 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
       semanaAnterior = semana
     }
     const registro = registroPorFecha.get(fecha)
-    if (registro) filasHistorial.push({ tipo: 'dato', key: registro.id, registro })
-    for (const ev of eventosPorFecha.get(fecha) ?? []) {
-      filasHistorial.push({ tipo: 'evento', key: `ev-${ev.id}`, evento: ev })
+    if (registro) {
+      filasHistorial.push({ tipo: 'dato', key: registro.id, registro, eventos: eventosPorFecha.get(fecha) ?? [] })
     }
   }
 
@@ -644,24 +664,13 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
           <CardTitle className="text-sm font-semibold text-gray-700">Historial (alimento y muertes)</CardTitle>
           <p className="text-xs text-gray-400">
             Cada día es una fila con sus muertes y su causa. Si ese día hubo además un evento clínico,
-            va en su propia fila debajo, con sus aves afectadas y sus muertes aparte.
+            aparece en un recuadro dentro de la misma fila con sus afectadas y sus muertas.
           </p>
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
             <div className="p-4 space-y-2">
               {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}
-            </div>
-          ) : fechasHistorial.length === 0 ? (
-            <div className="py-12 text-center">
-              <p className="text-4xl mb-2">📋</p>
-              <p className="text-gray-600 font-medium">Sin registros todavía</p>
-              <p className="text-sm text-gray-400 mb-4">
-                {loteActual.estado === 'preparacion' ? 'Registra alimento, muertes o eventos clínicos del día' : 'Registra el primer día'}
-              </p>
-              <Button onClick={() => setModalOpen(true)} className="bg-green-700 hover:bg-green-800 text-white">
-                {loteActual.estado === 'preparacion' ? '+ Registrar día' : '🥚 Marcar inicio de postura'}
-              </Button>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -677,6 +686,22 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
                   </TableRow>
                 </TableHeader>
                 <TableBody>
+                  {/* El galpón recién creado ya muestra su fecha de entrada: no hay que
+                      esperar al primer día registrado para ver la tabla. */}
+                  {fechasHistorial.length === 0 && (
+                    <TableRow className="hover:bg-transparent">
+                      <TableCell colSpan={enPostura ? 6 : 5} className="py-8 text-center">
+                        <p className="text-3xl mb-1">📋</p>
+                        <p className="text-gray-600 font-medium text-sm">Sin días registrados todavía</p>
+                        <p className="text-xs text-gray-400 mb-3">
+                          {loteActual.estado === 'preparacion' ? 'Registra alimento, muertes o eventos clínicos del día' : 'Registra el primer día'}
+                        </p>
+                        <Button size="sm" onClick={() => setModalOpen(true)} className="bg-green-700 hover:bg-green-800 text-white">
+                          + Registrar día
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  )}
                   {filasHistorial.map(fila => {
                     if (fila.tipo === 'separador') {
                       return (
@@ -711,38 +736,6 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
                         </TableRow>
                       )
                     }
-                    // El evento clínico va en su propia fila, debajo del día: sus aves
-                    // afectadas y sus muertes son aparte de las muertes del día.
-                    if (fila.tipo === 'evento') {
-                      const ev = fila.evento
-                      return (
-                        <TableRow key={fila.key} className="bg-red-50/60 hover:bg-red-50">
-                          <TableCell className="text-xs text-red-700 pl-6">
-                            🩺 {formatDate(ev.fecha)}
-                            <span className="block text-[11px] text-red-500">Evento clínico</span>
-                          </TableCell>
-                          {enPostura && <TableCell className="text-right text-xs text-gray-400">—</TableCell>}
-                          <TableCell className="text-right text-xs text-gray-400">—</TableCell>
-                          <TableCell className="text-right">
-                            {(ev.aves_muertas ?? 0) > 0
-                              ? <Badge variant="destructive" className="text-xs">{ev.aves_muertas}</Badge>
-                              : <span className="text-xs text-gray-400">—</span>}
-                          </TableCell>
-                          <TableCell className="text-xs text-gray-600">
-                            {ev.causa ? CAUSAS_LABEL[ev.causa] ?? ev.causa : ev.descripcion || '—'}
-                            <span className="block text-[11px] text-gray-400">
-                              {TIPO_EVENTO_LABEL[ev.tipo_evento] ?? ev.tipo_evento}
-                              {(ev.aves_afectadas ?? 0) > 0 ? ` · ${ev.aves_afectadas} afectadas` : ''}
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center justify-end">
-                              <span className="text-[11px] text-gray-400">Se edita en Sanitario</span>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )
-                    }
                     const r = fila.registro
                     return (
                       <TableRow key={fila.key}>
@@ -760,7 +753,21 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
                         <TableCell className="text-right">
                           {r.muertes > 0 ? <Badge variant="destructive" className="text-xs">{r.muertes}</Badge> : '—'}
                         </TableCell>
-                        <TableCell className="text-xs text-gray-500">{r.causa_muerte ? CAUSAS_LABEL[r.causa_muerte] ?? r.causa_muerte : '—'}</TableCell>
+                        <TableCell className="text-xs text-gray-500">
+                          {r.causa_muerte ? CAUSAS_LABEL[r.causa_muerte] ?? r.causa_muerte : '—'}
+                          {/* El evento clínico del día, en su propio cuadro dentro de la
+                              misma fila, con sus afectadas y sus muertas. */}
+                          {fila.eventos.map(ev => (
+                            <span key={ev.id} className="mt-1 block rounded-md border border-red-200 bg-red-50 px-2 py-1 text-[11px] leading-tight text-red-700">
+                              <span className="font-semibold">🩺 {ev.causa ? CAUSAS_LABEL[ev.causa] ?? ev.causa : ev.descripcion}</span>
+                              <span className="block text-red-500">
+                                {TIPO_EVENTO_LABEL[ev.tipo_evento] ?? ev.tipo_evento}
+                                {(ev.aves_afectadas ?? 0) > 0 ? ` · ${ev.aves_afectadas} afectadas` : ''}
+                                {(ev.aves_muertas ?? 0) > 0 ? ` · ${ev.aves_muertas} muertas` : ''}
+                              </span>
+                            </span>
+                          ))}
+                        </TableCell>
                         <TableCell>
                           <div className="flex items-center justify-end gap-1">
                             <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={() => { setRegistroEditar(r); setModalOpen(true) }}>✏️</Button>
@@ -811,6 +818,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
         loteId={loteActual.id}
         fincaId={loteActual.finca_id}
         avesActuales={loteActual.aves_actuales}
+        nombreLote={loteActual.nombre}
         estadoLote={loteActual.estado}
         registroExistente={registroEditar}
         onCreated={() => { fetchRegistros(); fetchEventosClinicos(); onLoteUpdated() }}

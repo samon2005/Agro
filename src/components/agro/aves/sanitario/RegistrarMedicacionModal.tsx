@@ -13,7 +13,7 @@ import { calcularFechaLiberacion } from '@/lib/sanitario'
 import EncargadoSelect from '@/components/agro/EncargadoSelect'
 import { toSelectItems } from '@/lib/utils'
 import type { Database } from '@/types/database'
-import { hoyLocal, aFechaLocal } from '@/lib/fechas'
+import { hoyLocal, aFechaLocal, desdeFechaLocal } from '@/lib/fechas'
 
 type Medicacion = Database['public']['Tables']['medicaciones_aves']['Row']
 type EventoClinico = Database['public']['Tables']['eventos_clinicos_aves']['Row']
@@ -96,6 +96,13 @@ export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaI
     : (form.evento_clinico_id && form.evento_clinico_id !== SIN_EVENTO ? eventos.find(ev => ev.id === form.evento_clinico_id) ?? null : null)
   const sinFarmaco = eventoActivo != null && !eventoActivo.requiere_medicamento
 
+  /**
+   * Si el tratamiento nace de un evento clínico, el motivo es la razón de ese evento:
+   * no se escribe aparte, se toma de su causa (o de su descripción si no tiene causa).
+   */
+  const motivoDelEvento = eventoActivo ? (eventoActivo.causa || eventoActivo.descripcion) : null
+  const motivoFinal = motivoDelEvento ?? (form.motivo || null)
+
   function set(field: string, value: string | null) {
     setForm(prev => ({ ...prev, [field]: value ?? '' }))
   }
@@ -137,7 +144,7 @@ export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaI
           via_administracion: null,
           dosis: null,
           periodo_retiro_dias: null,
-          motivo: form.motivo || null,
+          motivo: motivoFinal,
           costo: form.costo ? Number(form.costo) : null,
           proveedor: form.proveedor || null,
           veterinario: form.encargado || null,
@@ -151,7 +158,7 @@ export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaI
           via_administracion: form.via_administracion || null,
           dosis,
           periodo_retiro_dias: form.periodo_retiro_dias !== '' ? Number(form.periodo_retiro_dias) : null,
-          motivo: form.motivo || null,
+          motivo: motivoFinal,
           costo: form.costo ? Number(form.costo) : null,
           proveedor: form.proveedor || null,
           veterinario: form.encargado || null,
@@ -174,8 +181,10 @@ export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaI
     }
 
     if (!error && !medicacionExistente && medicacion && form.frecuencia_dias && Number(form.frecuencia_dias) > 0) {
-      const inicio = new Date(form.fecha_inicio)
-      const fin = form.fecha_fin ? new Date(form.fecha_fin) : inicio
+      // Con `new Date('2026-09-07')` la fecha se lee como UTC y en Colombia caía un
+      // día antes: los recordatorios arrancaban el día previo al inicio del tratamiento.
+      const inicio = desdeFechaLocal(form.fecha_inicio)
+      const fin = form.fecha_fin ? desdeFechaLocal(form.fecha_fin) : new Date(inicio)
       const paso = Number(form.frecuencia_dias)
       const fechas: string[] = []
       for (let d = new Date(inicio); d <= fin && fechas.length < 60; d.setDate(d.getDate() + paso)) {
@@ -316,10 +325,20 @@ export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaI
                 ⚠️ Huevos no comercializables hasta: <strong>{retiro}</strong>
               </div>
             )}
-            <div className="col-span-2 space-y-1">
-              <Label>Motivo / Diagnóstico</Label>
-              <Input placeholder="¿Por qué se aplica?" value={form.motivo} onChange={e => set('motivo', e.target.value)} />
-            </div>
+            {motivoDelEvento ? (
+              <div className="col-span-2 space-y-1">
+                <Label>Motivo / Diagnóstico</Label>
+                <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800">
+                  {motivoDelEvento}
+                </div>
+                <p className="text-xs text-gray-400">Viene del evento clínico: no hace falta escribirlo aquí.</p>
+              </div>
+            ) : (
+              <div className="col-span-2 space-y-1">
+                <Label>Motivo / Diagnóstico</Label>
+                <Input placeholder="¿Por qué se aplica?" value={form.motivo} onChange={e => set('motivo', e.target.value)} />
+              </div>
+            )}
             <div className="space-y-1">
               <Label>Costo</Label>
               <CurrencyInput placeholder="0" value={form.costo} onValueChange={v => set('costo', v)} />

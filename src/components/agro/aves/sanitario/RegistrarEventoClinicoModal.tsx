@@ -24,6 +24,13 @@ interface Props {
   onCreated: (eventoId: string) => void
 }
 
+const CAUSAS_BASE = [
+  'Marek', 'Newcastle', 'Bronquitis', 'Gumboro', 'Laringotraqueitis',
+  'Coccidiosis', 'Micoplasmosis', 'Accidente', 'Estrés calórico',
+]
+
+const AGREGAR_CAUSA = '__agregar_causa__'
+
 const TIPOS = [
   { value: 'respiratorio', label: '🫁 Respiratorio' },
   { value: 'locomotor', label: '🦴 Locomotor' },
@@ -38,6 +45,7 @@ function defaultForm(evento?: EventoClinico | null) {
   return {
     fecha: evento?.fecha ?? hoyLocal(),
     tipo_evento: evento?.tipo_evento ?? '',
+    causa: evento?.causa ?? '',
     descripcion: evento?.descripcion ?? '',
     aves_afectadas: evento?.aves_afectadas != null ? String(evento.aves_afectadas) : '',
     aves_muertas: evento?.aves_muertas != null ? String(evento.aves_muertas) : '0',
@@ -52,8 +60,37 @@ export default function RegistrarEventoClinicoModal({ open, onClose, loteId, fin
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState(() => defaultForm(eventoExistente))
+  const [causasPropias, setCausasPropias] = useState<string[]>([])
+  const [agregandoCausa, setAgregandoCausa] = useState(false)
+  const [causaNuevaTexto, setCausaNuevaTexto] = useState('')
 
-  useEffect(() => { if (open) setForm(defaultForm(eventoExistente)) }, [open, eventoExistente])
+  useEffect(() => {
+    if (open) { setForm(defaultForm(eventoExistente)); setAgregandoCausa(false); setCausaNuevaTexto('') }
+  }, [open, eventoExistente])
+
+  // Las causas que la finca ya usó, para reusarlas entre el día a día y Sanidad
+  useEffect(() => {
+    if (!open) return
+    supabase.from('causas_clinicas_aves').select('nombre').eq('finca_id', fincaId).order('nombre')
+      .then(({ data }) => setCausasPropias((data ?? []).map(c => c.nombre)))
+  }, [open, fincaId, supabase])
+
+  const causasDisponibles = [...new Set([...CAUSAS_BASE, ...causasPropias, 'Otra'])]
+
+  /** Si la causa no está en la lista, se escribe a mano y queda guardada para la finca. */
+  async function guardarCausaNueva() {
+    const nombre = causaNuevaTexto.trim()
+    if (!nombre) return
+    const { error } = await supabase.from('causas_clinicas_aves').upsert(
+      { finca_id: fincaId, nombre }, { onConflict: 'finca_id,nombre' }
+    )
+    if (error) { toast.error('Error al guardar la causa'); return }
+    setCausasPropias(prev => prev.includes(nombre) ? prev : [...prev, nombre].sort())
+    setForm(prev => ({ ...prev, causa: nombre }))
+    setCausaNuevaTexto('')
+    setAgregandoCausa(false)
+    toast.success(`Causa "${nombre}" agregada`)
+  }
 
   function set(field: string, value: string | null) {
     setForm(prev => ({ ...prev, [field]: value ?? '' }))
@@ -68,6 +105,7 @@ export default function RegistrarEventoClinicoModal({ open, onClose, loteId, fin
     const payload = {
       fecha: form.fecha,
       tipo_evento: form.tipo_evento,
+      causa: form.causa || null,
       descripcion: form.descripcion.trim(),
       aves_afectadas: form.aves_afectadas ? Number(form.aves_afectadas) : null,
       aves_muertas: Number(form.aves_muertas) || 0,
@@ -106,6 +144,40 @@ export default function RegistrarEventoClinicoModal({ open, onClose, loteId, fin
                 onChange={e => set('tipo_evento', e.target.value)}
               />
             </div>
+            <div className="col-span-2 space-y-1">
+              <Label>Causa</Label>
+              <Select
+                value={form.causa}
+                onValueChange={v => { if (v === AGREGAR_CAUSA) setAgregandoCausa(true); else set('causa', v) }}
+                items={{ ...Object.fromEntries(causasDisponibles.map(c => [c, c])), [AGREGAR_CAUSA]: '+ Añadir causa...' }}
+              >
+                <SelectTrigger className="w-full"><SelectValue placeholder="Seleccionar causa..." /></SelectTrigger>
+                <SelectContent alignItemWithTrigger={false} className="max-h-64">
+                  {causasDisponibles.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  <SelectItem value={AGREGAR_CAUSA}>+ Añadir causa...</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-400">Si no está en la lista, usa &quot;+ Añadir causa&quot; y escríbela.</p>
+            </div>
+            {agregandoCausa && (
+              <div className="col-span-2 flex items-end gap-2 p-2 bg-white border border-green-200 rounded-lg">
+                <div className="flex-1 space-y-1">
+                  <Label className="text-xs">Nueva causa</Label>
+                  <Input
+                    autoFocus
+                    placeholder="Ej: Golpe de calor nocturno"
+                    value={causaNuevaTexto}
+                    onChange={e => setCausaNuevaTexto(e.target.value)}
+                  />
+                </div>
+                <Button type="button" size="sm" className="bg-green-700 hover:bg-green-800 text-white" onClick={guardarCausaNueva}>
+                  Guardar
+                </Button>
+                <Button type="button" size="sm" variant="outline" onClick={() => { setAgregandoCausa(false); setCausaNuevaTexto('') }}>
+                  Cancelar
+                </Button>
+              </div>
+            )}
             <div className="col-span-2 space-y-1">
               <Label>Descripción de signos clínicos *</Label>
               <Input placeholder="Describe los síntomas observados..." value={form.descripcion} onChange={e => set('descripcion', e.target.value)} />

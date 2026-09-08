@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
+import { ajustarHuevos } from '@/lib/inventario'
 
 type ProduccionDiaria = Database['public']['Tables']['produccion_diaria_aves']['Row']
 
@@ -19,6 +20,8 @@ interface Props {
   loteId: string
   fincaId: string
   avesActuales: number
+  /** Nombre del galpón, para el ítem de huevos en el inventario de la finca */
+  nombreLote?: string
   estadoLote?: string
   registroExistente?: ProduccionDiaria | null
   onCreated: () => void
@@ -81,7 +84,7 @@ function defaultForm(avesActuales: number, r?: ProduccionDiaria | null) {
   }
 }
 
-export default function RegistrarProduccionModal({ open, onClose, loteId, fincaId, avesActuales, estadoLote, registroExistente, onCreated }: Props) {
+export default function RegistrarProduccionModal({ open, onClose, loteId, fincaId, avesActuales, nombreLote, estadoLote, registroExistente, onCreated }: Props) {
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState(() => defaultForm(avesActuales, registroExistente))
@@ -144,10 +147,17 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
     setLoading(true)
     const { data: existing } = await supabase
       .from('produccion_diaria_aves')
-      .select('id, muertes, causa_muerte')
+      .select('id, muertes, causa_muerte, huevos_totales')
       .eq('lote_id', loteId)
       .eq('fecha', form.fecha)
       .maybeSingle()
+
+    // Lo que ya estaba registrado para ese día, para calcular las diferencias
+    // contra el inventario de huevos y contra las aves vivas del galpón.
+    const { data: eventosPrevios } = existing
+      ? await supabase.from('eventos_clinicos_aves').select('id, aves_muertas').eq('produccion_id', existing.id)
+      : { data: null }
+    const muertasEventosPrevias = (eventosPrevios ?? []).reduce((s, ev) => s + (ev.aves_muertas ?? 0), 0)
 
     const payload = {
       lote_id: loteId,
@@ -168,25 +178,18 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
       observaciones: form.observaciones || null,
     }
 
-    let error
-    if (existing) {
-      const res = await supabase.from('produccion_diaria_aves').update(payload).eq('id', existing.id)
-      error = res.error
-    } else {
-      const res = await supabase.from('produccion_diaria_aves').insert(payload)
-      error = res.error
+    const { data: registro, error } = existing
+      ? await supabase.from('produccion_diaria_aves').update(payload).eq('id', existing.id).select('id').single()
+      : await supabase.from('produccion_diaria_aves').insert(payload).select('id').single()
+
+    // Los eventos de este día se reemplazan en cada guardado en vez de acumularse:
+    // así editar el día no deja copias viejas y borrarlo se los lleva en cascada.
+    if (!error && registro) {
+      await supabase.from('eventos_clinicos_aves').delete().eq('produccion_id', registro.id)
     }
 
-    const muertesDelta = (Number(form.muertes) || 0) - (existing?.muertes ?? 0)
-    if (!error && muertesDelta !== 0) {
-      await supabase
-        .from('lotes_aves')
-        .update({ aves_actuales: Math.max(0, avesActuales - muertesDelta) })
-        .eq('id', loteId)
-    }
-
-    const causaNueva = Number(form.muertes) > 0 && form.causa_muerte && form.causa_muerte !== (existing?.causa_muerte ?? '')
-    if (!error && causaNueva) {
+    const causaNueva = Number(form.muertes) > 0 && form.causa_muerte
+    if (!error && registro && causaNueva) {
       await supabase.from('eventos_clinicos_aves').insert({
         lote_id: loteId,
         finca_id: fincaId,
@@ -196,6 +199,7 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
         aves_muertas: Number(form.muertes),
         causa: form.causa_muerte,
         origen: 'mortalidad',
+        produccion_id: registro.id,
         // El ave ya murió: este evento no debe ofrecer tratamiento.
         requiere_medicamento: false,
       })
@@ -206,7 +210,8 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
     // y por eso el evento no aparecía después en la pestaña de Sanidad.
     const tipoElegido = form.evento_tipo && form.evento_tipo !== SIN_TIPO ? form.evento_tipo : ''
     const hayEvento = !!(tipoElegido || form.evento_causa || form.evento_afectadas || form.evento_muertas || form.evento_descripcion.trim())
-    if (!error && hayEvento) {
+    const muertasEvento = form.evento_muertas ? Number(form.evento_muertas) : 0
+    if (!error && registro && hayEvento) {
       const descripcion = form.evento_descripcion.trim()
         || form.evento_causa
         || TIPOS_EVENTO_CLINICO.find(t => t.value === tipoElegido)?.label
@@ -218,12 +223,30 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
         tipo_evento: tipoElegido || 'otro',
         causa: form.evento_causa || null,
         aves_afectadas: form.evento_afectadas ? Number(form.evento_afectadas) : null,
-        aves_muertas: form.evento_muertas ? Number(form.evento_muertas) : null,
+        aves_muertas: muertasEvento || null,
         origen: 'clinico',
+        produccion_id: registro.id,
         descripcion,
       })
       if (errorEvento) toast.error('El día se guardó, pero el evento clínico no')
       else toast.success('Evento clínico registrado')
+    }
+
+    // Las aves vivas bajan por las muertes del día Y por las del evento clínico:
+    // las del evento son aparte, pero siguen siendo aves que ya no están.
+    const muertesDelta = ((Number(form.muertes) || 0) + (hayEvento ? muertasEvento : 0))
+      - ((existing?.muertes ?? 0) + muertasEventosPrevias)
+    if (!error && muertesDelta !== 0) {
+      await supabase
+        .from('lotes_aves')
+        .update({ aves_actuales: Math.max(0, avesActuales - muertesDelta) })
+        .eq('id', loteId)
+    }
+
+    // Los huevos puestos se acumulan en el inventario de la finca y bajan al vender.
+    const huevosDelta = (enPreparacion ? 0 : totalHuevos) - (existing?.huevos_totales ?? 0)
+    if (!error && huevosDelta !== 0 && nombreLote) {
+      await ajustarHuevos(supabase, fincaId, nombreLote, huevosDelta)
     }
 
     setLoading(false)
