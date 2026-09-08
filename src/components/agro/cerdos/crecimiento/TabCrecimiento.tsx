@@ -29,7 +29,6 @@ interface Props {
 const ETAPAS_LABEL: Record<string, string> = {
   precebo: '🐷 Precebo', levante: '🐖 Levante', ceba: '🐗 Ceba', finalizacion: '✅ Finalización', vendido: '💰 Vendido'
 }
-const CAUSAS = ['PRRS', 'PCV2', 'APP', 'Disentería', 'Salmonelosis', 'Accidente', 'Neumonía', 'Otro']
 const TIPOS_MOV = [
   { value: 'traslado', label: '🔄 Traslado de corral' },
   { value: 'venta', label: '💰 Venta' },
@@ -45,11 +44,10 @@ export default function TabCrecimiento({ loteActual, onLoteUpdated }: Props) {
   const [movimientos, setMovimientos] = useState<Movimiento[]>([])
   const [loading, setLoading] = useState(true)
   const [modalPeso, setModalPeso] = useState(false)
+  const [pesoEditar, setPesoEditar] = useState<PesoLote | null>(null)
+  const [confirmandoEliminar, setConfirmandoEliminar] = useState<string | null>(null)
   const [subTab, setSubTab] = useState<'pesos' | 'mortalidad' | 'etapas' | 'movimientos'>('pesos')
 
-  // Mortalidad form
-  const [formMort, setFormMort] = useState({ fecha: hoyLocal(), cantidad: '1', causa: '', descripcion: '', peso_estimado: '' })
-  const [savingMort, setSavingMort] = useState(false)
   // Etapa form
   const [formEtapa, setFormEtapa] = useState({ fecha: hoyLocal(), etapa_nueva: '', peso_promedio: '', corral_destino: '', observaciones: '' })
   const [savingEtapa, setSavingEtapa] = useState(false)
@@ -85,24 +83,14 @@ export default function TabCrecimiento({ loteActual, onLoteUpdated }: Props) {
     return new Date(d + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
   }
 
-  async function saveMortalidad(e: React.FormEvent) {
-    e.preventDefault()
-    if (!formMort.cantidad || Number(formMort.cantidad) <= 0) { toast.error('Ingresa la cantidad'); return }
-    setSavingMort(true)
-    const { error } = await supabase.from('mortalidad_cerdos').insert({
-      lote_id: loteActual.id, finca_id: loteActual.finca_id,
-      fecha: formMort.fecha, cantidad: Number(formMort.cantidad),
-      causa: formMort.causa || null, descripcion: formMort.descripcion || null,
-      peso_estimado: formMort.peso_estimado ? Number(formMort.peso_estimado) : null,
-    })
-    if (!error) {
-      await supabase.from('lotes_cerdos').update({ animales_actuales: Math.max(0, loteActual.animales_actuales - Number(formMort.cantidad)) }).eq('id', loteActual.id)
-    }
-    setSavingMort(false)
-    if (error) { toast.error('Error'); return }
-    toast.success('Mortalidad registrada')
-    setFormMort({ fecha: hoyLocal(), cantidad: '1', causa: '', descripcion: '', peso_estimado: '' })
-    fetchAll(); onLoteUpdated()
+  /** Los pesajes se pueden corregir y borrar: un dato mal tomado desvía toda la curva. */
+  async function eliminarPeso(peso: PesoLote) {
+    if (confirmandoEliminar !== peso.id) { setConfirmandoEliminar(peso.id); return }
+    setConfirmandoEliminar(null)
+    const { error } = await supabase.from('pesos_lote_cerdos').delete().eq('id', peso.id)
+    if (error) { toast.error('Error al eliminar el pesaje'); return }
+    toast.success('Pesaje eliminado')
+    fetchAll()
   }
 
   async function saveEtapa(e: React.FormEvent) {
@@ -163,7 +151,7 @@ export default function TabCrecimiento({ loteActual, onLoteUpdated }: Props) {
       <div className="flex items-center justify-between">
         <h2 className="text-base font-semibold text-gray-800">Producción y Crecimiento</h2>
         {subTab === 'pesos' && (
-          <Button onClick={() => setModalPeso(true)} className="bg-green-700 hover:bg-green-800 text-white text-sm">+ Registrar pesaje</Button>
+          <Button onClick={() => { setPesoEditar(null); setModalPeso(true) }} className="bg-orange-600 hover:bg-orange-700 text-white text-sm">+ Registrar pesaje</Button>
         )}
       </div>
 
@@ -220,7 +208,7 @@ export default function TabCrecimiento({ loteActual, onLoteUpdated }: Props) {
                 <div className="py-10 text-center">
                   <p className="text-4xl mb-2">⚖️</p>
                   <p className="text-gray-600 font-medium">Sin pesajes registrados</p>
-                  <Button onClick={() => setModalPeso(true)} className="mt-4 bg-green-700 hover:bg-green-800 text-white">+ Registrar pesaje</Button>
+                  <Button onClick={() => { setPesoEditar(null); setModalPeso(true) }} className="mt-4 bg-orange-600 hover:bg-orange-700 text-white">+ Registrar pesaje</Button>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -233,6 +221,7 @@ export default function TabCrecimiento({ loteActual, onLoteUpdated }: Props) {
                         <TableHead className="text-right">Máx</TableHead>
                         <TableHead className="text-right">Variación</TableHead>
                         <TableHead>Método</TableHead>
+                        <TableHead></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -250,6 +239,18 @@ export default function TabCrecimiento({ loteActual, onLoteUpdated }: Props) {
                               {variacion ? <span className={Number(variacion) < 20 ? 'text-green-600' : 'text-amber-600'}>{variacion}%</span> : '—'}
                             </TableCell>
                             <TableCell className="text-sm text-gray-500">{p.metodo === 'bascula_dinamica' ? '⚙️ Báscula' : '✍️ Manual'}</TableCell>
+                            <TableCell>
+                              <div className="flex items-center justify-end gap-1">
+                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={() => { setPesoEditar(p); setModalPeso(true) }}>✏️</Button>
+                                <Button
+                                  size="sm" variant="ghost"
+                                  className={confirmandoEliminar === p.id ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
+                                  onClick={() => eliminarPeso(p)}
+                                >
+                                  {confirmandoEliminar === p.id ? '¿Confirmar?' : '🗑️'}
+                                </Button>
+                              </div>
+                            </TableCell>
                           </TableRow>
                         )
                       })}
@@ -260,43 +261,26 @@ export default function TabCrecimiento({ loteActual, onLoteUpdated }: Props) {
             )}
 
             {subTab === 'mortalidad' && (
-              <div className="p-4 space-y-4">
-                <form onSubmit={saveMortalidad} className="grid grid-cols-2 md:grid-cols-4 gap-3 p-3 bg-red-50 rounded-lg border border-red-200">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Fecha</Label>
-                    <Input type="date" value={formMort.fecha} onChange={e => setFormMort(p => ({ ...p, fecha: e.target.value }))} />
+              <div className="p-4 space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-2 text-sm">
+                  <div className="flex items-center gap-4">
+                    <span className="text-gray-500">Total de muertes registradas:</span>
+                    <span className="font-semibold text-red-700">{mortAcum.toLocaleString('es-CO')} animales</span>
+                    <span className="text-gray-400 text-xs">{mortPct}% del lote inicial</span>
                   </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Cantidad *</Label>
-                    <Input type="number" min="1" value={formMort.cantidad} onChange={e => setFormMort(p => ({ ...p, cantidad: e.target.value }))} />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Causa</Label>
-                    <Select value={formMort.causa} onValueChange={v => setFormMort(p => ({ ...p, causa: v ?? '' }))}>
-                      <SelectTrigger><SelectValue placeholder="Causa..." /></SelectTrigger>
-                      <SelectContent>{CAUSAS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Peso estimado (kg)</Label>
-                    <Input type="number" step="0.1" value={formMort.peso_estimado} onChange={e => setFormMort(p => ({ ...p, peso_estimado: e.target.value }))} />
-                  </div>
-                  <div className="col-span-2 md:col-span-3 space-y-1">
-                    <Label className="text-xs">Descripción</Label>
-                    <Input placeholder="Describe lo ocurrido..." value={formMort.descripcion} onChange={e => setFormMort(p => ({ ...p, descripcion: e.target.value }))} />
-                  </div>
-                  <div className="flex items-end">
-                    <Button type="submit" disabled={savingMort} className="w-full bg-red-700 hover:bg-red-800 text-white text-sm">
-                      {savingMort ? '...' : '+ Registrar'}
-                    </Button>
-                  </div>
-                </form>
+                  <span className="text-xs text-gray-400">Se registra en la pestaña Diario, con &quot;+ Registrar día&quot;</span>
+                </div>
                 {mortalidad.length === 0 ? (
-                  <p className="text-center text-gray-400 py-4">Sin registros de mortalidad</p>
+                  <p className="text-center text-gray-400 py-6">Sin registros de mortalidad</p>
                 ) : (
                   <Table>
                     <TableHeader>
-                      <TableRow><TableHead>Fecha</TableHead><TableHead className="text-right">Cantidad</TableHead><TableHead>Causa</TableHead><TableHead>Descripción</TableHead></TableRow>
+                      <TableRow>
+                        <TableHead>Fecha</TableHead>
+                        <TableHead className="text-right">Cantidad</TableHead>
+                        <TableHead>Causa</TableHead>
+                        <TableHead className="text-right">Peso (kg)</TableHead>
+                      </TableRow>
                     </TableHeader>
                     <TableBody>
                       {mortalidad.map(m => (
@@ -304,7 +288,9 @@ export default function TabCrecimiento({ loteActual, onLoteUpdated }: Props) {
                           <TableCell className="text-sm">{fmt(m.fecha)}</TableCell>
                           <TableCell className="text-right"><Badge variant="destructive">{m.cantidad}</Badge></TableCell>
                           <TableCell className="text-sm">{m.causa ?? '—'}</TableCell>
-                          <TableCell className="text-sm text-gray-500">{m.descripcion ?? '—'}</TableCell>
+                          <TableCell className="text-right text-sm text-gray-500">
+                            {m.peso_estimado != null ? Number(m.peso_estimado).toFixed(1) : '—'}
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -436,10 +422,11 @@ export default function TabCrecimiento({ loteActual, onLoteUpdated }: Props) {
 
       <RegistrarPesoModal
         open={modalPeso}
-        onClose={() => setModalPeso(false)}
+        onClose={() => { setModalPeso(false); setPesoEditar(null) }}
         loteId={loteActual.id}
         fincaId={loteActual.finca_id}
         animalesActuales={loteActual.animales_actuales}
+        pesoExistente={pesoEditar}
         onCreated={fetchAll}
       />
     </div>

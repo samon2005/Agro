@@ -7,6 +7,9 @@ import { useRol } from '@/components/agro/RolProvider'
 import AccesoRestringido from '@/components/agro/AccesoRestringido'
 import { cn } from '@/lib/utils'
 import CrearLoteCerdosModal from '@/components/agro/cerdos/CrearLoteCerdosModal'
+import ConfigurarLoteCerdosModal from '@/components/agro/cerdos/ConfigurarLoteCerdosModal'
+import TabDiarioCerdos from '@/components/agro/cerdos/diario/TabDiarioCerdos'
+import TabReproduccion from '@/components/agro/cerdos/reproduccion/TabReproduccion'
 import TabCrecimiento from '@/components/agro/cerdos/crecimiento/TabCrecimiento'
 import TabNutricion from '@/components/agro/cerdos/nutricion/TabNutricion'
 import TabSanitarioCerdos from '@/components/agro/cerdos/sanitario/TabSanitarioCerdos'
@@ -16,25 +19,35 @@ import TabVentasGenerico from '@/components/agro/comun/TabVentasGenerico'
 import TabCostosGenerico from '@/components/agro/comun/TabCostosGenerico'
 import { CONFIG_ESPECIES } from '@/lib/especiesConfig'
 import { Badge } from '@/components/ui/badge'
+import { edadTexto } from '@/lib/cerdos'
 import type { Database } from '@/types/database'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
-type Tab = 'crecimiento' | 'nutricion' | 'sanitario' | 'ambiental' | 'ventas' | 'costos' | 'equipos'
+type Tab = 'diario' | 'crecimiento' | 'reproduccion' | 'nutricion' | 'sanitario' | 'ambiental' | 'ventas' | 'costos' | 'equipos'
 
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'crecimiento', label: '📈 Crecimiento' },
-  { id: 'nutricion', label: '🌾 Nutrición' },
-  { id: 'sanitario', label: '💉 Sanitario' },
-  { id: 'ambiental', label: '🌡️ Ambiental' },
-  { id: 'ventas', label: '🧾 Ventas' },
-  { id: 'costos', label: '💰 Finanzas' },
-  { id: 'equipos', label: '⚙️ Equipos' },
-]
+/** La pestaña de Reproducción solo existe si el lote trabaja con sistema de cría. */
+function tabsDelLote(sistema: string): { id: Tab; label: string }[] {
+  const base: { id: Tab; label: string }[] = [
+    { id: 'diario', label: '📋 Diario' },
+    { id: 'crecimiento', label: '📈 Crecimiento' },
+  ]
+  if (sistema === 'cria') base.push({ id: 'reproduccion', label: '🐖 Reproducción' })
+  return [
+    ...base,
+    { id: 'nutricion', label: '🌾 Nutrición' },
+    { id: 'sanitario', label: '💉 Sanitario' },
+    { id: 'ambiental', label: '🌡️ Ambiental' },
+    { id: 'ventas', label: '🧾 Ventas' },
+    { id: 'costos', label: '💰 Finanzas' },
+    { id: 'equipos', label: '⚙️ Equipos' },
+  ]
+}
 
 const CONFIG = CONFIG_ESPECIES.cerdos
 
 const ETAPAS_LABEL: Record<string, string> = {
-  precebo: '🐷 Precebo', levante: '🐖 Levante', ceba: '🐗 Ceba', finalizacion: '✅ Finalización', vendido: '💰 Vendido'
+  precebo: '🐷 Precebo', levante: '🐖 Levante', ceba: '🐗 Ceba', finalizacion: '✅ Finalización',
+  vendido: '💰 Vendido', cria: '🐖 Cría / Reproducción'
 }
 
 export default function CerdosPage() {
@@ -44,8 +57,9 @@ export default function CerdosPage() {
   const [lotes, setLotes] = useState<LoteCerdos[]>([])
   const [loteActual, setLoteActual] = useState<LoteCerdos | null>(null)
   const [loadingLotes, setLoadingLotes] = useState(true)
-  const [activeTab, setActiveTab] = useState<Tab>('crecimiento')
+  const [activeTab, setActiveTab] = useState<Tab>('diario')
   const [modalNuevo, setModalNuevo] = useState(false)
+  const [configOpen, setConfigOpen] = useState(false)
 
   const fetchLotes = useCallback(async () => {
     if (!fincaActual) return
@@ -108,11 +122,30 @@ export default function CerdosPage() {
           )}
         </div>
         {loteActual && (
-          <div className="flex items-center gap-3 text-xs text-gray-500">
-            <Badge className="bg-orange-100 text-orange-700 text-xs">{ETAPAS_LABEL[loteActual.etapa_actual]}</Badge>
-            <span>{loteActual.animales_actuales.toLocaleString('es-CO')} animales activos</span>
-            {loteActual.linea_genetica && <span>· {loteActual.linea_genetica}</span>}
-            {loteActual.corral && <span>· {loteActual.corral}</span>}
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3 text-xs text-gray-500 flex-wrap">
+              <Badge className={loteActual.sistema === 'cria' ? 'bg-pink-100 text-pink-700 text-xs' : 'bg-orange-100 text-orange-700 text-xs'}>
+                {ETAPAS_LABEL[loteActual.etapa_actual] ?? loteActual.etapa_actual}
+              </Badge>
+              <span>
+                {loteActual.animales_actuales.toLocaleString('es-CO')} {loteActual.sistema === 'cria' ? 'hembras activas' : 'animales activos'}
+              </span>
+              {loteActual.fecha_nacimiento && <span>· {edadTexto(loteActual.fecha_nacimiento)} de edad</span>}
+              {loteActual.linea_genetica && <span>· {loteActual.linea_genetica}</span>}
+              {loteActual.corral && <span>· {loteActual.corral}</span>}
+            </div>
+            <button
+              onClick={() => setConfigOpen(true)}
+              className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors"
+            >
+              ⚙️ Configurar lote
+            </button>
+          </div>
+        )}
+        {loteActual && loteActual.alimento_activo_id == null && (
+          <div className="p-2.5 bg-amber-50 border border-amber-300 rounded-lg text-xs text-amber-800">
+            ⚠️ Este lote no tiene alimento asignado. Regístralo en la pestaña Nutrición: sin alimento
+            no se puede llevar el diario ni calcular costo ni conversión.
           </div>
         )}
       </div>
@@ -132,7 +165,7 @@ export default function CerdosPage() {
       {loteActual && (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="flex border-b border-gray-100 overflow-x-auto">
-            {TABS.map(tab => (
+            {tabsDelLote(loteActual.sistema).map(tab => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)}
                 className={cn('flex-shrink-0 px-5 py-3 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap',
                   activeTab === tab.id ? 'border-orange-600 text-orange-700 bg-orange-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50')}>
@@ -141,7 +174,11 @@ export default function CerdosPage() {
             ))}
           </div>
           <div className="p-5">
+            {activeTab === 'diario' && <TabDiarioCerdos loteActual={loteActual} onLoteUpdated={refreshLote} />}
             {activeTab === 'crecimiento' && <TabCrecimiento loteActual={loteActual} onLoteUpdated={refreshLote} />}
+            {activeTab === 'reproduccion' && loteActual.sistema === 'cria' && (
+              <TabReproduccion loteActual={loteActual} onLoteUpdated={refreshLote} />
+            )}
             {activeTab === 'nutricion' && <TabNutricion loteActual={loteActual} />}
             {activeTab === 'sanitario' && <TabSanitarioCerdos loteActual={loteActual} />}
             {activeTab === 'ambiental' && <TabAmbientalCerdos loteActual={loteActual} />}
@@ -167,8 +204,18 @@ export default function CerdosPage() {
         open={modalNuevo}
         onClose={() => setModalNuevo(false)}
         fincaId={fincaActual.id}
-        onCreated={lote => { setLotes(prev => [lote, ...prev]); setLoteActual(lote) }}
+        onCreated={lote => { setLotes(prev => [lote, ...prev]); setLoteActual(lote); setActiveTab('diario') }}
       />
+
+      {loteActual && (
+        <ConfigurarLoteCerdosModal
+          open={configOpen}
+          onClose={() => setConfigOpen(false)}
+          lote={loteActual}
+          onUpdated={actualizado => { setLoteActual(actualizado); fetchLotes() }}
+          onDeleted={() => { setLoteActual(null); fetchLotes() }}
+        />
+      )}
     </div>
   )
 }

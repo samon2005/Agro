@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -9,6 +9,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { hoyLocal } from '@/lib/fechas'
+import type { Database } from '@/types/database'
+
+type PesoLote = Database['public']['Tables']['pesos_lote_cerdos']['Row']
 
 interface Props {
   open: boolean
@@ -16,21 +19,31 @@ interface Props {
   loteId: string
   fincaId: string
   animalesActuales: number
+  /** Pesaje que se está editando; si no viene, se registra uno nuevo */
+  pesoExistente?: PesoLote | null
   onCreated: () => void
 }
 
-export default function RegistrarPesoModal({ open, onClose, loteId, fincaId, animalesActuales, onCreated }: Props) {
+function defaultForm(animalesActuales: number, p?: PesoLote | null) {
+  return {
+    fecha: p?.fecha ?? hoyLocal(),
+    peso_promedio: p ? String(p.peso_promedio) : '',
+    peso_minimo: p?.peso_minimo != null ? String(p.peso_minimo) : '',
+    peso_maximo: p?.peso_maximo != null ? String(p.peso_maximo) : '',
+    numero_pesados: p?.numero_pesados != null ? String(p.numero_pesados) : String(animalesActuales),
+    metodo: p?.metodo ?? 'manual',
+    observaciones: p?.observaciones ?? '',
+  }
+}
+
+export default function RegistrarPesoModal({ open, onClose, loteId, fincaId, animalesActuales, pesoExistente, onCreated }: Props) {
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
-  const [form, setForm] = useState({
-    fecha: hoyLocal(),
-    peso_promedio: '',
-    peso_minimo: '',
-    peso_maximo: '',
-    numero_pesados: String(animalesActuales),
-    metodo: 'manual',
-    observaciones: '',
-  })
+  const [form, setForm] = useState(() => defaultForm(animalesActuales, pesoExistente))
+
+  useEffect(() => {
+    if (open) setForm(defaultForm(animalesActuales, pesoExistente))
+  }, [open, animalesActuales, pesoExistente])
 
   function set(field: string, value: string | null) {
     setForm(prev => ({ ...prev, [field]: value ?? '' }))
@@ -49,9 +62,7 @@ export default function RegistrarPesoModal({ open, onClose, loteId, fincaId, ani
     if (!form.peso_promedio) { toast.error('Ingresa el peso promedio'); return }
 
     setLoading(true)
-    const { error } = await supabase.from('pesos_lote_cerdos').insert({
-      lote_id: loteId,
-      finca_id: fincaId,
+    const payload = {
       fecha: form.fecha,
       peso_promedio: Number(form.peso_promedio),
       peso_minimo: form.peso_minimo ? Number(form.peso_minimo) : null,
@@ -59,10 +70,13 @@ export default function RegistrarPesoModal({ open, onClose, loteId, fincaId, ani
       numero_pesados: form.numero_pesados ? Number(form.numero_pesados) : null,
       metodo: form.metodo,
       observaciones: form.observaciones || null,
-    })
+    }
+    const { error } = pesoExistente
+      ? await supabase.from('pesos_lote_cerdos').update(payload).eq('id', pesoExistente.id)
+      : await supabase.from('pesos_lote_cerdos').insert({ ...payload, lote_id: loteId, finca_id: fincaId })
     setLoading(false)
-    if (error) { toast.error('Error al registrar pesaje'); return }
-    toast.success('Pesaje registrado')
+    if (error) { toast.error(pesoExistente ? 'Error al actualizar el pesaje' : 'Error al registrar pesaje'); return }
+    toast.success(pesoExistente ? 'Pesaje actualizado' : 'Pesaje registrado')
     onCreated()
     onClose()
   }
@@ -71,7 +85,7 @@ export default function RegistrarPesoModal({ open, onClose, loteId, fincaId, ani
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>⚖️ Registrar Pesaje del Lote</DialogTitle>
+          <DialogTitle>{pesoExistente ? '✏️ Editar Pesaje' : '⚖️ Registrar Pesaje del Lote'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -118,7 +132,7 @@ export default function RegistrarPesoModal({ open, onClose, loteId, fincaId, ani
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
             <Button type="submit" disabled={loading} className="bg-green-700 hover:bg-green-800 text-white">
-              {loading ? 'Guardando...' : 'Registrar'}
+              {loading ? 'Guardando...' : pesoExistente ? 'Guardar cambios' : 'Registrar'}
             </Button>
           </DialogFooter>
         </form>
