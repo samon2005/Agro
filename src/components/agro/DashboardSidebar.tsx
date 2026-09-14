@@ -54,7 +54,7 @@ export default function DashboardSidebar({ user }: { user: User }) {
       {/* Marca */}
       <div className="flex items-center justify-between px-5 pt-6 pb-5">
         <Link href="/dashboard" className="flex items-center gap-2.5">
-          <span className="flex size-8 items-center justify-center rounded-lg bg-green-700 text-white">
+          <span className="flex size-8 items-center justify-center rounded-lg bg-green-600 text-white">
             <Ic n="hoja" className="size-4" strokeWidth={2} />
           </span>
           <span className="font-heading text-[1.35rem] font-medium tracking-tight text-gray-900">
@@ -65,8 +65,8 @@ export default function DashboardSidebar({ user }: { user: User }) {
       </div>
 
       {fincaActual && (
-        <div className="mx-4 mb-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
-          <p className="text-[0.625rem] font-semibold uppercase tracking-[0.12em] text-gray-400">Finca</p>
+        <div className="mx-4 mb-3 rounded-lg border border-green-200 bg-green-50 px-3 py-2">
+          <p className="text-[0.625rem] font-semibold uppercase tracking-[0.12em] text-green-700">Finca</p>
           <p className="truncate text-sm font-medium text-gray-800">{fincaActual.nombre}</p>
         </div>
       )}
@@ -82,21 +82,13 @@ export default function DashboardSidebar({ user }: { user: User }) {
               className={cn(
                 'group relative flex items-center gap-3 rounded-lg px-3 py-2 text-[0.875rem] font-medium transition-colors',
                 activo
-                  ? 'bg-green-50 text-green-900'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  ? 'bg-green-700 text-white shadow-[0_6px_16px_-8px_rgb(42_93_34/60%)]'
+                  : 'text-gray-600 hover:bg-green-50 hover:text-green-900'
               )}
             >
-              {/* Marca lateral del ítem activo */}
-              <span
-                aria-hidden
-                className={cn(
-                  'absolute top-1/2 left-0 h-5 w-0.5 -translate-y-1/2 rounded-r bg-green-700 transition-opacity',
-                  activo ? 'opacity-100' : 'opacity-0'
-                )}
-              />
               <Ic
                 n={item.icon}
-                className={cn('size-[18px] transition-colors', activo ? 'text-green-700' : 'text-gray-400 group-hover:text-gray-600')}
+                className={cn('size-[18px] transition-colors', activo ? 'text-white' : 'text-gray-400 group-hover:text-green-700')}
               />
               {item.label}
             </Link>

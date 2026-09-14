@@ -7,25 +7,25 @@
 /*
  * Sistema visual de AgroGestión
  * ─────────────────────────────
- * Neutros cálidos (hueso, tierra) en vez de grises azulados; una sola familia de
- * acento por especie, siempre desaturada; bordes de 1 px y sombras casi nulas.
+ * Fondo verde suave con tarjetas blancas, neutros con un punto de verde, y una
+ * familia de acento por especie; bordes de 1 px y sombras casi nulas.
  * Las escalas de Tailwind se redefinen aquí para que los cientos de utilidades
  * ya escritas en la app (bg-green-700, text-gray-500, border-amber-200…) cambien
  * de golpe a la nueva paleta sin tocarlas una por una.
  */
 @theme {
   /* Neutros cálidos */
-  --color-gray-50: #faf9f6;
-  --color-gray-100: #f3f1ec;
-  --color-gray-200: #e7e4dd;
-  --color-gray-300: #d4d0c6;
-  --color-gray-400: #a29d92;
-  --color-gray-500: #77726a;
-  --color-gray-600: #5a564f;
-  --color-gray-700: #423f39;
-  --color-gray-800: #2b2925;
-  --color-gray-900: #1b1a17;
-  --color-gray-950: #121110;
+  --color-gray-50: #f4f8f2;
+  --color-gray-100: #e9f0e6;
+  --color-gray-200: #d9e3d4;
+  --color-gray-300: #c3d0be;
+  --color-gray-400: #93a394;
+  --color-gray-500: #6b7a6e;
+  --color-gray-600: #526054;
+  --color-gray-700: #3a4a3e;
+  --color-gray-800: #243127;
+  --color-gray-900: #16231a;
+  --color-gray-950: #0f1811;
 
   /* Verde botánico — la marca */
   --color-green-50: #eef6ea;
@@ -231,23 +231,23 @@
   --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
   --font-heading-family: var(--font-fraunces), Georgia, "Times New Roman", serif;
 
-  --background: #faf9f6;
-  --foreground: #1b1a17;
+  --background: #e6f1e1;
+  --foreground: #16231a;
   --card: #ffffff;
-  --card-foreground: #1b1a17;
+  --card-foreground: #16231a;
   --popover: #ffffff;
-  --popover-foreground: #1b1a17;
+  --popover-foreground: #16231a;
   --primary: #2a5d22;
   --primary-foreground: #f7faf3;
-  --secondary: #f3f1ec;
-  --secondary-foreground: #2b2925;
-  --muted: #f3f1ec;
-  --muted-foreground: #77726a;
-  --accent: #f3f1ec;
-  --accent-foreground: #2b2925;
+  --secondary: #e9f0e6;
+  --secondary-foreground: #243127;
+  --muted: #e9f0e6;
+  --muted-foreground: #6b7a6e;
+  --accent: #e9f0e6;
+  --accent-foreground: #243127;
   --destructive: #92433a;
-  --border: #e7e4dd;
-  --input: #d4d0c6;
+  --border: #d9e3d4;
+  --input: #c3d0be;
   --ring: #62a24c;
   --chart-1: #2a5d22;
   --chart-2: #c98f1c;
@@ -256,12 +256,12 @@
   --chart-5: #815aa3;
   --radius: 0.75rem;
   --sidebar: #ffffff;
-  --sidebar-foreground: #2b2925;
+  --sidebar-foreground: #243127;
   --sidebar-primary: #2a5d22;
   --sidebar-primary-foreground: #f7faf3;
-  --sidebar-accent: #f3f1ec;
-  --sidebar-accent-foreground: #1b1a17;
-  --sidebar-border: #e7e4dd;
+  --sidebar-accent: #e9f0e6;
+  --sidebar-accent-foreground: #16231a;
+  --sidebar-border: #d9e3d4;
   --sidebar-ring: #62a24c;
 }
 
@@ -355,13 +355,13 @@
 
   ::selection {
     background: #b6d6a6;
-    color: #1b1a17;
+    color: #16231a;
   }
 
   /* Barra de scroll discreta */
   * {
     scrollbar-width: thin;
-    scrollbar-color: #d4d0c6 transparent;
+    scrollbar-color: #c3d0be transparent;
   }
 }
 
@@ -412,13 +412,13 @@
   a > [data-slot="card"]:hover,
   button > [data-slot="card"]:hover {
     transform: translateY(-2px);
-    box-shadow: 0 8px 24px -12px rgb(27 26 23 / 18%);
+    box-shadow: 0 8px 24px -12px rgb(22 35 26 / 22%);
   }
 
   /* Skeleton con brillo en vez de parpadeo */
   [data-slot="skeleton"] {
     animation: brillo 1.6s linear infinite;
-    background: linear-gradient(90deg, #efece5 0%, #f7f5f0 50%, #efece5 100%);
+    background: linear-gradient(90deg, #e9f0e6 0%, #f4f8f2 50%, #e9f0e6 100%);
     background-size: 200% 100%;
   }
 
