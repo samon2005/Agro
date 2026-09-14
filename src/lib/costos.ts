@@ -7,13 +7,13 @@ export interface CategoriaCosto {
 }
 
 export const CATEGORIAS_COSTO: CategoriaCosto[] = [
-  { value: 'pollitas', label: 'Pollitas', emoji: '🐣', color: 'bg-yellow-100 text-yellow-700' },
-  { value: 'alimento', label: 'Alimento', emoji: '🌾', color: 'bg-orange-100 text-orange-700' },
-  { value: 'servicios_publicos', label: 'Servicios públicos', emoji: '💡', color: 'bg-blue-100 text-blue-700', legacy: ['agua', 'energia'] },
-  { value: 'mantenimiento', label: 'Mantenimiento', emoji: '🔧', color: 'bg-gray-100 text-gray-700' },
-  { value: 'sanitario', label: 'Sanitario', emoji: '💉', color: 'bg-purple-100 text-purple-700' },
-  { value: 'equipos', label: 'Equipos', emoji: '⚙️', color: 'bg-indigo-100 text-indigo-700' },
-  { value: 'otro', label: 'Otro', emoji: '📋', color: 'bg-gray-100 text-gray-500' },
+  { value: 'pollitas', label: 'Pollitas', emoji: '', color: 'bg-yellow-100 text-yellow-700' },
+  { value: 'alimento', label: 'Alimento', emoji: '', color: 'bg-orange-100 text-orange-700' },
+  { value: 'servicios_publicos', label: 'Servicios públicos', emoji: '', color: 'bg-blue-100 text-blue-700', legacy: ['agua', 'energia'] },
+  { value: 'mantenimiento', label: 'Mantenimiento', emoji: '', color: 'bg-gray-100 text-gray-700' },
+  { value: 'sanitario', label: 'Sanitario', emoji: '', color: 'bg-purple-100 text-purple-700' },
+  { value: 'equipos', label: 'Equipos', emoji: '', color: 'bg-indigo-100 text-indigo-700' },
+  { value: 'otro', label: 'Otro', emoji: '', color: 'bg-gray-100 text-gray-500' },
 ]
 
 /**
@@ -21,9 +21,9 @@ export const CATEGORIAS_COSTO: CategoriaCosto[] = [
  * pollitas en ponedoras, lechones en cerdos y pollitos en engorde.
  */
 const CATEGORIA_CRIA: Record<string, CategoriaCosto> = {
-  pollitas: { value: 'pollitas', label: 'Pollitas', emoji: '🐣', color: 'bg-yellow-100 text-yellow-700' },
-  lechones: { value: 'lechones', label: 'Lechones', emoji: '🐖', color: 'bg-pink-100 text-pink-700' },
-  pollitos: { value: 'pollitos', label: 'Pollitos', emoji: '🐥', color: 'bg-yellow-100 text-yellow-700' },
+  pollitas: { value: 'pollitas', label: 'Pollitas', emoji: '', color: 'bg-yellow-100 text-yellow-700' },
+  lechones: { value: 'lechones', label: 'Lechones', emoji: '', color: 'bg-pink-100 text-pink-700' },
+  pollitos: { value: 'pollitos', label: 'Pollitos', emoji: '', color: 'bg-yellow-100 text-yellow-700' },
 }
 
 /** Categorías de costo de una especie, según cómo llame a los animales que compra. */

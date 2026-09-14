@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { semanaDePostura } from '@/lib/postura'
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
+import { Ic } from '@/components/ui/icon'
 
 type Requerimientos = Database['public']['Tables']['requerimientos_nutricionales_aves']['Row']
 
@@ -75,7 +76,7 @@ export default function EditarRequerimientosModal({ open, onClose, loteId, finca
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>🎯 Requerimientos Nutricionales del Lote</DialogTitle>
+          <DialogTitle><Ic n="meta" /> Requerimientos Nutricionales del Lote</DialogTitle>
           <p className="text-sm text-gray-500">Cada cambio queda guardado como una nueva versión — no se pierde el historial anterior</p>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">

@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toSelectItems } from '@/lib/utils'
 import { hoyLocal } from '@/lib/fechas'
+import { Ic } from '@/components/ui/icon'
 
 interface Props {
   open: boolean
@@ -21,10 +22,10 @@ interface Props {
 }
 
 const ESTADOS = [
-  { value: 'operativo', label: '✅ Operativo' },
-  { value: 'mantenimiento', label: '🔧 En mantenimiento' },
-  { value: 'falla', label: '❌ Con falla' },
-  { value: 'inactivo', label: '⏸️ Inactivo' },
+  { value: 'operativo', label: 'Operativo' },
+  { value: 'mantenimiento', label: 'En mantenimiento' },
+  { value: 'falla', label: 'Con falla' },
+  { value: 'inactivo', label: 'Inactivo' },
 ]
 
 export default function RegistrarLogEquipoModal({ open, onClose, equipoId, equipoNombre, fincaId, onCreated }: Props) {
@@ -71,7 +72,7 @@ export default function RegistrarLogEquipoModal({ open, onClose, equipoId, equip
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>📋 Log de Equipo — {equipoNombre}</DialogTitle>
+          <DialogTitle><Ic n="diario" /> Log de Equipo — {equipoNombre}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -88,7 +89,7 @@ export default function RegistrarLogEquipoModal({ open, onClose, equipoId, equip
             </div>
             <div className="flex items-center gap-3 pt-6">
               <input type="checkbox" id="alerta" checked={form.alerta} onChange={e => set('alerta', e.target.checked)} className="h-4 w-4" />
-              <Label htmlFor="alerta" className="cursor-pointer text-red-600">🚨 Hay alerta</Label>
+              <Label htmlFor="alerta" className="cursor-pointer text-red-600"><Ic n="sirena" /> Hay alerta</Label>
             </div>
             {form.alerta && (
               <div className="col-span-2 space-y-1">

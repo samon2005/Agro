@@ -19,6 +19,7 @@ import {
   diaDeGestacion, diasDesde, edadTexto, fechaRepeticionCelo,
 } from '@/lib/cerdos'
 import { hoyLocal } from '@/lib/fechas'
+import { Ic } from '@/components/ui/icon'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
 type Reproductora = Database['public']['Tables']['reproductoras_cerdos']['Row']
@@ -112,17 +113,17 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
   }
 
   const subTabs: { id: SubTab; label: string; count: number }[] = [
-    { id: 'hembras', label: '🐖 Hembras', count: activas.length },
-    { id: 'servicios', label: '💉 Servicios', count: servicios.length },
-    { id: 'partos', label: '🍼 Partos', count: partos.length },
-    { id: 'destetes', label: '🐽 Destetes', count: destetes.length },
+    { id: 'hembras', label: 'Hembras', count: activas.length },
+    { id: 'servicios', label: 'Servicios', count: servicios.length },
+    { id: 'partos', label: 'Partos', count: partos.length },
+    { id: 'destetes', label: 'Destetes', count: destetes.length },
   ]
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h2 className="text-base font-semibold text-gray-800">Reproducción</h2>
+          <h2 className="text-lg font-semibold text-gray-800">Reproducción</h2>
           <p className="text-xs text-gray-400">
             Gestación de {DIAS_GESTACION} días · destete entre los 21 y los {DIAS_LACTANCIA_MAX} días · la cerda repite celo a los 21 días si no prendió
           </p>
@@ -168,20 +169,20 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
         <div className="space-y-2">
           {porConfirmar.length > 0 && (
             <div className="p-3 bg-blue-50 border border-blue-300 rounded-lg text-sm text-blue-800">
-              🔍 <strong>{porConfirmar.length}</strong> {porConfirmar.length === 1 ? 'hembra servida lleva' : 'hembras servidas llevan'} más
+              <Ic n="buscar" /> <strong>{porConfirmar.length}</strong> {porConfirmar.length === 1 ? 'hembra servida lleva' : 'hembras servidas llevan'} más
               de 21 días sin confirmar preñez: {porConfirmar.map(s => hembraPorId.get(s.reproductora_id)?.codigo ?? '—').join(', ')}
             </div>
           )}
           {partosProximos.length > 0 && (
             <div className="p-3 bg-purple-50 border border-purple-300 rounded-lg text-sm text-purple-800">
-              🍼 <strong>Partos esta semana:</strong> {partosProximos.map(s =>
+              <Ic n="tetero" /> <strong>Partos esta semana:</strong> {partosProximos.map(s =>
                 `${hembraPorId.get(s.reproductora_id)?.codigo ?? '—'} (${fmt(s.fecha_probable_parto!)})`
               ).join(', ')}
             </div>
           )}
           {destetesVencidos.length > 0 && (
             <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg text-sm text-amber-800">
-              🐽 <strong>{destetesVencidos.length}</strong> {destetesVencidos.length === 1 ? 'camada pasó' : 'camadas pasaron'} los {DIAS_LACTANCIA_MAX} días
+              <Ic n="cerdo" /> <strong>{destetesVencidos.length}</strong> {destetesVencidos.length === 1 ? 'camada pasó' : 'camadas pasaron'} los {DIAS_LACTANCIA_MAX} días
               de lactancia sin registrar destete.
             </div>
           )}
@@ -244,7 +245,7 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
             <div className="p-4 space-y-2">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}</div>
           ) : subTab === 'hembras' ? (
             hembras.length === 0 ? (
-              <Vacio emoji="🐖" texto="Sin hembras registradas" accion={() => { setHembraEditar(null); setModalHembra(true) }} etiqueta="+ Registrar hembra" />
+              <Vacio emoji="" texto="Sin hembras registradas" accion={() => { setHembraEditar(null); setModalHembra(true) }} etiqueta="+ Registrar hembra" />
             ) : (
               <div className="overflow-x-auto">
                 <Table>
@@ -281,13 +282,13 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center justify-end gap-1">
-                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={() => { setHembraEditar(h); setModalHembra(true) }}>✏️</Button>
+                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={() => { setHembraEditar(h); setModalHembra(true) }}><Ic n="editar" /></Button>
                               <Button
                                 size="sm" variant="ghost"
                                 className={confirmandoEliminar === `reproductoras_cerdos-${h.id}` ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
                                 onClick={() => eliminar('reproductoras_cerdos', h.id)}
                               >
-                                {confirmandoEliminar === `reproductoras_cerdos-${h.id}` ? '¿Confirmar?' : '🗑️'}
+                                {confirmandoEliminar === `reproductoras_cerdos-${h.id}` ? '¿Confirmar?' : ''}
                               </Button>
                             </div>
                           </TableCell>
@@ -300,7 +301,7 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
             )
           ) : subTab === 'servicios' ? (
             servicios.length === 0 ? (
-              <Vacio emoji="💉" texto="Sin servicios registrados" accion={() => { setServicioEditar(null); setModalServicio(true) }} etiqueta="+ Registrar servicio" />
+              <Vacio emoji="" texto="Sin servicios registrados" accion={() => { setServicioEditar(null); setModalServicio(true) }} etiqueta="+ Registrar servicio" />
             ) : (
               <div className="overflow-x-auto">
                 <Table>
@@ -323,7 +324,7 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
                         <TableRow key={s.id}>
                           <TableCell className="text-sm">{fmt(s.fecha_servicio)}</TableCell>
                           <TableCell className="text-sm font-medium">{h?.codigo ?? '—'}</TableCell>
-                          <TableCell className="text-sm text-gray-600">{s.tipo === 'monta_natural' ? '🐗 Monta' : '💉 Inseminación'}</TableCell>
+                          <TableCell className="text-sm text-gray-600">{s.tipo === 'monta_natural' ? 'Monta' : 'Inseminación'}</TableCell>
                           <TableCell className="text-sm text-gray-500">
                             {s.verraco ?? '—'}{s.numero_dosis ? ` · ${s.numero_dosis} dosis` : ''}
                           </TableCell>
@@ -334,11 +335,11 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
                             )}
                           </TableCell>
                           <TableCell className="text-xs">
-                            {s.estado === 'parido' ? <span className="text-green-700">🍼 Parió</span>
-                              : s.prenez_confirmada ? <span className="text-purple-700">✅ Preñez confirmada</span>
-                              : s.estado === 'repetido' ? <span className="text-amber-700">🔁 Repitió celo</span>
-                              : s.estado === 'fallido' ? <span className="text-red-600">❌ Falló</span>
-                              : <span className="text-blue-700">⏳ Por confirmar (celo el {fmt(fechaRepeticionCelo(s.fecha_servicio))})</span>}
+                            {s.estado === 'parido' ? <span className="text-green-700"><Ic n="tetero" /> Parió</span>
+                              : s.prenez_confirmada ? <span className="text-purple-700"><Ic n="listo" /> Preñez confirmada</span>
+                              : s.estado === 'repetido' ? <span className="text-amber-700"><Ic n="repetir" /> Repitió celo</span>
+                              : s.estado === 'fallido' ? <span className="text-red-600"><Ic n="x" /> Falló</span>
+                              : <span className="text-blue-700"><Ic n="reloj" /> Por confirmar (celo el {fmt(fechaRepeticionCelo(s.fecha_servicio))})</span>}
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center justify-end gap-1">
@@ -350,13 +351,13 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
                                   + Parto
                                 </Button>
                               )}
-                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={() => { setServicioEditar(s); setModalServicio(true) }}>✏️</Button>
+                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={() => { setServicioEditar(s); setModalServicio(true) }}><Ic n="editar" /></Button>
                               <Button
                                 size="sm" variant="ghost"
                                 className={confirmandoEliminar === `servicios_cerdos-${s.id}` ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
                                 onClick={() => eliminar('servicios_cerdos', s.id)}
                               >
-                                {confirmandoEliminar === `servicios_cerdos-${s.id}` ? '¿Confirmar?' : '🗑️'}
+                                {confirmandoEliminar === `servicios_cerdos-${s.id}` ? '¿Confirmar?' : ''}
                               </Button>
                             </div>
                           </TableCell>
@@ -369,7 +370,7 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
             )
           ) : subTab === 'partos' ? (
             partos.length === 0 ? (
-              <Vacio emoji="🍼" texto="Sin partos registrados" accion={() => { setServicioParaParto(null); setModalParto(true) }} etiqueta="+ Registrar parto" />
+              <Vacio emoji="" texto="Sin partos registrados" accion={() => { setServicioParaParto(null); setModalParto(true) }} etiqueta="+ Registrar parto" />
             ) : (
               <div className="overflow-x-auto">
                 <Table>
@@ -407,7 +408,7 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
                           </TableCell>
                           <TableCell className="text-xs">
                             {destetado
-                              ? <span className="text-green-700">✅ Destetada</span>
+                              ? <span className="text-green-700"><Ic n="listo" /> Destetada</span>
                               : <span className={dias > DIAS_LACTANCIA_MAX ? 'text-amber-700 font-medium' : 'text-gray-500'}>Día {dias}</span>}
                           </TableCell>
                           <TableCell>
@@ -425,7 +426,7 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
                                 className={confirmandoEliminar === `partos_cerdos-${p.id}` ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
                                 onClick={() => eliminar('partos_cerdos', p.id)}
                               >
-                                {confirmandoEliminar === `partos_cerdos-${p.id}` ? '¿Confirmar?' : '🗑️'}
+                                {confirmandoEliminar === `partos_cerdos-${p.id}` ? '¿Confirmar?' : ''}
                               </Button>
                             </div>
                           </TableCell>
@@ -438,7 +439,7 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
             )
           ) : (
             destetes.length === 0 ? (
-              <Vacio emoji="🐽" texto="Sin destetes registrados" accion={() => { setPartoParaDestete(null); setModalDestete(true) }} etiqueta="+ Registrar destete" />
+              <Vacio emoji="" texto="Sin destetes registrados" accion={() => { setPartoParaDestete(null); setModalDestete(true) }} etiqueta="+ Registrar destete" />
             ) : (
               <div className="overflow-x-auto">
                 <Table>
@@ -472,7 +473,7 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
                                 className={confirmandoEliminar === `destetes_cerdos-${d.id}` ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
                                 onClick={() => eliminar('destetes_cerdos', d.id)}
                               >
-                                {confirmandoEliminar === `destetes_cerdos-${d.id}` ? '¿Confirmar?' : '🗑️'}
+                                {confirmandoEliminar === `destetes_cerdos-${d.id}` ? '¿Confirmar?' : ''}
                               </Button>
                             </div>
                           </TableCell>

@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import type { Database } from '@/types/database'
 import { hoyLocal, aFechaLocal } from '@/lib/fechas'
+import { Ic } from '@/components/ui/icon'
 
 type Revision = Database['public']['Tables']['revisiones_calidad_huevo_aves']['Row']
 type ProduccionDiaria = Database['public']['Tables']['produccion_diaria_aves']['Row']
@@ -147,7 +148,7 @@ export default function RevisionCalidadHuevo({ loteId, fincaId, fechaInicioPostu
   return (
     <Card>
       <CardHeader className="pb-2 flex flex-row items-center justify-between">
-        <CardTitle className="text-sm font-semibold text-gray-700">🥚 Revisión semanal de calidad (clasificación por peso)</CardTitle>
+        <CardTitle className="text-sm font-semibold text-gray-700"><Ic n="huevo" /> Revisión semanal de calidad (clasificación por peso)</CardTitle>
         <Button size="sm" onClick={() => setModalOpen(true)} className="bg-amber-600 hover:bg-amber-700 text-white">
           + Revisión semanal
         </Button>
@@ -155,7 +156,7 @@ export default function RevisionCalidadHuevo({ loteId, fincaId, fechaInicioPostu
       <CardContent className="space-y-3">
         <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
           <p className="text-xs font-semibold text-amber-700 mb-1">
-            📅 Semana en curso (automático): {formatDateCorta(inicioSemana)} – {formatDateCorta(finSemana)}
+            <Ic n="calendario" /> Semana en curso (automático): {formatDateCorta(inicioSemana)} – {formatDateCorta(finSemana)}
           </p>
           <p className="text-xs text-amber-600 mb-2">Se calcula solo con lo que ya registraste día a día — va aumentando a medida que pasan los días</p>
           <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-center">
@@ -209,7 +210,7 @@ export default function RevisionCalidadHuevo({ loteId, fincaId, fechaInicioPostu
                         className={confirmandoEliminar === r.id ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
                         onClick={() => eliminarRevision(r)}
                       >
-                        {confirmandoEliminar === r.id ? '¿Confirmar?' : '🗑️'}
+                        {confirmandoEliminar === r.id ? '¿Confirmar?' : ''}
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -223,7 +224,7 @@ export default function RevisionCalidadHuevo({ loteId, fincaId, fechaInicioPostu
       <Dialog open={modalOpen} onOpenChange={v => !v && setModalOpen(false)}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>🥚 Revisión semanal de calidad de huevo</DialogTitle>
+            <DialogTitle><Ic n="huevo" /> Revisión semanal de calidad de huevo</DialogTitle>
             <p className="text-sm text-gray-500">Precargado con lo registrado día a día en la semana en curso — ajústalo si la máquina cuenta-huevos difiere</p>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">

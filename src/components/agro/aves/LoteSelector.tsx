@@ -3,6 +3,7 @@
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import type { Database } from '@/types/database'
+import { Ic } from '@/components/ui/icon'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 
@@ -23,8 +24,8 @@ const ESTADO_BADGE_CLASS: Record<string, string> = {
 export type VistaGlobal = 'huevos' | 'ventas'
 
 const VISTAS_GLOBALES: { id: VistaGlobal; label: string }[] = [
-  { id: 'huevos', label: '🥚 Huevos (toda la finca)' },
-  { id: 'ventas', label: '🧾 Ventas (toda la finca)' },
+  { id: 'huevos', label: 'Huevos (toda la finca)' },
+  { id: 'ventas', label: 'Ventas (toda la finca)' },
 ]
 
 interface Props {
@@ -65,7 +66,7 @@ export default function LoteSelector({ lotes, loteActual, vistaGlobal, onSelect,
               : 'bg-white text-gray-700 border-gray-300 hover:border-green-400 hover:text-green-700'
           )}
         >
-          🐔 {lote.nombre}
+          <Ic n="ave" /> {lote.nombre}
           {lote.estado !== 'activo' && (
             <span
               className={cn(

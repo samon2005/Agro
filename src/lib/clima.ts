@@ -50,30 +50,30 @@ export function recomendacionesAmbientales(params: {
 
   if (tempInterior != null && tempInterior > 30) {
     if (tempExt != null && tempExt > 28) {
-      recomendaciones.push(`🌡️ Temperatura interior alta (${tempInterior}°C) y el ambiente exterior también está caluroso (${tempExt}°C) — aumenta la ventilación y considera nebulización para bajar la sensación térmica.`)
+      recomendaciones.push(`Temperatura interior alta (${tempInterior}°C) y el ambiente exterior también está caluroso (${tempExt}°C) — aumenta la ventilación y considera nebulización para bajar la sensación térmica.`)
     } else {
-      recomendaciones.push(`🌡️ Temperatura interior alta (${tempInterior}°C) aunque el exterior está más fresco (${tempExt ?? '—'}°C) — abre cortinas y mejora la circulación de aire para aprovechar el ambiente exterior.`)
+      recomendaciones.push(`Temperatura interior alta (${tempInterior}°C) aunque el exterior está más fresco (${tempExt ?? '—'}°C) — abre cortinas y mejora la circulación de aire para aprovechar el ambiente exterior.`)
     }
   } else if (tempInterior != null && tempExt != null && tempExt < 15 && tempInterior < 18) {
-    recomendaciones.push(`❄️ Ambiente exterior frío (${tempExt}°C) y temperatura interior baja (${tempInterior}°C) — revisa cortinas y calefacción para evitar estrés por frío.`)
+    recomendaciones.push(`Ambiente exterior frío (${tempExt}°C) y temperatura interior baja (${tempInterior}°C) — revisa cortinas y calefacción para evitar estrés por frío.`)
   }
 
   if (humedadInterior != null && humedadInterior > 85) {
-    recomendaciones.push(`💧 Humedad interior muy alta (${humedadInterior}%) — mejora la ventilación para reducir el riesgo de enfermedades respiratorias y cama húmeda.`)
+    recomendaciones.push(`Humedad interior muy alta (${humedadInterior}%) — mejora la ventilación para reducir el riesgo de enfermedades respiratorias y cama húmeda.`)
   } else if (humedadInterior != null && humedadInterior < 40) {
-    recomendaciones.push(`💧 Humedad interior baja (${humedadInterior}%) — considera nebulización ligera, el ambiente muy seco favorece el polvo y problemas respiratorios.`)
+    recomendaciones.push(`Humedad interior baja (${humedadInterior}%) — considera nebulización ligera, el ambiente muy seco favorece el polvo y problemas respiratorios.`)
   }
 
   if (nh3 != null && nh3 > 25) {
-    recomendaciones.push(`🌬️ Amoníaco elevado (${nh3} ppm) — aumenta la ventilación y revisa el manejo de la cama; niveles altos afectan las vías respiratorias.`)
+    recomendaciones.push(`Amoníaco elevado (${nh3} ppm) — aumenta la ventilación y revisa el manejo de la cama; niveles altos afectan las vías respiratorias.`)
   }
 
   if (co2 != null && co2 > 3000) {
-    recomendaciones.push(`🌬️ CO₂ elevado (${co2} ppm) — mejora el recambio de aire del galpón.`)
+    recomendaciones.push(`CO₂ elevado (${co2} ppm) — mejora el recambio de aire del galpón.`)
   }
 
   if (recomendaciones.length === 0) {
-    recomendaciones.push('✅ Las condiciones ambientales registradas están dentro de rangos normales.')
+    recomendaciones.push('Las condiciones ambientales registradas están dentro de rangos normales.')
   }
 
   return recomendaciones

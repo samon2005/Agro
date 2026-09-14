@@ -18,6 +18,7 @@ import HorariosAlimentacion from './HorariosAlimentacion'
 import RegistrarEntradaAlimentoModal from './RegistrarEntradaAlimentoModal'
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
+import { Ic } from '@/components/ui/icon'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 type ProduccionDiaria = Database['public']['Tables']['produccion_diaria_aves']['Row']
@@ -165,7 +166,7 @@ export default function TabAlimentoAves({ lotes }: Props) {
     return (
       <Card className="border-dashed border-gray-300">
         <CardContent className="py-16 text-center">
-          <p className="text-4xl mb-2">🌾</p>
+          <p className="text-4xl mb-2"><Ic n="alimento" /></p>
           <p className="text-gray-600 font-medium">No hay lotes de aves ponedoras activos</p>
           <p className="text-sm text-gray-400">Crea un lote en la sección Galpones para ver su alimentación</p>
         </CardContent>
@@ -189,9 +190,9 @@ export default function TabAlimentoAves({ lotes }: Props) {
   const costoHoy = tipoActual?.precio_bulto ? bultosHoy * tipoActual.precio_bulto : null
 
   const subTabItems: { id: SubTab; label: string }[] = [
-    { id: 'alimento', label: '🌾 Alimento' },
-    { id: 'inventario', label: '📦 Inventario' },
-    { id: 'balance', label: '⚖️ Balance' },
+    { id: 'alimento', label: 'Alimento' },
+    { id: 'inventario', label: 'Inventario' },
+    { id: 'balance', label: 'Balance' },
   ]
 
   return (
@@ -231,7 +232,7 @@ export default function TabAlimentoAves({ lotes }: Props) {
             + Registrar entrada
           </Button>
         ) : (
-          <Button variant="outline" className="text-sm" onClick={() => setModalRequerimientos(true)}>🎯 Requerimientos</Button>
+          <Button variant="outline" className="text-sm" onClick={() => setModalRequerimientos(true)}><Ic n="meta" /> Requerimientos</Button>
         )}
       </div>
 
@@ -279,20 +280,20 @@ export default function TabAlimentoAves({ lotes }: Props) {
                         <TableCell className="text-sm text-gray-600">{t.tipo_alimento_categoria ? CATEGORIA_LABEL[t.tipo_alimento_categoria] ?? t.tipo_alimento_categoria : '—'}</TableCell>
                         <TableCell>
                           <div className="flex items-center justify-end gap-1">
-                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={() => { setTipoEditar(t); setModalTipo(true) }}>✏️</Button>
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={() => { setTipoEditar(t); setModalTipo(true) }}><Ic n="editar" /></Button>
                             <Button
                               size="sm" variant="ghost" className="h-7 px-2 text-xs text-gray-500"
                               title={t.activo ? 'Desactivar' : 'Reactivar'}
                               onClick={() => toggleActivo(t)}
                             >
-                              {t.activo ? '🚫' : '↩️'}
+                              {t.activo ? '' : '↩️'}
                             </Button>
                             <Button
                               size="sm" variant="ghost"
                               className={confirmandoEliminar === t.id ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
                               onClick={() => eliminarTipo(t)}
                             >
-                              {confirmandoEliminar === t.id ? '¿Confirmar?' : '🗑️'}
+                              {confirmandoEliminar === t.id ? '¿Confirmar?' : ''}
                             </Button>
                           </div>
                         </TableCell>
@@ -327,7 +328,7 @@ export default function TabAlimentoAves({ lotes }: Props) {
       {subTab === 'alimento' && alimentoActivo?.consumo_activo_kg != null && sinHorarios && (
         <div className="px-4 py-3 rounded-lg border border-amber-300 bg-amber-50">
           <p className="text-sm font-semibold text-amber-800">
-            ⚠️ Falta repartir el consumo en horarios de alimentación
+            <Ic n="alerta" /> Falta repartir el consumo en horarios de alimentación
           </p>
           <p className="text-xs text-amber-700 mt-0.5">
             El galpón consume {alimentoActivo.consumo_activo_kg} kg/día. Agrega abajo los horarios
@@ -374,7 +375,7 @@ export default function TabAlimentoAves({ lotes }: Props) {
                                 size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500"
                                 onClick={() => { setConsumoEditar(c); setModalConsumo(true) }}
                               >
-                                ✏️
+                                <Ic n="editar" />
                               </Button>
                               <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-red-600" onClick={() => quitarConsumo(c)}>Quitar</Button>
                             </div>
@@ -469,14 +470,14 @@ export default function TabAlimentoAves({ lotes }: Props) {
                                   size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500"
                                   onClick={() => { setEntradaEditar(e); setModalEntrada(true) }}
                                 >
-                                  ✏️
+                                  <Ic n="editar" />
                                 </Button>
                                 <Button
                                   size="sm" variant="ghost"
                                   className={confirmandoEliminar === e.id ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
                                   onClick={() => eliminarEntrada(e)}
                                 >
-                                  {confirmandoEliminar === e.id ? '¿Confirmar?' : '🗑️'}
+                                  {confirmandoEliminar === e.id ? '¿Confirmar?' : ''}
                                 </Button>
                               </div>
                             </TableCell>
@@ -496,7 +497,7 @@ export default function TabAlimentoAves({ lotes }: Props) {
         <>
           {!hoy && (
             <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg text-sm text-amber-800">
-              ⚠️ Este lote no tiene registro de producción reciente. Los cálculos usan las aves activas del lote pero no hay consumo de alimento registrado.
+              <Ic n="alerta" /> Este lote no tiene registro de producción reciente. Los cálculos usan las aves activas del lote pero no hay consumo de alimento registrado.
             </div>
           )}
 
@@ -544,7 +545,7 @@ export default function TabAlimentoAves({ lotes }: Props) {
               {requerimientos ? (
                 <p className="text-xs text-gray-400">Requerimiento vigente desde {fmt(requerimientos.vigente_desde)}</p>
               ) : (
-                <p className="text-xs text-amber-600">Usando valores por defecto — configúralos en &quot;🎯 Requerimientos&quot;</p>
+                <p className="text-xs text-amber-600">Usando valores por defecto — configúralos en &quot; Requerimientos&quot;</p>
               )}
             </CardHeader>
             <CardContent className="p-0">
@@ -587,9 +588,9 @@ export default function TabAlimentoAves({ lotes }: Props) {
                             {sinDatos ? (
                               <Badge variant="outline" className="text-[10px]">Sin datos</Badge>
                             ) : bien ? (
-                              <Badge className="bg-green-100 text-green-700 text-[10px]">✓ Suficiente</Badge>
+                              <Badge className="bg-green-100 text-green-700 text-[10px]"><Ic n="check" /> Suficiente</Badge>
                             ) : (
-                              <Badge className="bg-red-100 text-red-700 text-[10px]">⚠ Insuficiente</Badge>
+                              <Badge className="bg-red-100 text-red-700 text-[10px]"><Ic n="alerta" /> Insuficiente</Badge>
                             )}
                           </TableCell>
                         </TableRow>

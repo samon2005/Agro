@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Ic } from '@/components/ui/icon'
 import { toast } from 'sonner'
 
 export default function LoginPage() {
@@ -30,68 +30,89 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-emerald-100 p-4">
-      <div className="w-full max-w-md space-y-6">
-        <div className="text-center">
-          <div className="flex items-center justify-center gap-2 mb-2">
-            <span className="text-4xl">🌿</span>
-          </div>
-          <h1 className="text-3xl font-bold text-green-900">AgroGestión</h1>
-          <p className="text-green-700 mt-1">Plataforma para Zootecnistas Colombianos</p>
+    <div className="grid min-h-screen bg-background lg:grid-cols-[1.1fr_1fr]">
+      {/* Lado de marca: un plano de color, tipografía grande y una frase */}
+      <aside className="relative hidden flex-col justify-between overflow-hidden bg-green-900 p-12 text-green-50 lg:flex">
+        <div className="flex items-center gap-2.5">
+          <span className="flex size-9 items-center justify-center rounded-lg bg-green-50/10 ring-1 ring-green-50/20">
+            <Ic n="hoja" className="size-[18px]" strokeWidth={2} />
+          </span>
+          <span className="font-heading text-2xl font-medium tracking-tight">AgroGestión</span>
         </div>
 
-        <Card className="border-green-200 shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-green-900">Iniciar Sesión</CardTitle>
-            <CardDescription>Ingresa tus credenciales para acceder a tu finca</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div className="space-y-2">
-                <label htmlFor="email" className="text-sm font-medium text-gray-700">
-                  Correo Electrónico
-                </label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="tu@correo.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  className="border-green-200 focus:border-green-500"
-                />
-              </div>
-              <div className="space-y-2">
-                <label htmlFor="password" className="text-sm font-medium text-gray-700">
-                  Contraseña
-                </label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  className="border-green-200 focus:border-green-500"
-                />
-              </div>
-              <Button
-                type="submit"
-                className="w-full bg-green-700 hover:bg-green-800 text-white"
-                disabled={loading}
-              >
-                {loading ? 'Ingresando...' : 'Ingresar'}
-              </Button>
-            </form>
-            <p className="text-center text-sm text-gray-600 mt-4">
-              ¿No tienes cuenta?{' '}
-              <Link href="/register" className="text-green-700 font-medium hover:underline">
-                Regístrate aquí
-              </Link>
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+        <div className="pagina-entra max-w-md">
+          <h1 className="font-heading text-[2.75rem] leading-[1.05] font-medium tracking-tight text-white">
+            Lo que pasa en la finca, anotado el mismo día.
+          </h1>
+          <p className="mt-5 text-[0.9375rem] leading-relaxed text-green-100/80">
+            Producción, alimento, sanidad y ventas de tus galpones y corrales, en un solo
+            lugar y sin cuadernos.
+          </p>
+        </div>
+
+        <p className="text-xs text-green-100/50">Hecho para fincas colombianas</p>
+
+        {/* Textura sutil: líneas finas que recuerdan surcos */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-[0.07]"
+          style={{ backgroundImage: 'repeating-linear-gradient(115deg, #fff 0 1px, transparent 1px 28px)' }}
+        />
+      </aside>
+
+      {/* Formulario */}
+      <main className="flex items-center justify-center p-6 sm:p-12">
+        <div className="pagina-entra w-full max-w-sm">
+          <div className="mb-8 flex items-center gap-2.5 lg:hidden">
+            <span className="flex size-8 items-center justify-center rounded-lg bg-green-700 text-white">
+              <Ic n="hoja" className="size-4" strokeWidth={2} />
+            </span>
+            <span className="font-heading text-xl font-medium tracking-tight text-gray-900">AgroGestión</span>
+          </div>
+
+          <h2 className="text-3xl font-medium text-gray-900">Iniciar sesión</h2>
+          <p className="mt-1.5 text-sm text-gray-500">Entra con el correo de tu cuenta.</p>
+
+          <form onSubmit={handleLogin} className="mt-8 space-y-5">
+            <div className="space-y-1.5">
+              <label htmlFor="email" className="text-sm font-medium text-gray-700">Correo electrónico</label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="tu@correo.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoComplete="email"
+                className="h-10"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="password" className="text-sm font-medium text-gray-700">Contraseña</label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                autoComplete="current-password"
+                className="h-10"
+              />
+            </div>
+            <Button type="submit" size="lg" className="w-full" disabled={loading}>
+              {loading ? 'Ingresando…' : 'Ingresar'}
+            </Button>
+          </form>
+
+          <p className="mt-6 text-center text-sm text-gray-500">
+            ¿No tienes cuenta?{' '}
+            <Link href="/register" className="font-medium text-green-800 underline-offset-4 hover:underline">
+              Regístrate
+            </Link>
+          </p>
+        </div>
+      </main>
     </div>
   )
 }

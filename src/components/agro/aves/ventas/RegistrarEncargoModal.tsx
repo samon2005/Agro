@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
+import { Ic } from '@/components/ui/icon'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 type Encargo = Database['public']['Tables']['encargos_huevos_aves']['Row']
@@ -91,7 +92,7 @@ export default function RegistrarEncargoModal({ open, onClose, lote, encargoExis
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{encargoExistente ? '✏️ Editar Encargo' : '📋 Registrar Encargo Futuro'}</DialogTitle>
+          <DialogTitle>{encargoExistente ? 'Editar Encargo' : 'Registrar Encargo Futuro'}</DialogTitle>
           <p className="text-sm text-gray-500">
             Huevo comprometido que todavía no se ha entregado. Al marcarlo como entregado se
             convierte en venta y sale del inventario.
@@ -135,7 +136,7 @@ export default function RegistrarEncargoModal({ open, onClose, lote, encargoExis
 
           {noAlcanza && (
             <div className="p-2 bg-amber-50 border border-amber-300 rounded text-xs text-amber-800">
-              ⚠️ El encargo supera lo que hay hoy en inventario. Puedes registrarlo igual: para la
+              <Ic n="alerta" /> El encargo supera lo que hay hoy en inventario. Puedes registrarlo igual: para la
               fecha de entrega el galpón habrá puesto más huevo.
             </div>
           )}

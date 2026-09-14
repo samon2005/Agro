@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { CurrencyInput } from '@/components/ui/currency-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Ic } from '@/components/ui/icon'
 
 type Operario = { id: string; full_name: string | null; cargo: string | null; pago_monto: number | null; pago_periodo: string | null }
 
@@ -62,7 +63,7 @@ export default function EditarOperarioModal({ open, onClose, fincaId, operario, 
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>✏️ Editar — {operario.full_name}</DialogTitle>
+          <DialogTitle><Ic n="editar" /> Editar — {operario.full_name}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">

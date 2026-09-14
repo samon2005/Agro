@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
 import { fechaProbableParto, fechaRepeticionCelo, DIAS_GESTACION } from '@/lib/cerdos'
+import { Ic } from '@/components/ui/icon'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
 type Reproductora = Database['public']['Tables']['reproductoras_cerdos']['Row']
@@ -26,10 +27,10 @@ interface Props {
 }
 
 const ESTADOS_SERVICIO = [
-  { value: 'pendiente', label: '⏳ Pendiente de confirmar' },
-  { value: 'confirmado', label: '✅ Preñez confirmada' },
-  { value: 'repetido', label: '🔁 Repitió celo' },
-  { value: 'fallido', label: '❌ Falló' },
+  { value: 'pendiente', label: 'Pendiente de confirmar' },
+  { value: 'confirmado', label: 'Preñez confirmada' },
+  { value: 'repetido', label: 'Repitió celo' },
+  { value: 'fallido', label: 'Falló' },
 ]
 
 function defaultForm(s?: Servicio | null) {
@@ -104,7 +105,7 @@ export default function RegistrarServicioModal({ open, onClose, lote, hembras, s
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{servicioExistente ? '✏️ Editar Servicio' : '💉 Registrar Servicio'}</DialogTitle>
+          <DialogTitle>{servicioExistente ? 'Editar Servicio' : 'Registrar Servicio'}</DialogTitle>
           <p className="text-sm text-gray-500">Monta natural o inseminación. La gestación dura {DIAS_GESTACION} días.</p>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -137,8 +138,8 @@ export default function RegistrarServicioModal({ open, onClose, lote, hembras, s
               <Select value={form.tipo} onValueChange={v => set('tipo', v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="inseminacion">💉 Inseminación artificial</SelectItem>
-                  <SelectItem value="monta_natural">🐗 Monta natural</SelectItem>
+                  <SelectItem value="inseminacion"><Ic n="vacuna" /> Inseminación artificial</SelectItem>
+                  <SelectItem value="monta_natural"><Ic n="cerdo" /> Monta natural</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -174,8 +175,8 @@ export default function RegistrarServicioModal({ open, onClose, lote, hembras, s
 
           {parto && celo && (
             <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg text-xs text-purple-800 space-y-1">
-              <p>🍼 <strong>Parto probable:</strong> {fmt(parto)} ({DIAS_GESTACION} días desde el servicio)</p>
-              <p>🔁 <strong>Si repite celo</strong>, sería alrededor del {fmt(celo)} — a los 21 días. Si vuelve a
+              <p><Ic n="tetero" /> <strong>Parto probable:</strong> {fmt(parto)} ({DIAS_GESTACION} días desde el servicio)</p>
+              <p><Ic n="repetir" /> <strong>Si repite celo</strong>, sería alrededor del {fmt(celo)} — a los 21 días. Si vuelve a
                  entrar en celo, este servicio no prendió.</p>
             </div>
           )}

@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { cn } from '@/lib/utils'
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
+import { Ic } from '@/components/ui/icon'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
 type Vacunacion = Database['public']['Tables']['vacunaciones_cerdos']['Row']
@@ -156,7 +157,7 @@ export default function TabSanitarioCerdos({ loteActual }: Props) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold text-gray-800">Sanitario y Bioseguridad</h2>
+        <h2 className="text-lg font-semibold text-gray-800">Sanitario y Bioseguridad</h2>
         <div>
           {subTab === 'vacunas' && <Button onClick={() => setShowFormVac(v => !v)} className="bg-green-700 hover:bg-green-800 text-white text-sm">+ Registrar vacuna</Button>}
           {subTab === 'desparasitaciones' && <Button onClick={() => setShowFormDesp(v => !v)} className="bg-green-700 hover:bg-green-800 text-white text-sm">+ Desparasitar</Button>}
@@ -166,9 +167,9 @@ export default function TabSanitarioCerdos({ loteActual }: Props) {
 
       <div className="flex gap-2 border-b border-gray-200 pb-0">
         {[
-          { id: 'vacunas' as const, label: '💉 Vacunaciones', count: vacunas.length },
-          { id: 'desparasitaciones' as const, label: '🔬 Desparasitaciones', count: desparasitaciones.length },
-          { id: 'desinfecciones' as const, label: '🧴 Desinfección', count: desinfecciones.length },
+          { id: 'vacunas' as const, label: 'Vacunaciones', count: vacunas.length },
+          { id: 'desparasitaciones' as const, label: 'Desparasitaciones', count: desparasitaciones.length },
+          { id: 'desinfecciones' as const, label: 'Desinfección', count: desinfecciones.length },
         ].map(t => (
           <button key={t.id} onClick={() => setSubTab(t.id)}
             className={cn('px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors', subTab === t.id ? 'border-green-600 text-green-700' : 'border-transparent text-gray-500 hover:text-gray-700')}>
@@ -270,7 +271,7 @@ export default function TabSanitarioCerdos({ loteActual }: Props) {
             <div className="p-4 space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}</div>
           ) : subTab === 'desinfecciones' ? (
             desinfecciones.length === 0 ? (
-              <div className="py-10 text-center"><p className="text-4xl mb-2">🧴</p><p className="text-gray-500">Sin desinfecciones registradas</p></div>
+              <div className="py-10 text-center"><p className="text-4xl mb-2"><Ic n="desinfeccion" /></p><p className="text-gray-500">Sin desinfecciones registradas</p></div>
             ) : (
               <div className="overflow-x-auto">
                 <Table>
@@ -294,7 +295,7 @@ export default function TabSanitarioCerdos({ loteActual }: Props) {
             )
           ) : subTab === 'vacunas' ? (
             vacunas.length === 0 ? (
-              <div className="py-10 text-center"><p className="text-4xl mb-2">💉</p><p className="text-gray-500">Sin vacunaciones registradas</p></div>
+              <div className="py-10 text-center"><p className="text-4xl mb-2"><Ic n="vacuna" /></p><p className="text-gray-500">Sin vacunaciones registradas</p></div>
             ) : (
               <div className="overflow-x-auto">
                 <Table>
@@ -321,7 +322,7 @@ export default function TabSanitarioCerdos({ loteActual }: Props) {
             )
           ) : (
             desparasitaciones.length === 0 ? (
-              <div className="py-10 text-center"><p className="text-4xl mb-2">🔬</p><p className="text-gray-500">Sin desparasitaciones registradas</p></div>
+              <div className="py-10 text-center"><p className="text-4xl mb-2"><Ic n="laboratorio" /></p><p className="text-gray-500">Sin desparasitaciones registradas</p></div>
             ) : (
               <div className="overflow-x-auto">
                 <Table>

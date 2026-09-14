@@ -132,7 +132,7 @@ export default function RegistrarVacunacionModal({ open, onClose, loteId, fincaI
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{vacunacionExistente ? '✏️ Editar Vacunación' : '💉 Registrar Vacunación'}</DialogTitle>
+          <DialogTitle>{vacunacionExistente ? 'Editar Vacunación' : 'Registrar Vacunación'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">

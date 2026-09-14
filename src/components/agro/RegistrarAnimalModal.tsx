@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
+import { Ic } from '@/components/ui/icon'
 
 type Especie = { id: string; nombre: string }
 type Raza = { id: string; nombre: string }
@@ -74,7 +75,7 @@ export default function RegistrarAnimalModal({ open, onClose, fincaId, onCreated
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-green-900">
-            <span>🐄</span> Registrar Animal
+            <span><Ic n="ganado" /></span> Registrar Animal
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 mt-2">

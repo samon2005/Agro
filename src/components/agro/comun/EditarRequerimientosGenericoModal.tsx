@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { dbGenerico, type ConfigEspecie } from '@/lib/especiesConfig'
 import { hoyLocal } from '@/lib/fechas'
+import { Ic } from '@/components/ui/icon'
 
 export interface RequerimientoGenerico {
   id: string
@@ -93,7 +94,7 @@ export default function EditarRequerimientosGenericoModal({ open, onClose, loteI
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>🎯 Requerimientos Nutricionales del Lote</DialogTitle>
+          <DialogTitle><Ic n="meta" /> Requerimientos Nutricionales del Lote</DialogTitle>
           <p className="text-sm text-gray-500">Cada cambio queda guardado como una nueva versión — no se pierde el historial anterior</p>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">

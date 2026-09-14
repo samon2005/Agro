@@ -18,6 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { hoyLocal } from '@/lib/fechas'
+import { Ic } from '@/components/ui/icon'
 
 type Operario = { id: string; full_name: string | null; cargo: string | null; activo: boolean; email: string | null; pago_monto: number | null; pago_periodo: string | null }
 
@@ -132,7 +133,7 @@ export default function OperariosPage() {
   return (
     <div className="p-8 space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><span>👷</span> Operarios</h2>
+        <h2 className="text-3xl font-medium text-gray-900">Operarios</h2>
         <p className="text-gray-500 mt-1">Equipo de trabajo, turnos y tareas de la finca</p>
       </div>
 
@@ -146,7 +147,7 @@ export default function OperariosPage() {
             <div className="p-4 space-y-2">{[...Array(2)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
           ) : operarios.length === 0 ? (
             <div className="py-10 text-center text-gray-400">
-              <p className="text-3xl mb-2">👷</p>
+              <p className="text-3xl mb-2"><Ic n="operario" /></p>
               <p>Sin operarios registrados</p>
             </div>
           ) : (
@@ -185,7 +186,7 @@ export default function OperariosPage() {
       </Card>
 
       <div className="flex gap-2 border-b border-gray-200">
-        {([{ id: 'turnos' as const, label: '🕐 Turnos' }, { id: 'tareas' as const, label: '📋 Tareas' }]).map(t => (
+        {([{ id: 'turnos' as const, label: 'Turnos' }, { id: 'tareas' as const, label: 'Tareas' }]).map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
             className={cn('px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors', tab === t.id ? 'border-green-600 text-green-700' : 'border-transparent text-gray-500 hover:text-gray-700')}>
             {t.label}
@@ -221,7 +222,7 @@ export default function OperariosPage() {
           )}
           <Card><CardContent className="p-0">
             {turnos.length === 0 ? (
-              <div className="py-10 text-center text-gray-400"><p className="text-3xl mb-2">🕐</p><p>Sin turnos registrados</p></div>
+              <div className="py-10 text-center text-gray-400"><p className="text-3xl mb-2"><Ic n="reloj" /></p><p>Sin turnos registrados</p></div>
             ) : (
               <Table>
                 <TableHeader><TableRow><TableHead>Fecha</TableHead><TableHead>Operario</TableHead><TableHead>Horario</TableHead><TableHead>Área</TableHead></TableRow></TableHeader>
@@ -265,7 +266,7 @@ export default function OperariosPage() {
           )}
           <Card><CardContent className="p-0">
             {tareas.length === 0 ? (
-              <div className="py-10 text-center text-gray-400"><p className="text-3xl mb-2">📋</p><p>Sin tareas registradas</p></div>
+              <div className="py-10 text-center text-gray-400"><p className="text-3xl mb-2"><Ic n="diario" /></p><p>Sin tareas registradas</p></div>
             ) : (
               <Table>
                 <TableHeader><TableRow><TableHead>Fecha</TableHead><TableHead>Descripción</TableHead><TableHead>Operario</TableHead><TableHead>Estado</TableHead></TableRow></TableHeader>

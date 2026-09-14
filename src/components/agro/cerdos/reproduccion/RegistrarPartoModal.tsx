@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
+import { Ic } from '@/components/ui/icon'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
 type Reproductora = Database['public']['Tables']['reproductoras_cerdos']['Row']
@@ -106,7 +107,7 @@ export default function RegistrarPartoModal({ open, onClose, lote, hembras, serv
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>🍼 Registrar Parto</DialogTitle>
+          <DialogTitle><Ic n="tetero" /> Registrar Parto</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -183,7 +184,7 @@ export default function RegistrarPartoModal({ open, onClose, lote, hembras, serv
             </p>
             {pesoPromedio && Number(pesoPromedio) < 1 && (
               <p className="text-xs text-amber-700">
-                ⚠️ Un lechón por debajo de 1 kg al nacer tiene mucho menos chance de llegar al destete.
+                <Ic n="alerta" /> Un lechón por debajo de 1 kg al nacer tiene mucho menos chance de llegar al destete.
               </p>
             )}
           </div>

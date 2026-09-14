@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { EspecieFinca } from '@/lib/especies'
+import { Ic, type NombreIcono } from '@/components/ui/icon'
 
 type EquipoFila = {
   id: string
@@ -23,29 +24,29 @@ type EquipoFila = {
   tabla: 'equipos_aves' | 'equipos_cerdos' | 'equipos_pollo'
 }
 
-const ESPECIE_LABEL: Record<EspecieFinca, { label: string; icon: string }> = {
-  aves_ponedoras: { label: 'Aves', icon: '🐔' },
-  cerdos: { label: 'Cerdos', icon: '🐷' },
-  pollo_engorde: { label: 'Pollo', icon: '🐥' },
+const ESPECIE_LABEL: Record<EspecieFinca, { label: string; icon: NombreIcono }> = {
+  aves_ponedoras: { label: 'Aves', icon: 'huevo' },
+  cerdos: { label: 'Cerdos', icon: 'cerdo' },
+  pollo_engorde: { label: 'Pollo', icon: 'pollo' },
 }
 
-const TIPO_LABEL: Record<string, { label: string; icon: string }> = {
-  ventilador: { label: 'Ventilador', icon: '💨' },
-  banda_recoleccion: { label: 'Banda de recolección', icon: '🔄' },
-  comedero: { label: 'Comedero', icon: '🍽️' },
-  comedero_automatico: { label: 'Comedero automático', icon: '🍽️' },
-  bebedero: { label: 'Bebedero', icon: '💧' },
-  lampara: { label: 'Lámpara / Iluminación', icon: '💡' },
-  calefactor: { label: 'Calefactor', icon: '🔥' },
-  cuenta_huevos: { label: 'Máquina cuenta huevos', icon: '🥚' },
-  extractor: { label: 'Extractor', icon: '🌀' },
-  iluminacion: { label: 'Iluminación', icon: '💡' },
-  bomba_agua: { label: 'Bomba de agua', icon: '🚰' },
-  otro: { label: 'Otro', icon: '⚙️' },
+const TIPO_LABEL: Record<string, { label: string; icon: NombreIcono }> = {
+  ventilador: { label: 'Ventilador', icon: 'ventilador' },
+  banda_recoleccion: { label: 'Banda de recolección', icon: 'ciclo' },
+  comedero: { label: 'Comedero', icon: 'alimento' },
+  comedero_automatico: { label: 'Comedero automático', icon: 'alimento' },
+  bebedero: { label: 'Bebedero', icon: 'gota' },
+  lampara: { label: 'Lámpara / Iluminación', icon: 'idea' },
+  calefactor: { label: 'Calefactor', icon: 'fuego' },
+  cuenta_huevos: { label: 'Máquina cuenta huevos', icon: 'huevo' },
+  extractor: { label: 'Extractor', icon: 'viento' },
+  iluminacion: { label: 'Iluminación', icon: 'idea' },
+  bomba_agua: { label: 'Bomba de agua', icon: 'agua' },
+  otro: { label: 'Otro', icon: 'herramienta' },
 }
 
 function tipoInfo(tipo: string) {
-  return TIPO_LABEL[tipo] ?? { label: tipo, icon: '⚙️' }
+  return TIPO_LABEL[tipo] ?? { label: tipo, icon: 'herramienta' as NombreIcono }
 }
 
 function estadoConfig(estado: string) {
@@ -169,12 +170,12 @@ export default function EquiposInventario({ fincaId, especies }: { fincaId: stri
         <Select
           value={filtroEspecie}
           onValueChange={(v: string | null) => { setFiltroEspecie(v ?? 'todas'); setCategoriaSeleccionada(null) }}
-          items={{ todas: 'Todas las especies', ...Object.fromEntries(especies.map(esp => [esp, `${ESPECIE_LABEL[esp].icon} ${ESPECIE_LABEL[esp].label}`])) }}
+          items={{ todas: 'Todas las especies', ...Object.fromEntries(especies.map(esp => [esp, ESPECIE_LABEL[esp].label])) }}
         >
           <SelectTrigger className="w-44"><SelectValue placeholder="Especie" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="todas">Todas las especies</SelectItem>
-            {especies.map(esp => <SelectItem key={esp} value={esp}>{ESPECIE_LABEL[esp].icon} {ESPECIE_LABEL[esp].label}</SelectItem>)}
+            {especies.map(esp => <SelectItem key={esp} value={esp}>{ESPECIE_LABEL[esp].label}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select
@@ -195,7 +196,7 @@ export default function EquiposInventario({ fincaId, especies }: { fincaId: stri
 
       {grupos.length === 0 ? (
         <div className="py-16 text-center">
-          <p className="text-5xl mb-4">⚙️</p>
+          <p className="text-5xl mb-4"><Ic n="ajustes" /></p>
           <p className="text-lg font-semibold text-gray-700">Sin equipos registrados</p>
           <p className="text-sm text-gray-400 mt-1">Los equipos se registran desde la pestaña &quot;Equipos&quot; de cada especie (Aves, Cerdos, Pollo)</p>
         </div>
@@ -214,10 +215,10 @@ export default function EquiposInventario({ fincaId, especies }: { fincaId: stri
                 >
                   <CardContent className="p-4 space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="text-xl">{info.icon}</span>
+                      <span className="flex size-9 items-center justify-center rounded-lg bg-gray-100 text-gray-600"><Ic n={info.icon} className="size-4" /></span>
                       <div>
                         <p className="font-semibold text-sm text-gray-800">{info.label}</p>
-                        <p className="text-xs text-gray-400">{esp.icon} {esp.label}</p>
+                        <p className="text-xs text-gray-400"><Ic n={esp.icon} /> {esp.label}</p>
                       </div>
                     </div>
                     <p className="text-2xl font-bold text-gray-900">{g.total}</p>
@@ -252,7 +253,7 @@ export default function EquiposInventario({ fincaId, especies }: { fincaId: stri
                         {equipo.numero_serie ? `S/N: ${equipo.numero_serie}` : 'Sin N° de serie'}
                         {equipo.marca ? ` · ${equipo.marca}` : ''}
                       </p>
-                      <p className="text-xs text-gray-400">{esp.icon} {esp.label} · 🏠 {lotesNombre[equipo.lote_id] ?? 'Galpón'}</p>
+                      <p className="text-xs text-gray-400"><Ic n={esp.icon} /> {esp.label} · {lotesNombre[equipo.lote_id] ?? 'Galpón'}</p>
                     </div>
                   </div>
                   <Badge className={`text-[10px] ${cfg.badge}`}>{cfg.label}</Badge>
@@ -272,7 +273,7 @@ export default function EquiposInventario({ fincaId, especies }: { fincaId: stri
                       disabled={borrando === equipo.id}
                       onClick={() => eliminar(equipo)}
                     >
-                      {borrando === equipo.id ? 'Eliminando...' : confirmando === equipo.id ? '¿Confirmar eliminación?' : '🗑️ Eliminar'}
+                      {borrando === equipo.id ? 'Eliminando...' : confirmando === equipo.id ? '¿Confirmar eliminación?' : 'Eliminar'}
                     </Button>
                     {confirmando === equipo.id && (
                       <Button size="sm" variant="outline" className="text-xs" onClick={() => setConfirmando(null)}>Cancelar</Button>

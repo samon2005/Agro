@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
+import { Ic } from '@/components/ui/icon'
 
 type Horario = Database['public']['Tables']['horarios_alimentacion_aves']['Row']
 
@@ -165,7 +166,7 @@ export default function HorariosAlimentacion({ loteId, fincaId, consumoRegistrad
     <Card>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between flex-wrap gap-2">
-          <CardTitle className="text-sm font-semibold text-gray-700">🕐 Horarios de Alimentación</CardTitle>
+          <CardTitle className="text-sm font-semibold text-gray-700"><Ic n="reloj" /> Horarios de Alimentación</CardTitle>
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs font-semibold text-green-700 bg-green-50 border border-green-200 rounded-full px-2.5 py-1">
               Parcial (hoy): {parcialKg.toFixed(1)} kg
@@ -187,7 +188,7 @@ export default function HorariosAlimentacion({ loteId, fincaId, consumoRegistrad
                 onClick={() => setPermitirExceder(v => !v)}
                 className={`text-xs rounded-full px-2 py-0.5 border ${permitirExceder ? 'bg-red-50 border-red-200 text-red-600' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}
               >
-                {permitirExceder ? '🔓 Cambiar límites: activo' : '🔒 Cambiar límites'}
+                {permitirExceder ? 'Cambiar límites: activo' : 'Cambiar límites'}
               </button>
             </>
           ) : (
@@ -198,12 +199,12 @@ export default function HorariosAlimentacion({ loteId, fincaId, consumoRegistrad
         </div>
         {excedido && (
           <p className="text-xs text-red-600 pt-1">
-            ⚠️ Estás repartiendo {(totalProgramadoKg - limiteKg).toFixed(1)} kg más que el consumo registrado del galpón.
+            <Ic n="alerta" /> Estás repartiendo {(totalProgramadoKg - limiteKg).toFixed(1)} kg más que el consumo registrado del galpón.
           </p>
         )}
         {faltaPorRepartir && (
           <p className="text-xs text-amber-600 pt-1">
-            ⚠️ Faltan {sinRepartir.toFixed(1)} kg para cumplir con el consumo registrado ({limiteKg} kg/día).
+            <Ic n="alerta" /> Faltan {sinRepartir.toFixed(1)} kg para cumplir con el consumo registrado ({limiteKg} kg/día).
           </p>
         )}
       </CardHeader>
@@ -243,7 +244,7 @@ export default function HorariosAlimentacion({ loteId, fincaId, consumoRegistrad
                   {h.cantidad_kg != null && <span className="text-amber-600 text-xs">· porción: {h.cantidad_kg} kg</span>}
                   {desajustado && (
                     <span className={`text-[11px] rounded-full border px-2 py-0.5 ${excedido ? 'bg-red-50 border-red-200 text-red-600' : 'bg-amber-100 border-amber-300 text-amber-700'}`}>
-                      ⚠️ Hay que cambiar esta porción · parejo serían {porcionSugerida.toFixed(1)} kg
+                      <Ic n="alerta" /> Hay que cambiar esta porción · parejo serían {porcionSugerida.toFixed(1)} kg
                     </span>
                   )}
                   <div className="flex-1" />
@@ -253,10 +254,10 @@ export default function HorariosAlimentacion({ loteId, fincaId, consumoRegistrad
                     className={hecho ? 'h-7 text-xs bg-green-600 hover:bg-green-700 text-white' : 'h-7 text-xs'}
                     onClick={() => marcarHecho(h)}
                   >
-                    {hecho ? '✓ Hecho' : 'Marcar hecho'}
+                    {hecho ? 'Hecho' : 'Marcar hecho'}
                   </Button>
                   <button type="button" onClick={() => empezarEdicion(h)} className="text-amber-500 hover:text-amber-700 w-6 h-6 flex items-center justify-center" aria-label="Editar horario">
-                    ✏️
+                    <Ic n="editar" />
                   </button>
                   <button
                     type="button"

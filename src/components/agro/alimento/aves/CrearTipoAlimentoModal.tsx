@@ -110,7 +110,7 @@ export default function CrearTipoAlimentoModal({ open, onClose, fincaId, tipoExi
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{tipoExistente ? '✏️ Editar Tipo de Alimento' : '🌾 Nuevo Tipo de Alimento'}</DialogTitle>
+          <DialogTitle>{tipoExistente ? 'Editar Tipo de Alimento' : 'Nuevo Tipo de Alimento'}</DialogTitle>
           <p className="text-sm text-gray-500">
             Composición nutricional según la ficha técnica del fabricante. Las entradas de bultos
             se registran en la pestaña Inventario.

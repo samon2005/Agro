@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { EspecieFinca } from '@/lib/especies'
+import { Ic, type NombreIcono } from '@/components/ui/icon'
 
 type Stats = {
   totalAnimales: number
@@ -98,8 +99,8 @@ export default function DashboardPage() {
 
       <div className="p-8">
         <div className="mb-8">
-          <h2 className="text-2xl font-bold text-gray-900">
-            Bienvenido, {userName} 👋
+          <h2 className="text-3xl font-medium text-gray-900">
+            Bienvenido, {userName}
           </h2>
           {fincaActual && (
             <p className="text-gray-500 mt-1">
@@ -118,17 +119,17 @@ export default function DashboardPage() {
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <StatCard title="Total Animales" value={stats?.totalAnimales ?? '—'} icon="🐄" description="Animales activos" color="green" />
-          <StatCard title="Ítems en Inventario" value={stats?.totalInventario ?? '—'} icon="📦" description="Insumos registrados" color="blue" />
-          <StatCard title="Fincas" value={fincas.length} icon="🌿" description="Registradas" color="yellow" />
-          <StatCard title="Alertas Stock" value={stats?.animalesBajos ?? '—'} icon="⚠️" description="Por debajo del mínimo" color="red" />
+          <StatCard title="Total Animales" value={stats?.totalAnimales ?? '—'} icon="ganado" description="Animales activos" color="green" />
+          <StatCard title="Ítems en Inventario" value={stats?.totalInventario ?? '—'} icon="caja" description="Insumos registrados" color="blue" />
+          <StatCard title="Fincas" value={fincas.length} icon="hoja" description="Registradas" color="yellow" />
+          <StatCard title="Alertas Stock" value={stats?.animalesBajos ?? '—'} icon="alerta" description="Por debajo del mínimo" color="red" />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
-                <span>🌿</span> Tus Fincas
+                <span><Ic n="hoja" /></span> Tus Fincas
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -149,7 +150,7 @@ export default function DashboardPage() {
                           onClick={() => setFincaAEditar(f)}
                           className="text-xs text-gray-500 hover:text-gray-800 border border-gray-200 rounded px-2 py-1 bg-white"
                         >
-                          ⚙️ Configurar
+                          <Ic n="ajustes" /> Configurar
                         </button>
                       </div>
                     </div>
@@ -162,7 +163,7 @@ export default function DashboardPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
-                <span>📋</span> Guía de Inicio Rápido
+                <span><Ic n="diario" /></span> Guía de Inicio Rápido
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -175,7 +176,7 @@ export default function DashboardPage() {
                 ].map(item => (
                   <li key={item.step} className="flex items-center gap-3">
                     <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${item.done ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-600'}`}>
-                      {item.done ? '✓' : item.step}
+                      {item.done ? '' : item.step}
                     </span>
                     <span className={item.done ? 'line-through text-gray-400' : 'text-gray-700'}>{item.text}</span>
                   </li>
@@ -190,11 +191,11 @@ export default function DashboardPage() {
 }
 
 function StatCard({ title, value, icon, description, color }: {
-  title: string; value: number | string; icon: string; description: string; color: 'green' | 'blue' | 'yellow' | 'red'
+  title: string; value: number | string; icon: NombreIcono; description: string; color: 'green' | 'blue' | 'yellow' | 'red'
 }) {
-  const colors = { green: 'bg-green-50 border-green-200', blue: 'bg-blue-50 border-blue-200', yellow: 'bg-yellow-50 border-yellow-200', red: 'bg-red-50 border-red-200' }
+  const colors = { green: 'bg-green-100 text-green-800', blue: 'bg-blue-100 text-blue-800', yellow: 'bg-amber-100 text-amber-800', red: 'bg-red-100 text-red-800' }
   return (
-    <Card className={`border ${colors[color]}`}>
+    <Card>
       <CardContent className="pt-6">
         <div className="flex items-start justify-between">
           <div>
@@ -202,7 +203,7 @@ function StatCard({ title, value, icon, description, color }: {
             <p className="text-3xl font-bold text-gray-900 mt-1">{value}</p>
             <p className="text-xs text-gray-500 mt-1">{description}</p>
           </div>
-          <span className="text-2xl">{icon}</span>
+          <span className={`flex size-10 shrink-0 items-center justify-center rounded-full ${colors[color]}`}><Ic n={icon} className="size-[18px]" /></span>
         </div>
       </CardContent>
     </Card>

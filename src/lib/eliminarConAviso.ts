@@ -20,5 +20,5 @@ export async function avisoCostoVinculado(
   const { data } = await supabase.from(tablaCostos).select('monto, categoria').eq(columna, id).maybeSingle()
   if (!data) return null
   const cat = categoriaInfo(data.categoria)
-  return `⚠️ También se eliminará el costo de ${cop(Number(data.monto))} (${cat?.label ?? data.categoria}) registrado en Finanzas.`
+  return `También se eliminará el costo de ${cop(Number(data.monto))} (${cat?.label ?? data.categoria}) registrado en Finanzas.`
 }

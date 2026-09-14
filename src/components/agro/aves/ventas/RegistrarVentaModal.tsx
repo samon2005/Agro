@@ -111,7 +111,7 @@ export default function RegistrarVentaModal({ open, onClose, lote, ventaExistent
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{ventaExistente ? '✏️ Editar Venta' : '🧾 Registrar Venta de Huevo'}</DialogTitle>
+          <DialogTitle>{ventaExistente ? 'Editar Venta' : 'Registrar Venta de Huevo'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">

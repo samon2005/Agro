@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { CurrencyInput } from '@/components/ui/currency-input'
 import { toast } from 'sonner'
+import { Ic } from '@/components/ui/icon'
 
 const UNIDADES = ['kg', 'g', 'litros', 'ml', 'unidades', 'bultos', 'cajas', 'dosis', 'metros']
 
@@ -106,7 +107,7 @@ export default function RegistrarInventarioModal({ open, onClose, fincaId, categ
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-green-900">
-            <span>📦</span> Agregar al Inventario
+            <span><Ic n="caja" /></span> Agregar al Inventario
           </DialogTitle>
         </DialogHeader>
         <form ref={formRef} onSubmit={handleSubmit} className="space-y-4 mt-2">

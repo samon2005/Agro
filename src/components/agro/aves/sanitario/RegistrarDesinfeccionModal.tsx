@@ -87,7 +87,7 @@ export default function RegistrarDesinfeccionModal({ open, onClose, loteId, finc
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>{desinfeccionExistente ? '✏️ Editar Desinfección' : '🧴 Registrar Desinfección'}</DialogTitle>
+          <DialogTitle>{desinfeccionExistente ? 'Editar Desinfección' : 'Registrar Desinfección'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">

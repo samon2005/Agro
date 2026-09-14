@@ -14,6 +14,7 @@ import { toast } from 'sonner'
 import RegistrarPesoModal from './RegistrarPesoModal'
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
+import { Ic } from '@/components/ui/icon'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
 type PesoLote = Database['public']['Tables']['pesos_lote_cerdos']['Row']
@@ -27,13 +28,13 @@ interface Props {
 }
 
 const ETAPAS_LABEL: Record<string, string> = {
-  precebo: '🐷 Precebo', levante: '🐖 Levante', ceba: '🐗 Ceba', finalizacion: '✅ Finalización', vendido: '💰 Vendido'
+  precebo: 'Precebo', levante: 'Levante', ceba: 'Ceba', finalizacion: 'Finalización', vendido: 'Vendido'
 }
 const TIPOS_MOV = [
-  { value: 'traslado', label: '🔄 Traslado de corral' },
-  { value: 'venta', label: '💰 Venta' },
-  { value: 'ingreso', label: '➕ Ingreso de animales' },
-  { value: 'descarte', label: '🗑️ Descarte' },
+  { value: 'traslado', label: 'Traslado de corral' },
+  { value: 'venta', label: 'Venta' },
+  { value: 'ingreso', label: 'Ingreso de animales' },
+  { value: 'descarte', label: 'Descarte' },
 ]
 
 export default function TabCrecimiento({ loteActual, onLoteUpdated }: Props) {
@@ -140,16 +141,16 @@ export default function TabCrecimiento({ loteActual, onLoteUpdated }: Props) {
   }
 
   const subTabs = [
-    { id: 'pesos' as const, label: '⚖️ Pesajes', count: pesos.length },
-    { id: 'mortalidad' as const, label: '💀 Mortalidad', count: mortalidad.length },
-    { id: 'etapas' as const, label: '🔄 Etapas', count: etapas.length },
-    { id: 'movimientos' as const, label: '📦 Movimientos', count: movimientos.length },
+    { id: 'pesos' as const, label: 'Pesajes', count: pesos.length },
+    { id: 'mortalidad' as const, label: 'Mortalidad', count: mortalidad.length },
+    { id: 'etapas' as const, label: 'Etapas', count: etapas.length },
+    { id: 'movimientos' as const, label: 'Movimientos', count: movimientos.length },
   ]
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold text-gray-800">Producción y Crecimiento</h2>
+        <h2 className="text-lg font-semibold text-gray-800">Producción y Crecimiento</h2>
         {subTab === 'pesos' && (
           <Button onClick={() => { setPesoEditar(null); setModalPeso(true) }} className="bg-orange-600 hover:bg-orange-700 text-white text-sm">+ Registrar pesaje</Button>
         )}
@@ -206,7 +207,7 @@ export default function TabCrecimiento({ loteActual, onLoteUpdated }: Props) {
             {subTab === 'pesos' && (
               pesos.length === 0 ? (
                 <div className="py-10 text-center">
-                  <p className="text-4xl mb-2">⚖️</p>
+                  <p className="text-4xl mb-2"><Ic n="bascula" /></p>
                   <p className="text-gray-600 font-medium">Sin pesajes registrados</p>
                   <Button onClick={() => { setPesoEditar(null); setModalPeso(true) }} className="mt-4 bg-orange-600 hover:bg-orange-700 text-white">+ Registrar pesaje</Button>
                 </div>
@@ -238,16 +239,16 @@ export default function TabCrecimiento({ loteActual, onLoteUpdated }: Props) {
                             <TableCell className="text-right text-sm">
                               {variacion ? <span className={Number(variacion) < 20 ? 'text-green-600' : 'text-amber-600'}>{variacion}%</span> : '—'}
                             </TableCell>
-                            <TableCell className="text-sm text-gray-500">{p.metodo === 'bascula_dinamica' ? '⚙️ Báscula' : '✍️ Manual'}</TableCell>
+                            <TableCell className="text-sm text-gray-500">{p.metodo === 'bascula_dinamica' ? 'Báscula' : 'Manual'}</TableCell>
                             <TableCell>
                               <div className="flex items-center justify-end gap-1">
-                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={() => { setPesoEditar(p); setModalPeso(true) }}>✏️</Button>
+                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={() => { setPesoEditar(p); setModalPeso(true) }}><Ic n="editar" /></Button>
                                 <Button
                                   size="sm" variant="ghost"
                                   className={confirmandoEliminar === p.id ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
                                   onClick={() => eliminarPeso(p)}
                                 >
-                                  {confirmandoEliminar === p.id ? '¿Confirmar?' : '🗑️'}
+                                  {confirmandoEliminar === p.id ? '¿Confirmar?' : ''}
                                 </Button>
                               </div>
                             </TableCell>
@@ -311,10 +312,10 @@ export default function TabCrecimiento({ loteActual, onLoteUpdated }: Props) {
                     <Select value={formEtapa.etapa_nueva} onValueChange={v => setFormEtapa(p => ({ ...p, etapa_nueva: v ?? '' }))}>
                       <SelectTrigger><SelectValue placeholder="Seleccionar etapa..." /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="levante">🐖 Levante</SelectItem>
-                        <SelectItem value="ceba">🐗 Ceba / Engorde</SelectItem>
-                        <SelectItem value="finalizacion">✅ Finalización</SelectItem>
-                        <SelectItem value="vendido">💰 Vendido</SelectItem>
+                        <SelectItem value="levante"><Ic n="cerdo" /> Levante</SelectItem>
+                        <SelectItem value="ceba"><Ic n="cerdo" /> Ceba / Engorde</SelectItem>
+                        <SelectItem value="finalizacion"><Ic n="listo" /> Finalización</SelectItem>
+                        <SelectItem value="vendido"><Ic n="dinero" /> Vendido</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

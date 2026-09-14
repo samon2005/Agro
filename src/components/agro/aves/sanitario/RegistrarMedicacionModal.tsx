@@ -14,6 +14,7 @@ import EncargadoSelect from '@/components/agro/EncargadoSelect'
 import { toSelectItems } from '@/lib/utils'
 import type { Database } from '@/types/database'
 import { hoyLocal, aFechaLocal, desdeFechaLocal } from '@/lib/fechas'
+import { Ic } from '@/components/ui/icon'
 
 type Medicacion = Database['public']['Tables']['medicaciones_aves']['Row']
 type EventoClinico = Database['public']['Tables']['eventos_clinicos_aves']['Row']
@@ -214,12 +215,12 @@ export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaI
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{medicacionExistente ? '✏️ Editar Tratamiento' : '💊 Registrar Tratamiento'}</DialogTitle>
+          <DialogTitle>{medicacionExistente ? 'Editar Tratamiento' : 'Registrar Tratamiento'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           {eventoClinicoId ? (
             <div className="p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-700">
-              🔗 Vinculado al evento clínico seleccionado
+              <Ic n="enlace" /> Vinculado al evento clínico seleccionado
             </div>
           ) : !medicacionExistente && (
             <div className="space-y-1">
@@ -262,7 +263,7 @@ export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaI
             </div>
             {sinFarmaco && (
               <div className="col-span-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-700">
-                🌡️ Este evento no requiere medicamento — registra la acción tomada en vez de un fármaco.
+                <Ic n="termometro" /> Este evento no requiere medicamento — registra la acción tomada en vez de un fármaco.
               </div>
             )}
             {sinFarmaco ? (
@@ -312,17 +313,17 @@ export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaI
             )}
             {form.frecuencia_dias && form.fecha_fin && (
               <div className="col-span-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-700">
-                🔔 Se crearán recordatorios en la app cada {form.frecuencia_dias} día(s) hasta el fin del tratamiento para no olvidar seguir aplicándolo.
+                <Ic n="campana" /> Se crearán recordatorios en la app cada {form.frecuencia_dias} día(s) hasta el fin del tratamiento para no olvidar seguir aplicándolo.
               </div>
             )}
             {sinRetiro && (
               <div className="col-span-2 p-2 bg-green-50 border border-green-200 rounded text-sm text-green-800">
-                ✓ Sin período de retiro — los huevos se pueden comercializar normalmente
+                <Ic n="check" /> Sin período de retiro — los huevos se pueden comercializar normalmente
               </div>
             )}
             {retiro && !sinRetiro && (
               <div className="col-span-2 p-2 bg-amber-50 border border-amber-300 rounded text-sm text-amber-800">
-                ⚠️ Huevos no comercializables hasta: <strong>{retiro}</strong>
+                <Ic n="alerta" /> Huevos no comercializables hasta: <strong>{retiro}</strong>
               </div>
             )}
             {motivoDelEvento ? (

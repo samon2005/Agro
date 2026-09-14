@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
+import { Ic } from '@/components/ui/icon'
 
 type LotePollo = Database['public']['Tables']['lotes_pollo']['Row']
 
@@ -57,7 +58,7 @@ export default function CrearLotePolloModal({ open, onClose, fincaId, onCreated 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-lg">
-        <DialogHeader><DialogTitle>🐥 Nuevo Lote de Pollo de Engorde</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle><Ic n="pollo" /> Nuevo Lote de Pollo de Engorde</DialogTitle></DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-3 pt-2">
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2 space-y-1"><Label className="text-xs">Nombre del lote *</Label><Input placeholder="Ej: Lote Engorde Jun-2026" value={form.nombre} onChange={e => setForm(p => ({ ...p, nombre: e.target.value }))} /></div>

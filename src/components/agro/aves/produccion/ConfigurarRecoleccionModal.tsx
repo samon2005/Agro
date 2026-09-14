@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import type { Database } from '@/types/database'
+import { Ic } from '@/components/ui/icon'
 
 type Horario = Database['public']['Tables']['horarios_recoleccion_aves']['Row']
 
@@ -75,7 +76,7 @@ export default function ConfigurarRecoleccionModal({ open, loteId, fincaId, onLi
     <Dialog open={open}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>🥚 Horarios de recolección</DialogTitle>
+          <DialogTitle><Ic n="huevo" /> Horarios de recolección</DialogTitle>
           <p className="text-sm text-gray-500">
             El galpón acaba de entrar en postura. Configura a qué horas se recogen los huevos —
             necesitas al menos uno para continuar.

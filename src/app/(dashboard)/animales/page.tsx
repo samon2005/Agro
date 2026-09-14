@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Ic } from '@/components/ui/icon'
 
 type Animal = {
   id: string
@@ -61,8 +62,7 @@ export default function AnimalesPage() {
       <div className="p-8">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-              <span>🐄</span> Gestión de Animales
+            <h2 className="text-3xl font-medium text-gray-900">Gestión de Animales
             </h2>
             <p className="text-gray-500 mt-1">
               {fincaActual ? `Finca: ${fincaActual.nombre}` : 'Selecciona una finca'}
@@ -107,7 +107,7 @@ export default function AnimalesPage() {
               <div className="space-y-2">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
             ) : animales.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
-                <span className="text-5xl mb-4">🐄</span>
+                <span className="text-5xl mb-4"><Ic n="ganado" /></span>
                 <p className="text-lg font-semibold text-gray-700">No hay animales registrados</p>
                 <p className="text-sm text-gray-400 mt-1 mb-6">Comienza registrando el primer animal de tu finca</p>
                 <Button className="bg-green-700 hover:bg-green-800 text-white" onClick={() => setModalOpen(true)}>

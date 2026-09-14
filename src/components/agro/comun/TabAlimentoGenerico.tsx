@@ -17,6 +17,7 @@ import RegistrarConsumoGenericoModal from './RegistrarConsumoGenericoModal'
 import HorariosAlimentacionGenerico from './HorariosAlimentacionGenerico'
 import { dbGenerico, type ConfigEspecie } from '@/lib/especiesConfig'
 import { hoyLocal } from '@/lib/fechas'
+import { Ic } from '@/components/ui/icon'
 
 interface LoteMinimo {
   id: string
@@ -146,7 +147,7 @@ export default function TabAlimentoGenerico({ lotes, config }: Props) {
     return (
       <Card className="border-dashed border-gray-300">
         <CardContent className="py-16 text-center">
-          <p className="text-4xl mb-2">🌾</p>
+          <p className="text-4xl mb-2"><Ic n="alimento" /></p>
           <p className="text-gray-600 font-medium">No hay lotes de {config.label.toLowerCase()} activos</p>
           <p className="text-sm text-gray-400">Crea un lote en su sección para ver su alimentación</p>
         </CardContent>
@@ -174,8 +175,8 @@ export default function TabAlimentoGenerico({ lotes, config }: Props) {
   const cumplimientoConsumo = consumoObjetivo > 0 ? (consumoPorAnimal / consumoObjetivo) * 100 : null
 
   const subTabItems: { id: SubTab; label: string }[] = [
-    { id: 'alimento', label: '🌾 Alimento' },
-    { id: 'balance', label: '⚖️ Balance' },
+    { id: 'alimento', label: 'Alimento' },
+    { id: 'balance', label: 'Balance' },
   ]
 
   const categoriaLabel = Object.fromEntries(nutri.categoriasAlimento.map(c => [c.value, c.label]))
@@ -199,7 +200,7 @@ export default function TabAlimentoGenerico({ lotes, config }: Props) {
           </Button>
         ) : (
           <div className="flex gap-2">
-            <Button variant="outline" className="text-sm" onClick={() => setModalRequerimientos(true)}>🎯 Requerimientos</Button>
+            <Button variant="outline" className="text-sm" onClick={() => setModalRequerimientos(true)}><Ic n="meta" /> Requerimientos</Button>
             <Button className={cn('text-sm', config.botonClase)} onClick={() => setModalConsumo(true)}>+ Registrar consumo</Button>
           </div>
         )}
@@ -261,7 +262,7 @@ export default function TabAlimentoGenerico({ lotes, config }: Props) {
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center justify-end gap-1">
-                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={() => { setTipoEditar(t); setModalTipo(true) }}>✏️</Button>
+                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={() => { setTipoEditar(t); setModalTipo(true) }}><Ic n="editar" /></Button>
                               <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-gray-500" onClick={() => toggleActivo(t)}>
                                 {t.activo ? 'Desactivar' : 'Reactivar'}
                               </Button>
@@ -270,7 +271,7 @@ export default function TabAlimentoGenerico({ lotes, config }: Props) {
                                 className={confirmandoEliminar === t.id ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
                                 onClick={() => eliminarTipo(t)}
                               >
-                                {confirmandoEliminar === t.id ? '¿Confirmar?' : '🗑️ Eliminar'}
+                                {confirmandoEliminar === t.id ? '¿Confirmar?' : 'Eliminar'}
                               </Button>
                             </div>
                           </TableCell>
@@ -336,7 +337,7 @@ export default function TabAlimentoGenerico({ lotes, config }: Props) {
                   Requerimiento vigente desde {fmt(requerimientos.vigente_desde)} · {String(requerimientos[nutri.campoEtapa] ?? '')}
                 </p>
               ) : (
-                <p className="text-xs text-amber-600">Sin requerimientos configurados — defínelos en &quot;🎯 Requerimientos&quot;</p>
+                <p className="text-xs text-amber-600">Sin requerimientos configurados — defínelos en &quot; Requerimientos&quot;</p>
               )}
             </CardHeader>
             <CardContent className="p-0">
@@ -371,9 +372,9 @@ export default function TabAlimentoGenerico({ lotes, config }: Props) {
                             {sinDatos ? (
                               <Badge variant="outline" className="text-[10px]">Sin datos</Badge>
                             ) : bien ? (
-                              <Badge className="bg-green-100 text-green-700 text-[10px]">✓ Suficiente</Badge>
+                              <Badge className="bg-green-100 text-green-700 text-[10px]"><Ic n="check" /> Suficiente</Badge>
                             ) : (
-                              <Badge className="bg-red-100 text-red-700 text-[10px]">⚠ Insuficiente</Badge>
+                              <Badge className="bg-red-100 text-red-700 text-[10px]"><Ic n="alerta" /> Insuficiente</Badge>
                             )}
                           </TableCell>
                         </TableRow>
@@ -394,9 +395,9 @@ export default function TabAlimentoGenerico({ lotes, config }: Props) {
                         {cumplimientoConsumo == null || consumoPorAnimal === 0 ? (
                           <Badge variant="outline" className="text-[10px]">Sin datos</Badge>
                         ) : cumplimientoConsumo >= 95 ? (
-                          <Badge className="bg-green-100 text-green-700 text-[10px]">✓ En objetivo</Badge>
+                          <Badge className="bg-green-100 text-green-700 text-[10px]"><Ic n="check" /> En objetivo</Badge>
                         ) : (
-                          <Badge className="bg-amber-100 text-amber-700 text-[10px]">⚠ Por debajo</Badge>
+                          <Badge className="bg-amber-100 text-amber-700 text-[10px]"><Ic n="alerta" /> Por debajo</Badge>
                         )}
                       </TableCell>
                     </TableRow>

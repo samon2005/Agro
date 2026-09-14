@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { hoyLocal } from '@/lib/fechas'
 import type { Database } from '@/types/database'
+import { Ic } from '@/components/ui/icon'
 
 type PesoLote = Database['public']['Tables']['pesos_lote_cerdos']['Row']
 
@@ -85,7 +86,7 @@ export default function RegistrarPesoModal({ open, onClose, loteId, fincaId, ani
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>{pesoExistente ? '✏️ Editar Pesaje' : '⚖️ Registrar Pesaje del Lote'}</DialogTitle>
+          <DialogTitle>{pesoExistente ? 'Editar Pesaje' : 'Registrar Pesaje del Lote'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -98,8 +99,8 @@ export default function RegistrarPesoModal({ open, onClose, loteId, fincaId, ani
               <Select value={form.metodo} onValueChange={v => set('metodo', v)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="manual">✍️ Manual / Balanza</SelectItem>
-                  <SelectItem value="bascula_dinamica">⚙️ Báscula dinámica (IoT)</SelectItem>
+                  <SelectItem value="manual"><Ic n="manual" /> Manual / Balanza</SelectItem>
+                  <SelectItem value="bascula_dinamica"><Ic n="ajustes" /> Báscula dinámica (IoT)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -117,7 +118,7 @@ export default function RegistrarPesoModal({ open, onClose, loteId, fincaId, ani
             </div>
             {uniformidad && (
               <div className="col-span-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm text-blue-800">
-                📊 Variación del lote: <strong>{uniformidad}%</strong> — {Number(uniformidad) < 20 ? '✅ Lote uniforme' : '⚠️ Lote heterogéneo'}
+                <Ic n="grafica" /> Variación del lote: <strong>{uniformidad}%</strong> — {Number(uniformidad) < 20 ? 'Lote uniforme' : 'Lote heterogéneo'}
               </div>
             )}
             <div className="space-y-1">

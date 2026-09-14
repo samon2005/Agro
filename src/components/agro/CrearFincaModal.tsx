@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner'
 import { ESPECIES_FINCA, type EspecieFinca } from '@/lib/especies'
 import { geocodeMunicipio } from '@/lib/clima'
+import { Ic } from '@/components/ui/icon'
 
 const UNIDAD_OTRA = '__otra__'
 
@@ -100,7 +101,7 @@ export default function CrearFincaModal({ open, onCreated }: Props) {
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-green-900">
-            <span>🌿</span> Registra tu Finca
+            <span><Ic n="hoja" /></span> Registra tu Finca
           </DialogTitle>
           <p className="text-sm text-gray-500">
             Comienza registrando tu finca para gestionar tus animales e inventario
@@ -172,7 +173,7 @@ export default function CrearFincaModal({ open, onCreated }: Props) {
                       selected ? 'border-green-600 bg-green-50 text-green-800' : 'border-gray-200 text-gray-500 hover:border-gray-300'
                     }`}
                   >
-                    <span className="text-xl">{esp.icon}</span>
+                    <Ic n={esp.icon} className="size-5" />
                     {esp.label}
                   </button>
                 )

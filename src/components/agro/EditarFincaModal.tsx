@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ESPECIES_FINCA, type EspecieFinca } from '@/lib/especies'
+import { Ic } from '@/components/ui/icon'
 
 type Finca = {
   id: string
@@ -195,7 +196,7 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated, onDe
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>📍 Información Geográfica y Ambiental</DialogTitle>
+          <DialogTitle><Ic n="ubicacion" /> Información Geográfica y Ambiental</DialogTitle>
           <p className="text-sm text-gray-500">Datos de referencia de la finca — se usan para contextualizar las lecturas de cada galpón/corral</p>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -253,7 +254,7 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated, onDe
             <div className="flex items-center justify-between">
               <Label>Coordenadas (para el clima en tiempo real)</Label>
               <button type="button" onClick={usarUbicacionActual} disabled={buscandoUbicacion} className="text-xs text-green-700 hover:underline">
-                {buscandoUbicacion ? 'Detectando...' : '📍 Usar mi ubicación actual'}
+                {buscandoUbicacion ? 'Detectando...' : 'Usar mi ubicación actual'}
               </button>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -278,11 +279,11 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated, onDe
                       selected ? 'border-green-600 bg-green-50 text-green-800' : 'border-gray-200 text-gray-500 hover:border-gray-300'
                     }`}
                   >
-                    <span className="text-xl">{esp.icon}</span>
+                    <Ic n={esp.icon} className="size-5" />
                     {esp.label}
                     {selected && (
                       bloqueada ? (
-                        <span className="text-[10px] font-normal text-amber-600">🔒 {count} registrado(s)</span>
+                        <span className="text-[10px] font-normal text-amber-600"><Ic n="bloqueado" /> {count} registrado(s)</span>
                       ) : (
                         <span className="text-[10px] font-normal text-gray-400">Sin registros — se puede quitar</span>
                       )
@@ -293,7 +294,7 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated, onDe
             </div>
           </div>
           <div className="border border-red-200 bg-red-50 rounded-lg p-3 space-y-2">
-            <p className="text-sm font-semibold text-red-800">⚠️ Zona de peligro</p>
+            <p className="text-sm font-semibold text-red-800"><Ic n="alerta" /> Zona de peligro</p>
             <p className="text-xs text-red-600">
               Eliminar esta finca borra para siempre todos sus galpones, corrales y lotes, con su
               producción, alimento, sanidad, equipos, ventas y costos. No se puede deshacer.

@@ -150,7 +150,7 @@ export default function RegistrarEntradaAlimentoModal({ open, onClose, loteId, f
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{entradaExistente ? '✏️ Editar Entrada' : '📦 Registrar Entrada de Alimento'}</DialogTitle>
+          <DialogTitle>{entradaExistente ? 'Editar Entrada' : 'Registrar Entrada de Alimento'}</DialogTitle>
           <p className="text-sm text-gray-500">Lo que entra al galpón. Suma al inventario y queda registrado como costo.</p>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">

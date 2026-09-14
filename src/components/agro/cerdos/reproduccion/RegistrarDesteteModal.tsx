@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
 import { diasDesde, DIAS_LACTANCIA_MIN, DIAS_LACTANCIA_MAX, DIAS_DESTETE_SERVICIO } from '@/lib/cerdos'
+import { Ic } from '@/components/ui/icon'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
 type Reproductora = Database['public']['Tables']['reproductoras_cerdos']['Row']
@@ -99,7 +100,7 @@ export default function RegistrarDesteteModal({ open, onClose, lote, hembras, pa
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>🐽 Registrar Destete</DialogTitle>
+          <DialogTitle><Ic n="cerdo" /> Registrar Destete</DialogTitle>
           <p className="text-sm text-gray-500">
             El destete normal va entre los {DIAS_LACTANCIA_MIN} y los {DIAS_LACTANCIA_MAX} días de nacidos.
           </p>
@@ -141,16 +142,16 @@ export default function RegistrarDesteteModal({ open, onClose, lote, hembras, pa
 
           {parto && (
             <div className="p-3 bg-pink-50 border border-pink-200 rounded-lg text-xs text-pink-800 space-y-1">
-              <p>🐖 Hembra <strong>{hembra?.codigo ?? '—'}</strong> · nacieron {parto.nacidos_vivos} vivos</p>
+              <p><Ic n="cerdo" /> Hembra <strong>{hembra?.codigo ?? '—'}</strong> · nacieron {parto.nacidos_vivos} vivos</p>
               {diasLactancia != null && (
                 <p>
-                  📅 Lactancia de <strong>{diasLactancia} días</strong>
+                  <Ic n="calendario" /> Lactancia de <strong>{diasLactancia} días</strong>
                   {diasLactancia < DIAS_LACTANCIA_MIN && ' — más corta de lo normal, el lechón puede llegar débil al precebo'}
                   {diasLactancia > DIAS_LACTANCIA_MAX && ' — más larga de lo normal, alarga el intervalo entre partos'}
                 </p>
               )}
-              {sobrevivencia && <p>📊 Sobrevivencia de la camada: <strong>{sobrevivencia}%</strong></p>}
-              <p>🔁 La cerda debería volver a celo unos {DIAS_DESTETE_SERVICIO} días después del destete.</p>
+              {sobrevivencia && <p><Ic n="grafica" /> Sobrevivencia de la camada: <strong>{sobrevivencia}%</strong></p>}
+              <p><Ic n="repetir" /> La cerda debería volver a celo unos {DIAS_DESTETE_SERVICIO} días después del destete.</p>
             </div>
           )}
 

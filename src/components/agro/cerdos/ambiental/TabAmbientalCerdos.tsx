@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
+import { Ic } from '@/components/ui/icon'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
 type Parametro = Database['public']['Tables']['parametros_ambientales_cerdos']['Row']
@@ -63,9 +64,9 @@ export default function TabAmbientalCerdos({ loteActual }: Props) {
 
   const ultimo = registros[0]
   const alertas: string[] = []
-  if (ultimo?.temperatura_interior && ultimo.temperatura_interior > 28) alertas.push(`🌡️ Temperatura interior: ${ultimo.temperatura_interior}°C — crítico para cerdos > 28°C`)
-  if (ultimo?.nh3_ppm && ultimo.nh3_ppm > 20) alertas.push(`🌬️ NH₃: ${ultimo.nh3_ppm} ppm — supera 20 ppm (irritante para vías respiratorias)`)
-  if (ultimo?.co2_ppm && ultimo.co2_ppm > 3000) alertas.push(`💨 CO₂: ${ultimo.co2_ppm} ppm — supera 3000 ppm`)
+  if (ultimo?.temperatura_interior && ultimo.temperatura_interior > 28) alertas.push(`Temperatura interior: ${ultimo.temperatura_interior}°C — crítico para cerdos > 28°C`)
+  if (ultimo?.nh3_ppm && ultimo.nh3_ppm > 20) alertas.push(`NH₃: ${ultimo.nh3_ppm} ppm — supera 20 ppm (irritante para vías respiratorias)`)
+  if (ultimo?.co2_ppm && ultimo.co2_ppm > 3000) alertas.push(`CO₂: ${ultimo.co2_ppm} ppm — supera 3000 ppm`)
 
   function fmt(d: string) {
     return new Date(d + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })
@@ -74,7 +75,7 @@ export default function TabAmbientalCerdos({ loteActual }: Props) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold text-gray-800">Parámetros Ambientales</h2>
+        <h2 className="text-lg font-semibold text-gray-800">Parámetros Ambientales</h2>
         <Button onClick={() => setShowForm(v => !v)} className="bg-green-700 hover:bg-green-800 text-white text-sm">
           {showForm ? 'Cerrar' : '+ Registrar lectura'}
         </Button>
@@ -83,7 +84,7 @@ export default function TabAmbientalCerdos({ loteActual }: Props) {
       {alertas.length > 0 && (
         <div className="space-y-1.5">
           {alertas.map((a, i) => (
-            <div key={i} className="px-3 py-2 bg-red-50 border border-red-300 rounded-lg text-sm text-red-800">🚨 {a}</div>
+            <div key={i} className="px-3 py-2 bg-red-50 border border-red-300 rounded-lg text-sm text-red-800"><Ic n="sirena" /> {a}</div>
           ))}
         </div>
       )}
@@ -111,11 +112,11 @@ export default function TabAmbientalCerdos({ loteActual }: Props) {
       {ultimo && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
-            { label: '🌡️ T° interior', val: ultimo.temperatura_interior?.toFixed(1), unit: '°C', warn: !!ultimo.temperatura_interior && ultimo.temperatura_interior > 28 },
-            { label: '🌡️ T° exterior', val: ultimo.temperatura_exterior?.toFixed(1), unit: '°C', warn: false },
-            { label: '💧 Humedad int.', val: ultimo.humedad_interior?.toFixed(1), unit: '%', warn: !!ultimo.humedad_interior && ultimo.humedad_interior > 80 },
-            { label: '🌬️ NH₃', val: ultimo.nh3_ppm?.toFixed(1), unit: 'ppm', warn: !!ultimo.nh3_ppm && ultimo.nh3_ppm > 20 },
-            { label: '💨 CO₂', val: ultimo.co2_ppm?.toFixed(0), unit: 'ppm', warn: !!ultimo.co2_ppm && ultimo.co2_ppm > 3000 },
+            { label: 'T° interior', val: ultimo.temperatura_interior?.toFixed(1), unit: '°C', warn: !!ultimo.temperatura_interior && ultimo.temperatura_interior > 28 },
+            { label: 'T° exterior', val: ultimo.temperatura_exterior?.toFixed(1), unit: '°C', warn: false },
+            { label: 'Humedad int.', val: ultimo.humedad_interior?.toFixed(1), unit: '%', warn: !!ultimo.humedad_interior && ultimo.humedad_interior > 80 },
+            { label: 'NH₃', val: ultimo.nh3_ppm?.toFixed(1), unit: 'ppm', warn: !!ultimo.nh3_ppm && ultimo.nh3_ppm > 20 },
+            { label: 'CO₂', val: ultimo.co2_ppm?.toFixed(0), unit: 'ppm', warn: !!ultimo.co2_ppm && ultimo.co2_ppm > 3000 },
           ].map((item, i) => (
             <Card key={i} className={item.warn ? 'border-red-300 bg-red-50' : ''}>
               <CardContent className="p-3">
@@ -133,7 +134,7 @@ export default function TabAmbientalCerdos({ loteActual }: Props) {
           {loading ? (
             <div className="p-4 space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}</div>
           ) : registros.length === 0 ? (
-            <div className="py-10 text-center"><p className="text-4xl mb-2">🌡️</p><p className="text-gray-500">Sin lecturas ambientales</p></div>
+            <div className="py-10 text-center"><p className="text-4xl mb-2"><Ic n="termometro" /></p><p className="text-gray-500">Sin lecturas ambientales</p></div>
           ) : (
             <div className="overflow-x-auto">
               <Table>
@@ -150,7 +151,7 @@ export default function TabAmbientalCerdos({ loteActual }: Props) {
                       <TableCell className={`text-right text-sm ${r.humedad_interior && r.humedad_interior > 80 ? 'text-amber-600' : ''}`}>{r.humedad_interior?.toFixed(1) ?? '—'}</TableCell>
                       <TableCell className={`text-right text-sm ${r.nh3_ppm && r.nh3_ppm > 20 ? 'text-red-600 font-semibold' : ''}`}>{r.nh3_ppm?.toFixed(1) ?? '—'}</TableCell>
                       <TableCell className={`text-right text-sm ${r.co2_ppm && r.co2_ppm > 3000 ? 'text-red-600 font-semibold' : ''}`}>{r.co2_ppm?.toFixed(0) ?? '—'}</TableCell>
-                      <TableCell><Badge variant="secondary" className="text-[10px]">{r.fuente === 'sensor' ? '📡' : '✍️'}</Badge></TableCell>
+                      <TableCell><Badge variant="secondary" className="text-[10px]">{r.fuente === 'sensor' ? '' : ''}</Badge></TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -162,7 +163,7 @@ export default function TabAmbientalCerdos({ loteActual }: Props) {
 
       <Card className="border-dashed border-gray-300 bg-gray-50">
         <CardContent className="p-4 text-center space-y-1">
-          <p className="text-xl">📡</p>
+          <p className="text-xl"><Ic n="sensor" /></p>
           <p className="font-medium text-gray-600 text-sm">Sensores IoT para Porqueriza — Próximamente</p>
           <p className="text-xs text-gray-400">SHT40 (T°/HR), MQ-135 (NH₃), MH-Z19B (CO₂). Protocolo LoRaWAN para zonas sin WiFi. Sensores con sellado IP67.</p>
           <p className="text-xs text-gray-400 mt-1">Regla: <em>IF T° &gt; 28°C AND HR &gt; 75% → Activar ventilación forzada</em></p>

@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils'
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
 import { ajustarHuevos, nombreItemHuevos } from '@/lib/inventario'
+import { Ic } from '@/components/ui/icon'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 type Venta = Database['public']['Tables']['ventas_huevos_aves']['Row']
@@ -164,7 +165,7 @@ export default function TabVentas({ loteActual, onLoteUpdated }: Props) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold text-gray-800">Ventas de Huevo</h2>
+        <h2 className="text-lg font-semibold text-gray-800">Ventas de Huevo</h2>
         {subTab === 'ventas' ? (
           <Button onClick={() => { setVentaEditar(null); setModalOpen(true) }} className="bg-green-700 hover:bg-green-800 text-white text-sm">
             + Registrar venta
@@ -179,8 +180,8 @@ export default function TabVentas({ loteActual, onLoteUpdated }: Props) {
       {/* Un navbar para lo ya vendido y otro para lo que está comprometido a futuro */}
       <div className="flex gap-2 border-b border-gray-200 pb-0">
         {([
-          { id: 'ventas' as const, label: '🧾 Ventas', count: ventas.length },
-          { id: 'encargos' as const, label: '📋 Encargos futuros', count: encargosPendientes.length },
+          { id: 'ventas' as const, label: 'Ventas', count: ventas.length },
+          { id: 'encargos' as const, label: 'Encargos futuros', count: encargosPendientes.length },
         ]).map(item => (
           <button
             key={item.id}
@@ -200,7 +201,7 @@ export default function TabVentas({ loteActual, onLoteUpdated }: Props) {
       <>
       <Card>
         <CardHeader className="pb-2 flex flex-row items-center justify-between">
-          <CardTitle className="text-sm font-semibold text-gray-700">💲 Precio de venta por tamaño de huevo</CardTitle>
+          <CardTitle className="text-sm font-semibold text-gray-700"><Ic n="precio" /> Precio de venta por tamaño de huevo</CardTitle>
           {!editandoPrecios && (
             <Button size="sm" variant="outline" className="text-xs" onClick={() => setEditandoPrecios(true)}>Editar precios</Button>
           )}
@@ -266,7 +267,7 @@ export default function TabVentas({ loteActual, onLoteUpdated }: Props) {
             <div className="p-4 space-y-2">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}</div>
           ) : ventas.length === 0 ? (
             <div className="py-12 text-center">
-              <p className="text-4xl mb-2">🧾</p>
+              <p className="text-4xl mb-2"><Ic n="recibo" /></p>
               <p className="text-gray-600 font-medium">Sin ventas registradas</p>
               <Button onClick={() => setModalOpen(true)} className="mt-4 bg-green-700 hover:bg-green-800 text-white">+ Registrar venta</Button>
             </div>
@@ -291,13 +292,13 @@ export default function TabVentas({ loteActual, onLoteUpdated }: Props) {
                       <TableCell className="text-right font-semibold text-sm">{cop(totalVenta(v))}</TableCell>
                       <TableCell>
                         <div className="flex items-center justify-end gap-1">
-                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={() => { setVentaEditar(v); setModalOpen(true) }}>✏️</Button>
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={() => { setVentaEditar(v); setModalOpen(true) }}><Ic n="editar" /></Button>
                           <Button
                             size="sm" variant="ghost"
                             className={confirmandoEliminar === v.id ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
                             onClick={() => eliminar(v)}
                           >
-                            {confirmandoEliminar === v.id ? '¿Confirmar?' : '🗑️'}
+                            {confirmandoEliminar === v.id ? '¿Confirmar?' : ''}
                           </Button>
                         </div>
                       </TableCell>
@@ -315,7 +316,7 @@ export default function TabVentas({ loteActual, onLoteUpdated }: Props) {
       {subTab === 'encargos' && (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold text-gray-700">📋 Encargos futuros</CardTitle>
+            <CardTitle className="text-sm font-semibold text-gray-700"><Ic n="diario" /> Encargos futuros</CardTitle>
             <p className="text-xs text-gray-400">
               Huevo ya comprometido con un cliente que todavía no se entrega. Al marcarlo como
               entregado se convierte en venta y se descuenta del inventario.
@@ -323,7 +324,7 @@ export default function TabVentas({ loteActual, onLoteUpdated }: Props) {
             </p>
             {comprometidos > 0 && (
               <p className="text-xs text-amber-600">
-                ⚠️ Comprometidos sin entregar: {comprometidos.toLocaleString('es-CO')} huevos
+                <Ic n="alerta" /> Comprometidos sin entregar: {comprometidos.toLocaleString('es-CO')} huevos
                 {huevosInventario > 0 && comprometidos > huevosInventario && ' — más de lo que hay hoy en inventario'}
               </p>
             )}
@@ -333,7 +334,7 @@ export default function TabVentas({ loteActual, onLoteUpdated }: Props) {
               <div className="p-4 space-y-2">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}</div>
             ) : encargos.length === 0 ? (
               <div className="py-12 text-center">
-                <p className="text-4xl mb-2">📋</p>
+                <p className="text-4xl mb-2"><Ic n="diario" /></p>
                 <p className="text-gray-600 font-medium">Sin encargos registrados</p>
                 <Button onClick={() => { setEncargoEditar(null); setModalEncargo(true) }} className="mt-4 bg-green-700 hover:bg-green-800 text-white">
                   + Registrar encargo
@@ -362,9 +363,9 @@ export default function TabVentas({ loteActual, onLoteUpdated }: Props) {
                           <TableCell className="text-right text-sm">{totalHuevos(e).toLocaleString('es-CO')}</TableCell>
                           <TableCell className="text-xs">
                             {entregado
-                              ? <span className="text-green-700">✓ Entregado</span>
+                              ? <span className="text-green-700"><Ic n="check" /> Entregado</span>
                               : vencido
-                                ? <span className="text-red-600 font-medium">⏰ Vencido sin entregar</span>
+                                ? <span className="text-red-600 font-medium"><Ic n="reloj" /> Vencido sin entregar</span>
                                 : <span className="text-amber-600">Pendiente</span>}
                           </TableCell>
                           <TableCell>
@@ -374,13 +375,13 @@ export default function TabVentas({ loteActual, onLoteUpdated }: Props) {
                                   Marcar entregado
                                 </Button>
                               )}
-                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={() => { setEncargoEditar(e); setModalEncargo(true) }}>✏️</Button>
+                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={() => { setEncargoEditar(e); setModalEncargo(true) }}><Ic n="editar" /></Button>
                               <Button
                                 size="sm" variant="ghost"
                                 className={confirmandoEliminar === e.id ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
                                 onClick={() => eliminarEncargo(e)}
                               >
-                                {confirmandoEliminar === e.id ? '¿Confirmar?' : '🗑️'}
+                                {confirmandoEliminar === e.id ? '¿Confirmar?' : ''}
                               </Button>
                             </div>
                           </TableCell>

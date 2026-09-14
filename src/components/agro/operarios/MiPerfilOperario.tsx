@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Ic } from '@/components/ui/icon'
 
 type Perfil = { full_name: string | null; cargo: string | null; pago_monto: number | null; pago_periodo: string | null }
 type Turno = { id: string; fecha: string; hora_inicio: string; hora_fin: string | null; area: string | null }
@@ -60,7 +61,7 @@ export default function MiPerfilOperario({ fincaId }: Props) {
   return (
     <div className="p-8 space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><span>👷</span> Mi Perfil</h2>
+        <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2"><span><Ic n="operario" /></span> Mi Perfil</h2>
         <p className="text-gray-500 mt-1">Tu función, calendario de turnos y tareas asignadas</p>
       </div>
 
@@ -78,10 +79,10 @@ export default function MiPerfilOperario({ fincaId }: Props) {
       </Card>
 
       <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold text-gray-700">🕐 Mi calendario de turnos</CardTitle></CardHeader>
+        <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold text-gray-700"><Ic n="reloj" /> Mi calendario de turnos</CardTitle></CardHeader>
         <CardContent className="p-0">
           {turnos.length === 0 ? (
-            <div className="py-10 text-center text-gray-400"><p className="text-3xl mb-2">🕐</p><p>Sin turnos asignados</p></div>
+            <div className="py-10 text-center text-gray-400"><p className="text-3xl mb-2"><Ic n="reloj" /></p><p>Sin turnos asignados</p></div>
           ) : (
             <Table>
               <TableHeader><TableRow><TableHead>Fecha</TableHead><TableHead>Horario</TableHead><TableHead>Área</TableHead></TableRow></TableHeader>
@@ -100,10 +101,10 @@ export default function MiPerfilOperario({ fincaId }: Props) {
       </Card>
 
       <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold text-gray-700">📋 Mis tareas</CardTitle></CardHeader>
+        <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold text-gray-700"><Ic n="diario" /> Mis tareas</CardTitle></CardHeader>
         <CardContent className="p-0">
           {tareas.length === 0 ? (
-            <div className="py-10 text-center text-gray-400"><p className="text-3xl mb-2">📋</p><p>Sin tareas asignadas</p></div>
+            <div className="py-10 text-center text-gray-400"><p className="text-3xl mb-2"><Ic n="diario" /></p><p>Sin tareas asignadas</p></div>
           ) : (
             <Table>
               <TableHeader><TableRow><TableHead>Fecha</TableHead><TableHead>Descripción</TableHead><TableHead>Estado</TableHead></TableRow></TableHeader>

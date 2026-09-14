@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
+import { Ic } from '@/components/ui/icon'
 
 type TipoAlimento = Database['public']['Tables']['tipos_alimento_aves']['Row']
 type ProduccionDiaria = Database['public']['Tables']['produccion_diaria_aves']['Row']
@@ -144,11 +145,11 @@ export default function RegistrarConsumoAlimentoModal({
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{consumoExistente ? '✏️ Editar Consumo de Alimento' : '🌾 Registrar Consumo de Alimento'}</DialogTitle>
+          <DialogTitle>{consumoExistente ? 'Editar Consumo de Alimento' : 'Registrar Consumo de Alimento'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg">
-            <p className="text-sm font-semibold text-amber-800">⚠️ Este consumo queda fijo</p>
+            <p className="text-sm font-semibold text-amber-800"><Ic n="alerta" /> Este consumo queda fijo</p>
             <p className="text-xs text-amber-700 mt-0.5">
               Lo que registres aquí rige para el galpón todos los días hasta que registres uno nuevo.
               No hay que registrarlo a diario. Si lo cambias y ya hay horarios, tendrás que ajustar
@@ -184,7 +185,7 @@ export default function RegistrarConsumoAlimentoModal({
 
           {requerimientoProduccion && (
             <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg space-y-1.5">
-              <p className="text-xs font-semibold text-purple-800">🥚 Requerimiento con postura</p>
+              <p className="text-xs font-semibold text-purple-800"><Ic n="huevo" /> Requerimiento con postura</p>
               <p className="text-xs text-purple-600">
                 Lo que necesita cada ave hoy: mantenimiento más lo que pide poner huevo
                 {posturaFraccion > 0 ? ` (postura al ${(posturaFraccion * 100).toFixed(0)}%)` : ''}.

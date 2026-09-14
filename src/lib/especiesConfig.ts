@@ -126,7 +126,7 @@ export const CONFIG_ESPECIES: Record<EspecieFinca, ConfigEspecie> = {
   aves_ponedoras: {
     especie: 'aves_ponedoras',
     label: 'Aves Ponedoras',
-    icono: '🐔',
+    icono: '',
     href: '/aves-ponedoras',
     animalSingular: 'ave',
     animalPlural: 'aves',
@@ -159,7 +159,7 @@ export const CONFIG_ESPECIES: Record<EspecieFinca, ConfigEspecie> = {
   cerdos: {
     especie: 'cerdos',
     label: 'Cerdos',
-    icono: '🐷',
+    icono: '',
     href: '/cerdos',
     animalSingular: 'cerdo',
     animalPlural: 'cerdos',
@@ -192,7 +192,7 @@ export const CONFIG_ESPECIES: Record<EspecieFinca, ConfigEspecie> = {
   pollo_engorde: {
     especie: 'pollo_engorde',
     label: 'Pollo de Engorde',
-    icono: '🐥',
+    icono: '',
     href: '/pollo-engorde',
     animalSingular: 'pollo',
     animalPlural: 'pollos',

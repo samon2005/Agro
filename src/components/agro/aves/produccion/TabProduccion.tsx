@@ -19,6 +19,7 @@ import { estadoPostura } from '@/lib/postura'
 import type { Database } from '@/types/database'
 import { aFechaLocal } from '@/lib/fechas'
 import { ajustarHuevos } from '@/lib/inventario'
+import { Ic } from '@/components/ui/icon'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 type ProduccionDiaria = Database['public']['Tables']['produccion_diaria_aves']['Row']
@@ -45,9 +46,9 @@ const CAUSAS_LABEL: Record<string, string> = {
 }
 
 const TIPO_EVENTO_LABEL: Record<string, string> = {
-  respiratorio: '🫁 Respiratorio', locomotor: '🦴 Locomotor', digestivo: '🫃 Digestivo',
-  reproductivo: '🥚 Reproductivo', nervioso: '🧠 Nervioso', piel: '🐾 Piel / Plumas',
-  otro: '❓ Otro',
+  respiratorio: 'Respiratorio', locomotor: 'Locomotor', digestivo: 'Digestivo',
+  reproductivo: 'Reproductivo', nervioso: 'Nervioso', piel: 'Piel / Plumas',
+  otro: 'Otro',
 }
 
 export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted }: Props) {
@@ -413,7 +414,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
     )
     const hito: FilaHistorial = {
       tipo: 'hito', key: 'hito-postura', color: 'verde',
-      etiqueta: '🥚 Inicio de postura', fecha: fechaPostura,
+      etiqueta: 'Inicio de postura', fecha: fechaPostura,
     }
     if (idx === -1) filasHistorial.push(hito)
     else filasHistorial.splice(idx, 0, hito)
@@ -422,16 +423,16 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
   // Y al final del todo, el día en que el lote entró al galpón.
   filasHistorial.push({
     tipo: 'hito', key: 'hito-entrada', color: 'azul',
-    etiqueta: '🐣 Entrada al galpón', fecha: loteActual.fecha_inicio,
+    etiqueta: 'Entrada al galpón', fecha: loteActual.fecha_inicio,
   })
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold text-gray-800">Producción y Crecimiento</h2>
+        <h2 className="text-lg font-semibold text-gray-800">Producción y Crecimiento</h2>
         <div className="flex gap-2 flex-wrap">
           <Button onClick={() => setConfigOpen(true)} variant="outline" className="text-sm">
-            ⚙️ Configurar galpón
+            <Ic n="ajustes" /> Configurar galpón
           </Button>
           {!enPostura && (
             <Button
@@ -440,7 +441,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
               title={!listoParaRegistrar ? faltaParaRegistrar : undefined}
               className="bg-blue-700 hover:bg-blue-800 text-white text-sm"
             >
-              🥚 Marcar inicio de postura
+              <Ic n="huevo" /> Marcar inicio de postura
             </Button>
           )}
           {!enPostura && (
@@ -451,7 +452,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
               variant="outline"
               className="text-sm"
             >
-              {guardandoSinNovedades ? 'Guardando...' : '✓ Día sin novedades'}
+              {guardandoSinNovedades ? 'Guardando...' : 'Día sin novedades'}
             </Button>
           )}
           <Button
@@ -469,7 +470,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
         <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg border border-amber-200 bg-amber-50">
           <div>
             <p className="text-sm font-semibold text-amber-800">
-              ⚠️ Este galpón todavía no tiene alimento registrado
+              <Ic n="alerta" /> Este galpón todavía no tiene alimento registrado
             </p>
             <p className="text-xs text-amber-700 mt-0.5">{faltaParaRegistrar}</p>
           </div>
@@ -691,7 +692,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
                   {fechasHistorial.length === 0 && (
                     <TableRow className="hover:bg-transparent">
                       <TableCell colSpan={enPostura ? 6 : 5} className="py-8 text-center">
-                        <p className="text-3xl mb-1">📋</p>
+                        <p className="text-3xl mb-1"><Ic n="diario" /></p>
                         <p className="text-gray-600 font-medium text-sm">Sin días registrados todavía</p>
                         <p className="text-xs text-gray-400 mb-3">
                           {loteActual.estado === 'preparacion' ? 'Registra alimento, muertes o eventos clínicos del día' : 'Registra el primer día'}
@@ -708,7 +709,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
                         <TableRow key={fila.key} className="bg-purple-50 hover:bg-purple-50 border-y border-purple-200">
                           <TableCell colSpan={enPostura ? 6 : 5} className="py-2">
                             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-purple-800 font-medium">
-                              <span className="font-semibold">📅 {fila.etiquetaSemana}</span>
+                              <span className="font-semibold"><Ic n="calendario" /> {fila.etiquetaSemana}</span>
                               <span>
                                 {fila.inicio.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })} – {fila.fin.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}
                               </span>
@@ -759,7 +760,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
                               misma fila, con sus afectadas y sus muertas. */}
                           {fila.eventos.map(ev => (
                             <span key={ev.id} className="mt-1 block rounded-md border border-red-200 bg-red-50 px-2 py-1 text-[11px] leading-tight text-red-700">
-                              <span className="font-semibold">🩺 {ev.causa ? CAUSAS_LABEL[ev.causa] ?? ev.causa : ev.descripcion}</span>
+                              <span className="font-semibold"><Ic n="clinico" /> {ev.causa ? CAUSAS_LABEL[ev.causa] ?? ev.causa : ev.descripcion}</span>
                               <span className="block text-red-500">
                                 {TIPO_EVENTO_LABEL[ev.tipo_evento] ?? ev.tipo_evento}
                                 {(ev.aves_afectadas ?? 0) > 0 ? ` · ${ev.aves_afectadas} afectadas` : ''}
@@ -770,13 +771,13 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center justify-end gap-1">
-                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={() => { setRegistroEditar(r); setModalOpen(true) }}>✏️</Button>
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={() => { setRegistroEditar(r); setModalOpen(true) }}><Ic n="editar" /></Button>
                             <Button
                               size="sm" variant="ghost"
                               className={confirmandoEliminar === r.id ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
                               onClick={() => eliminarRegistro(r)}
                             >
-                              {confirmandoEliminar === r.id ? '¿Confirmar?' : '🗑️'}
+                              {confirmandoEliminar === r.id ? '¿Confirmar?' : ''}
                             </Button>
                           </div>
                         </TableCell>

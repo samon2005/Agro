@@ -11,6 +11,7 @@ import { CurrencyInput } from '@/components/ui/currency-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { Database } from '@/types/database'
 import { hoyLocal, aFechaLocal, desdeFechaLocal } from '@/lib/fechas'
+import { Ic } from '@/components/ui/icon'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
 type TipoAlimento = Database['public']['Tables']['tipos_alimento_cerdos']['Row']
@@ -25,9 +26,9 @@ interface Props {
 const LINEAS = ['Landrace', 'Yorkshire (Large White)', 'Duroc', 'Pietrain', 'Hampshire', 'PIC', 'Topigs', 'Otra']
 
 const ETAPAS_CEBA = [
-  { value: 'precebo', label: '🐷 Precebo (lechones)' },
-  { value: 'levante', label: '🐖 Levante' },
-  { value: 'ceba', label: '🐗 Ceba / Engorde' },
+  { value: 'precebo', label: 'Precebo (lechones)' },
+  { value: 'levante', label: 'Levante' },
+  { value: 'ceba', label: 'Ceba / Engorde' },
 ]
 
 const NUEVO_ALIMENTO = '__nuevo__'
@@ -153,7 +154,7 @@ export default function CrearLoteCerdosModal({ open, onClose, fincaId, onCreated
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>🐷 Nuevo Lote de Cerdos</DialogTitle>
+          <DialogTitle><Ic n="cerdo" /> Nuevo Lote de Cerdos</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Sistema: cambia de qué se trata el lote y qué herramientas trae */}
@@ -165,7 +166,7 @@ export default function CrearLoteCerdosModal({ open, onClose, fincaId, onCreated
                 onClick={() => set('sistema', 'ceba')}
                 className={`rounded-lg border p-3 text-left transition-colors ${!esCria ? 'border-orange-500 bg-orange-50' : 'border-gray-200 hover:border-orange-300'}`}
               >
-                <p className="text-sm font-semibold text-gray-800">🐗 Ceba / Engorde</p>
+                <p className="text-sm font-semibold text-gray-800"><Ic n="cerdo" /> Ceba / Engorde</p>
                 <p className="text-[11px] text-gray-500 mt-0.5">Se compra el lechón, se levanta y se vende por kilo.</p>
               </button>
               <button
@@ -173,13 +174,13 @@ export default function CrearLoteCerdosModal({ open, onClose, fincaId, onCreated
                 onClick={() => set('sistema', 'cria')}
                 className={`rounded-lg border p-3 text-left transition-colors ${esCria ? 'border-pink-500 bg-pink-50' : 'border-gray-200 hover:border-pink-300'}`}
               >
-                <p className="text-sm font-semibold text-gray-800">🐖 Cría / Reproducción</p>
+                <p className="text-sm font-semibold text-gray-800"><Ic n="cerdo" /> Cría / Reproducción</p>
                 <p className="text-[11px] text-gray-500 mt-0.5">Hembras propias: servicios, gestación, partos y destetes.</p>
               </button>
             </div>
             {esCria && (
               <p className="text-xs text-pink-700 bg-pink-50 border border-pink-200 rounded p-2 mt-1">
-                🐖 Este lote trabajará con la pestaña de Reproducción: registro de hembras, servicios
+                <Ic n="cerdo" /> Este lote trabajará con la pestaña de Reproducción: registro de hembras, servicios
                 (monta o inseminación), gestación de 114 días, partos y destetes. Las etapas de
                 engorde no aplican.
               </p>
@@ -263,7 +264,7 @@ export default function CrearLoteCerdosModal({ open, onClose, fincaId, onCreated
           {/* Alimento obligatorio: sin él no hay consumo, ni costo, ni conversión */}
           <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg space-y-3">
             <div>
-              <p className="text-sm font-semibold text-amber-800">🌾 Alimento del lote (obligatorio)</p>
+              <p className="text-sm font-semibold text-amber-800"><Ic n="alimento" /> Alimento del lote (obligatorio)</p>
               <p className="text-xs text-amber-700">
                 Todo lote necesita su alimento desde el primer día: de ahí salen el costo, el
                 consumo y la conversión alimenticia.

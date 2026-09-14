@@ -13,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 import type { EspecieFinca } from '@/lib/especies'
+import { Ic } from '@/components/ui/icon'
 
 type Item = {
   id: string
@@ -107,8 +108,7 @@ export default function InventarioPage() {
       <div className="p-8">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-              <span>📦</span> Gestión de Inventario
+            <h2 className="text-3xl font-medium text-gray-900">Gestión de Inventario
             </h2>
             <p className="text-gray-500 mt-1">
               {fincaActual ? `Finca: ${fincaActual.nombre}` : 'Selecciona una finca'}
@@ -127,20 +127,21 @@ export default function InventarioPage() {
 
         <div className="flex gap-2 border-b border-gray-200 mb-6">
           {([
-            { id: 'insumos' as const, label: '📦 Insumos' },
-            { id: 'alimento' as const, label: '🌾 Alimento' },
-            { id: 'huevos' as const, label: '🥚 Huevos' },
-            { id: 'farmacos' as const, label: '💊 Fármacos' },
-            { id: 'equipos' as const, label: '⚙️ Equipos' },
+            { id: 'insumos' as const, label: 'Insumos', icon: 'caja' as const },
+            { id: 'alimento' as const, label: 'Alimento', icon: 'alimento' as const },
+            { id: 'huevos' as const, label: 'Huevos', icon: 'huevo' as const },
+            { id: 'farmacos' as const, label: 'Fármacos', icon: 'medicamento' as const },
+            { id: 'equipos' as const, label: 'Equipos', icon: 'ajustes' as const },
           ]).map(t => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
               className={cn(
-                'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
-                tab === t.id ? 'border-green-600 text-green-700' : 'border-transparent text-gray-500 hover:text-gray-700'
+                'inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors',
+                tab === t.id ? 'border-green-700 text-green-900' : 'border-transparent text-gray-500 hover:text-gray-800'
               )}
             >
+              <Ic n={t.icon} className={cn('size-4', tab === t.id ? 'text-green-700' : 'text-gray-400')} />
               {t.label}
             </button>
           ))}
@@ -184,7 +185,7 @@ export default function InventarioPage() {
               <div className="space-y-2">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
             ) : itemsVista.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
-                <span className="text-5xl mb-4">📦</span>
+                <span className="text-5xl mb-4"><Ic n="caja" /></span>
                 <p className="text-lg font-semibold text-gray-700">Inventario vacío</p>
                 <p className="text-sm text-gray-400 mt-1 mb-6">Registra los insumos y materiales de tu finca</p>
                 <Button className="bg-green-700 hover:bg-green-800 text-white" onClick={() => setModalOpen(true)}>
@@ -262,7 +263,7 @@ export default function InventarioPage() {
                               className="text-red-500 hover:text-red-700 hover:bg-red-50 h-7 px-2"
                               onClick={() => eliminarItem(item.id)}
                             >
-                              🗑️
+                              <Ic n="borrar" />
                             </Button>
                           )}
                         </TableCell>

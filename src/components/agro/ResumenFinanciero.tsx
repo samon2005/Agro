@@ -1,5 +1,6 @@
 'use client'
 
+import { Ic } from '@/components/ui/icon'
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/card'
@@ -172,7 +173,7 @@ export default function ResumenFinanciero({ fincaId, especies }: Props) {
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Desglose por especie</p>
                 {porEspecie.map(e => (
                   <div key={e.especie} className="flex items-center justify-between gap-3 py-1.5 border-b border-gray-50 last:border-0">
-                    <span className="text-sm font-medium text-gray-700">{e.info.icon} {e.info.label}</span>
+                    <span className="text-sm font-medium text-gray-700"><Ic n={e.info.icon} /> {e.info.label}</span>
                     <div className="flex items-center gap-4 text-xs">
                       <span className="text-emerald-700">{cop(e.ingresos)}</span>
                       <span className="text-red-700">− {cop(e.costos)}</span>

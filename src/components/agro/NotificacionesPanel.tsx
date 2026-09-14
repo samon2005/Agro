@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useFinca } from './FincaProvider'
 import { Badge } from '@/components/ui/badge'
 import { aFechaLocal } from '@/lib/fechas'
+import { Ic } from '@/components/ui/icon'
 
 type Notificacion = { tipo: 'stock' | 'equipo' | 'recoleccion' | 'postura' | 'ventas'; mensaje: string; href: string }
 
@@ -114,10 +115,10 @@ export default function NotificacionesPanel() {
     <div className="relative">
       <button
         onClick={() => setAbierto(v => !v)}
-        className="relative w-9 h-9 rounded-full flex items-center justify-center hover:bg-gray-100 text-lg"
+        className="relative flex size-9 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
         aria-label="Notificaciones"
       >
-        🔔
+        <Ic n="campana" className="size-[18px]" />
         {notificaciones.length > 0 && (
           <span className="absolute -top-0.5 -right-0.5 bg-red-600 text-white text-[10px] rounded-full w-4 h-4 flex items-center justify-center font-semibold">
             {notificaciones.length > 9 ? '9+' : notificaciones.length}
@@ -128,7 +129,7 @@ export default function NotificacionesPanel() {
       {abierto && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setAbierto(false)} />
-          <div className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-96 overflow-y-auto">
+          <div className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-xl shadow-[0_16px_40px_-20px_rgb(27_26_23/30%)] z-50 animate-in fade-in-0 slide-in-from-top-1 duration-200 max-h-96 overflow-y-auto">
             <div className="p-3 border-b border-gray-100 flex items-center justify-between">
               <p className="text-sm font-semibold text-gray-700">Notificaciones</p>
               <Badge variant="secondary">{notificaciones.length}</Badge>
@@ -144,7 +145,7 @@ export default function NotificacionesPanel() {
                     onClick={() => setAbierto(false)}
                     className="block p-3 text-sm hover:bg-gray-50 text-gray-700"
                   >
-                    <span className="mr-1.5">{n.tipo === 'stock' ? '📦' : n.tipo === 'equipo' ? '⚙️' : n.tipo === 'postura' ? '🐣' : n.tipo === 'ventas' ? '💰' : '🥚'}</span>
+                    <span className="mr-1.5">{n.tipo === 'stock' ? '' : n.tipo === 'equipo' ? '' : n.tipo === 'postura' ? '' : n.tipo === 'ventas' ? '' : ''}</span>
                     {n.mensaje}
                   </Link>
                 ))}

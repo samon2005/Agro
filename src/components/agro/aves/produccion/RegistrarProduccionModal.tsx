@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
 import { ajustarHuevos } from '@/lib/inventario'
+import { Ic } from '@/components/ui/icon'
 
 type ProduccionDiaria = Database['public']['Tables']['produccion_diaria_aves']['Row']
 
@@ -51,13 +52,13 @@ const AGREGAR_CAUSA = '__agregar_causa__'
 
 const TIPOS_EVENTO_CLINICO = [
   { value: SIN_TIPO, label: '— Ninguno' },
-  { value: 'respiratorio', label: '🫁 Respiratorio' },
-  { value: 'locomotor', label: '🦴 Locomotor' },
-  { value: 'digestivo', label: '🫃 Digestivo' },
-  { value: 'reproductivo', label: '🥚 Reproductivo' },
-  { value: 'nervioso', label: '🧠 Nervioso' },
-  { value: 'piel', label: '🐾 Piel / Plumas' },
-  { value: 'otro', label: '❓ Otro' },
+  { value: 'respiratorio', label: 'Respiratorio' },
+  { value: 'locomotor', label: 'Locomotor' },
+  { value: 'digestivo', label: 'Digestivo' },
+  { value: 'reproductivo', label: 'Reproductivo' },
+  { value: 'nervioso', label: 'Nervioso' },
+  { value: 'piel', label: 'Piel / Plumas' },
+  { value: 'otro', label: 'Otro' },
 ]
 
 function defaultForm(avesActuales: number, r?: ProduccionDiaria | null) {
@@ -202,7 +203,7 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
         // El ave ya murió: este evento no debe ofrecer tratamiento.
         requiere_medicamento: false,
       })
-      toast.warning(`⚠️ ¡Cuidado! Muertes por ${form.causa_muerte}`)
+      toast.warning(`¡Cuidado! Muertes por ${form.causa_muerte}`)
     }
 
     // Basta con elegir tipo o causa: antes solo se creaba si había descripción escrita,
@@ -259,7 +260,7 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{registroExistente ? '✏️ Editar Registro del Día' : enPreparacion ? '📋 Registrar Día (preparación)' : '🥚 Registrar Producción Diaria'}</DialogTitle>
+          <DialogTitle>{registroExistente ? 'Editar Registro del Día' : enPreparacion ? 'Registrar Día (preparación)' : 'Registrar Producción Diaria'}</DialogTitle>
           {enPreparacion && (
             <p className="text-sm text-blue-600">El lote sigue en preparación — aún no se registran huevos. Usa &quot;Marcar inicio de postura&quot; cuando comience.</p>
           )}
@@ -359,7 +360,7 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
           )}
 
           <div className="p-3 bg-red-50 rounded-lg border border-red-200 space-y-2">
-            <p className="text-xs font-semibold text-red-700">🩺 Evento clínico (opcional)</p>
+            <p className="text-xs font-semibold text-red-700"><Ic n="clinico" /> Evento clínico (opcional)</p>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs">Causa</Label>

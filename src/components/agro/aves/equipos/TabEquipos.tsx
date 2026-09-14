@@ -11,25 +11,26 @@ import { avisoCostoVinculado } from '@/lib/eliminarConAviso'
 import CrearEquipoModal from './CrearEquipoModal'
 import RegistrarLogEquipoModal from './RegistrarLogEquipoModal'
 import type { Database } from '@/types/database'
+import { Ic, type NombreIcono } from '@/components/ui/icon'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 type Equipo = Database['public']['Tables']['equipos_aves']['Row']
 
 interface Props { loteActual: LoteAves }
 
-const TIPO_LABEL: Record<string, { label: string; icon: string }> = {
-  ventilador: { label: 'Ventilador', icon: '💨' },
-  banda_recoleccion: { label: 'Banda de recolección', icon: '🔄' },
-  comedero: { label: 'Comedero', icon: '🍽️' },
-  bebedero: { label: 'Bebedero', icon: '💧' },
-  lampara: { label: 'Lámpara / Iluminación', icon: '💡' },
-  calefactor: { label: 'Calefactor', icon: '🔥' },
-  cuenta_huevos: { label: 'Máquina cuenta huevos', icon: '🥚' },
-  otro: { label: 'Otro', icon: '⚙️' },
+const TIPO_LABEL: Record<string, { label: string; icon: NombreIcono }> = {
+  ventilador: { label: 'Ventilador', icon: 'ventilador' },
+  banda_recoleccion: { label: 'Banda de recolección', icon: 'ciclo' },
+  comedero: { label: 'Comedero', icon: 'alimento' },
+  bebedero: { label: 'Bebedero', icon: 'gota' },
+  lampara: { label: 'Lámpara / Iluminación', icon: 'idea' },
+  calefactor: { label: 'Calefactor', icon: 'fuego' },
+  cuenta_huevos: { label: 'Máquina cuenta huevos', icon: 'huevo' },
+  otro: { label: 'Otro', icon: 'herramienta' },
 }
 
 function tipoInfo(tipo: string) {
-  return TIPO_LABEL[tipo] ?? { label: tipo, icon: '⚙️' }
+  return TIPO_LABEL[tipo] ?? { label: tipo, icon: 'herramienta' as NombreIcono }
 }
 
 function estadoConfig(estado: string) {
@@ -109,7 +110,7 @@ export default function TabEquipos({ loteActual }: Props) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold text-gray-800">Estado de Equipos</h2>
+        <h2 className="text-lg font-semibold text-gray-800">Estado de Equipos</h2>
         <Button onClick={() => { setEquipoEditar(null); setModalCrear(true) }} className="bg-green-700 hover:bg-green-800 text-white text-sm">
           + Registrar equipo
         </Button>
@@ -117,7 +118,7 @@ export default function TabEquipos({ loteActual }: Props) {
 
       {equiposEnFalla.length > 0 && (
         <div className="p-3 bg-red-50 border border-red-300 rounded-lg text-sm text-red-800">
-          🚨 <strong>Equipos con falla:</strong> {equiposEnFalla.map(e => e.nombre).join(', ')}
+          <Ic n="sirena" /> <strong>Equipos con falla:</strong> {equiposEnFalla.map(e => e.nombre).join(', ')}
         </div>
       )}
 
@@ -127,7 +128,7 @@ export default function TabEquipos({ loteActual }: Props) {
         </div>
       ) : equipos.length === 0 ? (
         <div className="py-12 text-center">
-          <p className="text-4xl mb-2">⚙️</p>
+          <p className="text-4xl mb-2"><Ic n="ajustes" /></p>
           <p className="text-gray-600 font-medium">Sin equipos registrados</p>
           <p className="text-sm text-gray-400 mb-4">Registra los equipos del galpón para hacer seguimiento</p>
           <Button onClick={() => setModalCrear(true)} className="bg-green-700 hover:bg-green-800 text-white">+ Registrar equipo</Button>
@@ -142,7 +143,7 @@ export default function TabEquipos({ loteActual }: Props) {
             >
               <CardContent className="p-4 space-y-2">
                 <div className="flex items-center gap-2">
-                  <span className="text-2xl">{cat.info.icon}</span>
+                  <span className="flex size-9 items-center justify-center rounded-lg bg-gray-100 text-gray-600"><Ic n={cat.info.icon} className="size-4" /></span>
                   <div>
                     <p className="font-semibold text-sm text-gray-800 leading-tight">{cat.info.label}</p>
                     <p className="text-xs text-gray-400">{cat.total} equipo{cat.total === 1 ? '' : 's'}</p>
@@ -190,14 +191,14 @@ export default function TabEquipos({ loteActual }: Props) {
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <Button size="sm" variant="outline" className="text-xs" onClick={() => setLogEquipo(equipo)}>📋 Registrar estado</Button>
-                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-gray-500" onClick={() => { setEquipoEditar(equipo); setModalCrear(true) }}>✏️</Button>
+                    <Button size="sm" variant="outline" className="text-xs" onClick={() => setLogEquipo(equipo)}><Ic n="diario" /> Registrar estado</Button>
+                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-gray-500" onClick={() => { setEquipoEditar(equipo); setModalCrear(true) }}><Ic n="editar" /></Button>
                     <Button
                       size="sm" variant="ghost"
                       className={confirmandoEliminar === equipo.id ? 'h-8 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-8 px-2 text-xs text-red-600'}
                       onClick={() => eliminarEquipo(equipo)}
                     >
-                      {confirmandoEliminar === equipo.id ? '¿Confirmar?' : '🗑️'}
+                      {confirmandoEliminar === equipo.id ? '¿Confirmar?' : ''}
                     </Button>
                   </div>
                 </CardContent>
@@ -210,7 +211,7 @@ export default function TabEquipos({ loteActual }: Props) {
       {/* IoT Placeholder */}
       <Card className="border-dashed border-gray-300 bg-gray-50">
         <CardContent className="p-5 text-center space-y-2">
-          <p className="text-2xl">🤖</p>
+          <p className="text-2xl"><Ic n="robot" /></p>
           <p className="font-semibold text-gray-600">Automatización y Alertas IoT — Próximamente</p>
           <p className="text-sm text-gray-400">
             Conecta PLCs y relés inteligentes para monitoreo automático.<br/>

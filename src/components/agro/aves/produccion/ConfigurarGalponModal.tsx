@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import type { Database } from '@/types/database'
+import { Ic } from '@/components/ui/icon'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 
@@ -96,7 +97,7 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, 
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>⚙️ Configuración del Galpón</DialogTitle>
+          <DialogTitle><Ic n="ajustes" /> Configuración del Galpón</DialogTitle>
           <p className="text-sm text-gray-500">Define el tamaño, la meta de postura y los costos de referencia para calcular indicadores</p>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -146,7 +147,7 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, 
             </div>
           </div>
           <div className="border border-red-200 bg-red-50 rounded-lg p-3 space-y-2">
-            <p className="text-sm font-semibold text-red-800">⚠️ Zona de peligro</p>
+            <p className="text-sm font-semibold text-red-800"><Ic n="alerta" /> Zona de peligro</p>
             <p className="text-xs text-red-600">
               Eliminar este galpón borra permanentemente todo su historial (producción, sanitario, costos, equipos). Esta acción no se puede deshacer.
             </p>

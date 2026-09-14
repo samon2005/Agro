@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
+import { Ic } from '@/components/ui/icon'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
 type NutricionDiaria = Database['public']['Tables']['nutricion_diaria_cerdos']['Row']
@@ -101,33 +102,33 @@ export default function TabNutricion({ loteActual }: Props) {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-base font-semibold text-gray-800">Nutrición y Eficiencia Alimenticia</h2>
+      <h2 className="text-lg font-semibold text-gray-800">Nutrición y Eficiencia Alimenticia</h2>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card className="border-orange-200 bg-orange-50">
           <CardContent className="p-4">
-            <p className="text-xs text-orange-700 font-medium">🌾 Alimento prom/día (30d)</p>
+            <p className="text-xs text-orange-700 font-medium"><Ic n="alimento" /> Alimento prom/día (30d)</p>
             <p className="text-2xl font-bold text-orange-800">{promedioAlimentoDia ? `${promedioAlimentoDia} kg` : '—'}</p>
             <p className="text-xs text-orange-600 mt-0.5">{alimPorAnimal ?? 'Total lote'}</p>
           </CardContent>
         </Card>
         <Card className="border-blue-200 bg-blue-50">
           <CardContent className="p-4">
-            <p className="text-xs text-blue-700 font-medium">💧 Agua total (30d)</p>
+            <p className="text-xs text-blue-700 font-medium"><Ic n="gota" /> Agua total (30d)</p>
             <p className="text-2xl font-bold text-blue-800">{totalAgua30 > 0 ? `${totalAgua30.toFixed(0)} L` : '—'}</p>
             <p className="text-xs text-blue-600 mt-0.5">prom: {totalAgua30 > 0 && registros.length > 0 ? (totalAgua30 / Math.min(registros.length, 30)).toFixed(0) : '—'} L/día</p>
           </CardContent>
         </Card>
         <Card className="border-green-200 bg-green-50">
           <CardContent className="p-4">
-            <p className="text-xs text-green-700 font-medium">📦 Total alimento (30d)</p>
+            <p className="text-xs text-green-700 font-medium"><Ic n="caja" /> Total alimento (30d)</p>
             <p className="text-2xl font-bold text-green-800">{totalAlimento30 > 0 ? `${totalAlimento30.toFixed(1)} kg` : '—'}</p>
             <p className="text-xs text-green-600 mt-0.5">acumulado</p>
           </CardContent>
         </Card>
         <Card className="border-purple-200 bg-purple-50">
           <CardContent className="p-4">
-            <p className="text-xs text-purple-700 font-medium">📅 Días registrados</p>
+            <p className="text-xs text-purple-700 font-medium"><Ic n="calendario" /> Días registrados</p>
             <p className="text-2xl font-bold text-purple-800">{registros.length}</p>
             <p className="text-xs text-purple-600 mt-0.5">historial completo</p>
           </CardContent>
@@ -154,7 +155,7 @@ export default function TabNutricion({ loteActual }: Props) {
               <Input placeholder="Ej: Precebo, Ceba 1" value={form.tipo_alimento} onChange={e => setForm(p => ({ ...p, tipo_alimento: e.target.value }))} />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">💧 Agua (litros) <span className="text-gray-400 font-normal">Manual</span></Label>
+              <Label className="text-xs"><Ic n="gota" /> Agua (litros) <span className="text-gray-400 font-normal">Manual</span></Label>
               <Input type="number" min="0" step="0.1" placeholder="Litros consumidos" value={form.agua_litros} onChange={e => setForm(p => ({ ...p, agua_litros: e.target.value }))} />
             </div>
             <div className="space-y-1">
@@ -188,7 +189,7 @@ export default function TabNutricion({ loteActual }: Props) {
             <div className="p-4 space-y-2">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}</div>
           ) : registros.length === 0 ? (
             <div className="py-8 text-center text-gray-400">
-              <p className="text-3xl mb-2">🌾</p>
+              <p className="text-3xl mb-2"><Ic n="alimento" /></p>
               <p>Sin registros de nutrición</p>
             </div>
           ) : (
@@ -224,7 +225,7 @@ export default function TabNutricion({ loteActual }: Props) {
 
       <Card className="border-dashed border-gray-300 bg-gray-50">
         <CardContent className="p-4 text-center space-y-1">
-          <p className="text-xl">⚙️</p>
+          <p className="text-xl"><Ic n="ajustes" /></p>
           <p className="font-medium text-gray-600 text-sm">Báscula dinámica + medidor de flujo de agua — Próximamente</p>
           <p className="text-xs text-gray-400">Registro automático de consumo en tiempo real mediante sensores IoT (protocolo LoRaWAN/MQTT)</p>
         </CardContent>

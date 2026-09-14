@@ -14,6 +14,7 @@ import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { CATEGORIAS_COSTO, CATEGORIAS_COSTO_ITEMS, categoriaInfo } from '@/lib/costos'
 import type { Database } from '@/types/database'
+import { Ic } from '@/components/ui/icon'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 type Costo = Database['public']['Tables']['costos_lote_aves']['Row']
@@ -98,13 +99,13 @@ export default function TabCostos({ loteActual }: Props) {
     <div className="space-y-4">
       <div>
         <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
-          <h2 className="text-base font-semibold text-gray-800">Resumen Financiero</h2>
+          <h2 className="text-lg font-semibold text-gray-800">Resumen Financiero</h2>
           <button
             type="button"
             onClick={() => setSoloUtilidad(v => !v)}
             className={`text-xs rounded-full px-2.5 py-1 border ${soloUtilidad ? 'bg-green-600 border-green-600 text-white' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}
           >
-            {soloUtilidad ? '✓ Solo utilidad' : 'Ver solo utilidad'}
+            {soloUtilidad ? 'Solo utilidad' : 'Ver solo utilidad'}
           </button>
         </div>
         <div className={soloUtilidad ? 'grid grid-cols-1' : 'grid grid-cols-3 gap-3'}>
@@ -134,7 +135,7 @@ export default function TabCostos({ loteActual }: Props) {
       </div>
 
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h2 className="text-base font-semibold text-gray-800">Insumos y Costos Operativos</h2>
+        <h2 className="text-lg font-semibold text-gray-800">Insumos y Costos Operativos</h2>
         <div className="flex items-center gap-2">
           <Select
             value={anioFiltro}
@@ -197,7 +198,7 @@ export default function TabCostos({ loteActual }: Props) {
         ))}
         <Card className="border-green-300 bg-green-50 col-span-2 md:col-span-4">
           <CardContent className="p-3 flex items-center justify-between">
-            <p className="text-sm font-semibold text-green-800">💰 Total Acumulado</p>
+            <p className="text-sm font-semibold text-green-800"><Ic n="dinero" /> Total Acumulado</p>
             <p className="text-xl font-bold text-green-800">{cop(totalGeneral)}</p>
           </CardContent>
         </Card>
@@ -213,7 +214,7 @@ export default function TabCostos({ loteActual }: Props) {
             <div className="p-4 space-y-2">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}</div>
           ) : costosFiltrados.length === 0 ? (
             <div className="py-10 text-center">
-              <p className="text-4xl mb-2">💰</p>
+              <p className="text-4xl mb-2"><Ic n="dinero" /></p>
               <p className="text-gray-600 font-medium">Sin costos registrados{mesFiltro !== 'todos' ? ' en este mes' : ''}</p>
               <Button onClick={() => setModalOpen(true)} className="mt-4 bg-green-700 hover:bg-green-800 text-white">+ Registrar costo</Button>
             </div>
@@ -253,14 +254,14 @@ export default function TabCostos({ loteActual }: Props) {
                               size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500"
                               onClick={() => { setCostoEditar(c); setModalOpen(true) }}
                             >
-                              ✏️
+                              <Ic n="editar" />
                             </Button>
                             <Button
                               size="sm" variant="ghost"
                               className={cn('h-7 px-2 text-xs', confirmandoEliminar === c.id ? 'text-white bg-red-600 hover:bg-red-700' : 'text-red-600')}
                               onClick={() => eliminar(c)}
                             >
-                              {confirmandoEliminar === c.id ? '¿Confirmar?' : '🗑️'}
+                              {confirmandoEliminar === c.id ? '¿Confirmar?' : ''}
                             </Button>
                           </div>
                         </TableCell>

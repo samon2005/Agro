@@ -84,7 +84,7 @@ export default function RegistrarReproductoraModal({ open, onClose, lote, reprod
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{reproductoraExistente ? '✏️ Editar Hembra' : '🐖 Registrar Hembra Reproductora'}</DialogTitle>
+          <DialogTitle>{reproductoraExistente ? 'Editar Hembra' : 'Registrar Hembra Reproductora'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">

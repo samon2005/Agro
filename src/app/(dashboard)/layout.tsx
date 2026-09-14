@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import DashboardSidebar from '@/components/agro/DashboardSidebar'
 import FincaProvider from '@/components/agro/FincaProvider'
 import RolProvider from '@/components/agro/RolProvider'
+import PaginaEntra from '@/components/agro/PaginaEntra'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -15,10 +16,10 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <RolProvider rol={rol}>
       <FincaProvider>
-        <div className="flex h-screen bg-gray-50">
+        <div className="flex h-screen bg-background">
           <DashboardSidebar user={user} />
           <main className="flex-1 overflow-auto">
-            {children}
+            <PaginaEntra>{children}</PaginaEntra>
           </main>
         </div>
       </FincaProvider>

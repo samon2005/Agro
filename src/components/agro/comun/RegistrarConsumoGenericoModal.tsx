@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { dbGenerico, type ConfigEspecie } from '@/lib/especiesConfig'
 import type { TipoAlimentoGenerico } from './CrearTipoAlimentoGenericoModal'
 import { hoyLocal } from '@/lib/fechas'
+import { Ic } from '@/components/ui/icon'
 
 interface Props {
   open: boolean
@@ -80,7 +81,7 @@ export default function RegistrarConsumoGenericoModal({ open, onClose, loteId, f
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>🌾 Registrar Consumo de Alimento</DialogTitle>
+          <DialogTitle><Ic n="alimento" /> Registrar Consumo de Alimento</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1">

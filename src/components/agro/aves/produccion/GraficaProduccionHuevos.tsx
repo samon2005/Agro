@@ -3,6 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import type { Database } from '@/types/database'
+import { Ic } from '@/components/ui/icon'
 
 type ProduccionDiaria = Database['public']['Tables']['produccion_diaria_aves']['Row']
 
@@ -25,7 +26,7 @@ export default function GraficaProduccionHuevos({ registros, semanasFaltantesPos
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-semibold text-gray-700">🥚 Huevos puestos por día</CardTitle>
+        <CardTitle className="text-sm font-semibold text-gray-700"><Ic n="huevo" /> Huevos puestos por día</CardTitle>
       </CardHeader>
       <CardContent>
         {enPreparacion || datos.length === 0 ? (

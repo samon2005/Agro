@@ -18,6 +18,7 @@ import RegistrarEventoClinicoModal from './RegistrarEventoClinicoModal'
 import RegistrarDesinfeccionModal from './RegistrarDesinfeccionModal'
 import type { Database } from '@/types/database'
 import { aFechaLocal } from '@/lib/fechas'
+import { Ic } from '@/components/ui/icon'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 type Vacunacion = Database['public']['Tables']['vacunaciones_aves']['Row']
@@ -38,8 +39,8 @@ function cop(n: number) {
 }
 
 const TIPO_LABELS: Record<string, string> = {
-  respiratorio: '🫁 Respiratorio', locomotor: '🦴 Locomotor', digestivo: '🫃 Digestivo',
-  reproductivo: '🥚 Reproductivo', nervioso: '🧠 Nervioso', piel: '🐾 Piel/Plumas', otro: '❓ Otro'
+  respiratorio: 'Respiratorio', locomotor: 'Locomotor', digestivo: 'Digestivo',
+  reproductivo: 'Reproductivo', nervioso: 'Nervioso', piel: 'Piel/Plumas', otro: 'Otro'
 }
 
 export default function TabSanitario({ loteActual, onChange }: Props) {
@@ -164,17 +165,17 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
   }
 
   const subTabItems: { id: SubTab; label: string; count: number }[] = [
-    { id: 'eventos', label: '🏥 Eventos Clínicos', count: eventos.length },
-    { id: 'medicaciones', label: '💊 Tratamientos', count: medicaciones.length },
-    { id: 'vacunas', label: '💉 Vacunaciones', count: vacunas.length },
-    { id: 'desinfecciones', label: '🧴 Desinfección', count: desinfecciones.length },
-    { id: 'muertes', label: '☠️ Muertes', count: filasMuertes.length },
+    { id: 'eventos', label: 'Eventos Clínicos', count: eventos.length },
+    { id: 'medicaciones', label: 'Tratamientos', count: medicaciones.length },
+    { id: 'vacunas', label: 'Vacunaciones', count: vacunas.length },
+    { id: 'desinfecciones', label: 'Desinfección', count: desinfecciones.length },
+    { id: 'muertes', label: 'Muertes', count: filasMuertes.length },
   ]
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold text-gray-800">Sanitario y Bioseguridad</h2>
+        <h2 className="text-lg font-semibold text-gray-800">Sanitario y Bioseguridad</h2>
         <div>
           {subTab === 'vacunas' && <Button onClick={() => { setVacunaEditar(null); setModalVacuna(true) }} className="bg-green-700 hover:bg-green-800 text-white text-sm">+ Registrar vacuna</Button>}
           {subTab === 'medicaciones' && <Button onClick={() => { setEventoClinicoIdActivo(null); setMedEditar(null); setModalMed(true) }} className="bg-green-700 hover:bg-green-800 text-white text-sm">+ Registrar tratamiento</Button>}
@@ -185,7 +186,7 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
 
       {enRetiro.length > 0 && (
         <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg text-sm text-amber-800">
-          ⚠️ <strong>Período de retiro activo:</strong> {enRetiro.map(m => {
+          <Ic n="alerta" /> <strong>Período de retiro activo:</strong> {enRetiro.map(m => {
             const fin = calcularFechaLiberacion(m.fecha_fin!, m.periodo_retiro_dias!)
             return `${m.medicamento} (hasta ${fin.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })})`
           }).join(', ')} — Huevos no comercializables
@@ -194,19 +195,19 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
 
       {recordatorios.length > 0 && (
         <div className="p-3 bg-blue-50 border border-blue-300 rounded-lg space-y-2">
-          <p className="text-sm font-semibold text-blue-800">🔔 Recordatorios de tratamiento</p>
+          <p className="text-sm font-semibold text-blue-800"><Ic n="campana" /> Recordatorios de tratamiento</p>
           <div className="space-y-1.5">
             {recordatoriosVisibles.map(r => (
               <div key={r.id} className="flex items-center justify-between gap-2 text-sm">
                 <span className={cn(r.fecha <= hoyStr ? 'text-red-700 font-medium' : 'text-blue-700')}>
-                  {r.fecha <= hoyStr ? '⏰' : '📅'} Aplicar <strong>{medicamentoPorId.get(r.medicacion_id) ?? 'Medicamento'}</strong> — {fmt(r.fecha)}{r.hora ? ` a las ${r.hora}` : ''}
+                  {r.fecha <= hoyStr ? <Ic n="reloj" /> : null} Aplicar <strong>{medicamentoPorId.get(r.medicacion_id) ?? 'Medicamento'}</strong> — {fmt(r.fecha)}{r.hora ? ` a las ${r.hora}` : ''}
                 </span>
                 <div className="flex items-center gap-1 shrink-0">
                   <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => completarRecordatorio(r.id)}>
-                    ✓ Hecho
+                    <Ic n="check" /> Hecho
                   </Button>
                   <Button size="sm" variant="ghost" className="text-xs h-7 px-2 text-red-600" onClick={() => eliminarRecordatorio(r.id)}>
-                    🗑️
+                    <Ic n="borrar" />
                   </Button>
                 </div>
               </div>
@@ -240,7 +241,7 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
             <div className="p-4 space-y-2">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}</div>
           ) : subTab === 'vacunas' ? (
             vacunas.length === 0 ? (
-              <EmptyState emoji="💉" label="Sin vacunaciones registradas" action={() => setModalVacuna(true)} actionLabel="+ Registrar vacuna" />
+              <EmptyState emoji="" label="Sin vacunaciones registradas" action={() => setModalVacuna(true)} actionLabel="+ Registrar vacuna" />
             ) : (
               <div className="overflow-x-auto">
                 <Table>
@@ -274,13 +275,13 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
                         <TableCell className="text-sm text-gray-500">{v.veterinario ?? '—'}</TableCell>
                         <TableCell>
                           <div className="flex items-center justify-end gap-1">
-                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={() => { setVacunaEditar(v); setModalVacuna(true) }}>✏️</Button>
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={() => { setVacunaEditar(v); setModalVacuna(true) }}><Ic n="editar" /></Button>
                             <Button
                               size="sm" variant="ghost"
                               className={confirmandoEliminar === `vacunaciones_aves-${v.id}` ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
                               onClick={() => eliminar('vacunaciones_aves', v.id)}
                             >
-                              {confirmandoEliminar === `vacunaciones_aves-${v.id}` ? '¿Confirmar?' : '🗑️'}
+                              {confirmandoEliminar === `vacunaciones_aves-${v.id}` ? '¿Confirmar?' : ''}
                             </Button>
                           </div>
                         </TableCell>
@@ -292,7 +293,7 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
             )
           ) : subTab === 'medicaciones' ? (
             medicaciones.length === 0 ? (
-              <EmptyState emoji="💊" label="Sin tratamientos registrados" action={() => { setEventoClinicoIdActivo(null); setModalMed(true) }} actionLabel="+ Registrar tratamiento" />
+              <EmptyState emoji="" label="Sin tratamientos registrados" action={() => { setEventoClinicoIdActivo(null); setModalMed(true) }} actionLabel="+ Registrar tratamiento" />
             ) : (
               <div className="overflow-x-auto">
                 <div className="px-4 py-2 border-b border-gray-100 text-xs text-gray-500">
@@ -345,13 +346,13 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center justify-end gap-1">
-                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={() => { setEventoClinicoIdActivo(m.evento_clinico_id); setMedEditar(m); setModalMed(true) }}>✏️</Button>
+                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={() => { setEventoClinicoIdActivo(m.evento_clinico_id); setMedEditar(m); setModalMed(true) }}><Ic n="editar" /></Button>
                               <Button
                                 size="sm" variant="ghost"
                                 className={confirmandoEliminar === `medicaciones_aves-${m.id}` ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
                                 onClick={() => eliminar('medicaciones_aves', m.id)}
                               >
-                                {confirmandoEliminar === `medicaciones_aves-${m.id}` ? '¿Confirmar?' : '🗑️'}
+                                {confirmandoEliminar === `medicaciones_aves-${m.id}` ? '¿Confirmar?' : ''}
                               </Button>
                             </div>
                           </TableCell>
@@ -364,7 +365,7 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
             )
           ) : subTab === 'eventos' ? (
             eventos.length === 0 ? (
-              <EmptyState emoji="🏥" label="Sin eventos clínicos" action={() => setModalEvento(true)} actionLabel="+ Registrar evento" />
+              <EmptyState emoji="" label="Sin eventos clínicos" action={() => setModalEvento(true)} actionLabel="+ Registrar evento" />
             ) : (
               <div className="overflow-x-auto">
                 <Table>
@@ -396,7 +397,7 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
                               className={cn('inline-block', tieneTratamiento && 'cursor-pointer')}
                             >
                               <Badge className={tieneTratamiento ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : 'bg-gray-100 text-gray-600'}>
-                                {tieneTratamiento ? '📋 En tratamiento' : ev.requiere_medicamento ? 'Sin tratamiento' : 'No aplica'}
+                                {tieneTratamiento ? 'En tratamiento' : ev.requiere_medicamento ? 'Sin tratamiento' : 'No aplica'}
                               </Badge>
                             </button>
                           </TableCell>
@@ -410,13 +411,13 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
                                   + Tratamiento
                                 </Button>
                               )}
-                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={() => { setEventoEditar(ev); setModalEvento(true) }}>✏️</Button>
+                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={() => { setEventoEditar(ev); setModalEvento(true) }}><Ic n="editar" /></Button>
                               <Button
                                 size="sm" variant="ghost"
                                 className={confirmandoEliminar === `eventos_clinicos_aves-${ev.id}` ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
                                 onClick={() => eliminar('eventos_clinicos_aves', ev.id)}
                               >
-                                {confirmandoEliminar === `eventos_clinicos_aves-${ev.id}` ? '¿Confirmar?' : '🗑️'}
+                                {confirmandoEliminar === `eventos_clinicos_aves-${ev.id}` ? '¿Confirmar?' : ''}
                               </Button>
                             </div>
                           </TableCell>
@@ -430,7 +431,7 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
           ) : subTab === 'muertes' ? (
             filasMuertes.length === 0 ? (
               <div className="py-10 text-center">
-                <p className="text-4xl mb-2">☠️</p>
+                <p className="text-4xl mb-2"><Ic n="muerte" /></p>
                 <p className="text-gray-600 font-medium">Sin muertes registradas</p>
                 <p className="text-sm text-gray-400">La mortalidad se registra en el día a día, desde Producción.</p>
               </div>
@@ -463,7 +464,7 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
                         <TableCell className="text-sm text-gray-600">
                           {m.causa ?? '—'}
                           {m.origen === 'evento' && (
-                            <span className="ml-2 text-[11px] text-red-500">🩺 por evento clínico</span>
+                            <span className="ml-2 text-[11px] text-red-500"><Ic n="clinico" /> por evento clínico</span>
                           )}
                         </TableCell>
                       </TableRow>
@@ -474,7 +475,7 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
             )
           ) : (
             desinfecciones.length === 0 ? (
-              <EmptyState emoji="🧴" label="Sin desinfecciones registradas" action={() => setModalDesinfeccion(true)} actionLabel="+ Registrar desinfección" />
+              <EmptyState emoji="" label="Sin desinfecciones registradas" action={() => setModalDesinfeccion(true)} actionLabel="+ Registrar desinfección" />
             ) : (
               <div className="overflow-x-auto">
                 <Table>
@@ -500,13 +501,13 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
                         <TableCell className="text-right text-sm">{d.costo ? cop(d.costo) : '—'}</TableCell>
                         <TableCell>
                           <div className="flex items-center justify-end gap-1">
-                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={() => { setDesinfeccionEditar(d); setModalDesinfeccion(true) }}>✏️</Button>
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={() => { setDesinfeccionEditar(d); setModalDesinfeccion(true) }}><Ic n="editar" /></Button>
                             <Button
                               size="sm" variant="ghost"
                               className={confirmandoEliminar === `desinfecciones_aves-${d.id}` ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
                               onClick={() => eliminar('desinfecciones_aves', d.id)}
                             >
-                              {confirmandoEliminar === `desinfecciones_aves-${d.id}` ? '¿Confirmar?' : '🗑️'}
+                              {confirmandoEliminar === `desinfecciones_aves-${d.id}` ? '¿Confirmar?' : ''}
                             </Button>
                           </div>
                         </TableCell>
@@ -562,7 +563,7 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
       <Dialog open={seguimientoEventoId != null} onOpenChange={v => !v && setSeguimientoEventoId(null)}>
         <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>📋 Seguimiento del tratamiento</DialogTitle>
+            <DialogTitle><Ic n="diario" /> Seguimiento del tratamiento</DialogTitle>
           </DialogHeader>
           {(() => {
             const historial = medicaciones
@@ -591,20 +592,20 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
                               setModalMed(true)
                             }}
                           >
-                            ✏️
+                            <Ic n="editar" />
                           </Button>
                           <Button
                             size="sm" variant="ghost"
                             className={confirmandoEliminar === `medicaciones_aves-${m.id}` ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
                             onClick={() => eliminar('medicaciones_aves', m.id)}
                           >
-                            {confirmandoEliminar === `medicaciones_aves-${m.id}` ? '¿Confirmar?' : '🗑️'}
+                            {confirmandoEliminar === `medicaciones_aves-${m.id}` ? '¿Confirmar?' : ''}
                           </Button>
                         </div>
                       </div>
                       {(cambioMed || cambioDosis) && (
                         <p className="text-xs text-amber-600">
-                          ⚠️ {cambioMed ? `Cambió el medicamento (antes: ${anterior.medicamento})` : ''}
+                          <Ic n="alerta" /> {cambioMed ? `Cambió el medicamento (antes: ${anterior.medicamento})` : ''}
                           {cambioMed && cambioDosis ? ' · ' : ''}
                           {cambioDosis ? `Cambió la dosis (antes: ${anterior.dosis ?? '—'})` : ''}
                         </p>

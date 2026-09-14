@@ -11,6 +11,7 @@ import { toast } from 'sonner'
 import RegistrarDiaCerdosModal from './RegistrarDiaCerdosModal'
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
+import { Ic } from '@/components/ui/icon'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
 type NutricionDiaria = Database['public']['Tables']['nutricion_diaria_cerdos']['Row']
@@ -79,7 +80,7 @@ export default function TabDiarioCerdos({ loteActual, onLoteUpdated }: Props) {
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h2 className="text-base font-semibold text-gray-800">Diario del lote</h2>
+          <h2 className="text-lg font-semibold text-gray-800">Diario del lote</h2>
           <p className="text-xs text-gray-400">Lo que se registra todos los días: alimento, agua y mortalidad.</p>
         </div>
         <Button
@@ -93,7 +94,7 @@ export default function TabDiarioCerdos({ loteActual, onLoteUpdated }: Props) {
 
       {sinAlimento && (
         <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg text-sm text-amber-800">
-          ⚠️ Este lote no tiene alimento asignado. Regístralo en la pestaña Nutrición para poder
+          <Ic n="alerta" /> Este lote no tiene alimento asignado. Regístralo en la pestaña Nutrición para poder
           llevar el diario.
         </div>
       )}
@@ -130,7 +131,7 @@ export default function TabDiarioCerdos({ loteActual, onLoteUpdated }: Props) {
             <div className="p-4 space-y-2">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}</div>
           ) : registros.length === 0 ? (
             <div className="py-12 text-center">
-              <p className="text-4xl mb-2">📋</p>
+              <p className="text-4xl mb-2"><Ic n="diario" /></p>
               <p className="text-gray-600 font-medium">Sin días registrados</p>
               <p className="text-sm text-gray-400 mb-4">Empieza a llevar el día a día del lote</p>
               <Button
@@ -173,13 +174,13 @@ export default function TabDiarioCerdos({ loteActual, onLoteUpdated }: Props) {
                         <TableCell className="text-xs text-gray-500 max-w-[180px] truncate">{r.observaciones ?? '—'}</TableCell>
                         <TableCell>
                           <div className="flex items-center justify-end gap-1">
-                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={() => { setRegistroEditar(r); setModalOpen(true) }}>✏️</Button>
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={() => { setRegistroEditar(r); setModalOpen(true) }}><Ic n="editar" /></Button>
                             <Button
                               size="sm" variant="ghost"
                               className={confirmandoEliminar === r.id ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
                               onClick={() => eliminarRegistro(r)}
                             >
-                              {confirmandoEliminar === r.id ? '¿Confirmar?' : '🗑️'}
+                              {confirmandoEliminar === r.id ? '¿Confirmar?' : ''}
                             </Button>
                           </div>
                         </TableCell>

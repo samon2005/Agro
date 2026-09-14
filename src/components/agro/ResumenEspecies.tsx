@@ -1,5 +1,6 @@
 'use client'
 
+import { Ic } from '@/components/ui/icon'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -80,7 +81,7 @@ export default function ResumenEspecies({ fincaId, especies }: { fincaId: string
                         </>
                       )}
                     </div>
-                    <span className="text-3xl">{esp.icon}</span>
+                    <span className="flex size-11 items-center justify-center rounded-full bg-gray-100 text-gray-700"><Ic n={esp.icon} className="size-5" /></span>
                   </div>
                 </CardContent>
               </Card>

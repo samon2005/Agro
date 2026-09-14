@@ -125,7 +125,7 @@ export default function RegistrarVentaGenericaModal({
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{ventaExistente ? '✏️ Editar Venta' : '🧾 Registrar Venta'}</DialogTitle>
+          <DialogTitle>{ventaExistente ? 'Editar Venta' : 'Registrar Venta'}</DialogTitle>
           <p className="text-sm text-gray-500">
             Disponibles en el {config.loteLabel}: {animalesActuales.toLocaleString('es-CO')} {config.animalPlural}
           </p>

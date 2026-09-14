@@ -152,7 +152,7 @@ export default function CrearTipoAlimentoGenericoModal({ open, onClose, fincaId,
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{tipoExistente ? '✏️ Editar Tipo de Alimento' : '🌾 Nuevo Tipo de Alimento'}</DialogTitle>
+          <DialogTitle>{tipoExistente ? 'Editar Tipo de Alimento' : 'Nuevo Tipo de Alimento'}</DialogTitle>
           <p className="text-sm text-gray-500">Composición nutricional según la ficha técnica del fabricante</p>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">

@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
+import { Ic } from '@/components/ui/icon'
 
 type LotePollo = Database['public']['Tables']['lotes_pollo']['Row']
 type Equipo = Database['public']['Tables']['equipos_pollo']['Row']
@@ -85,7 +86,7 @@ export default function TabEquiposPollo({ loteActual }: Props) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-base font-semibold text-gray-800">Equipos del Galpón</h2>
+          <h2 className="text-lg font-semibold text-gray-800">Equipos del Galpón</h2>
           <div className="flex gap-2 mt-1">
             {enFalla > 0 && <Badge className="bg-red-100 text-red-700 text-xs">{enFalla} en falla</Badge>}
             {vencidos > 0 && <Badge className="bg-amber-100 text-amber-700 text-xs">{vencidos} mant. vencido</Badge>}
@@ -137,7 +138,7 @@ export default function TabEquiposPollo({ loteActual }: Props) {
           {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-36 w-full rounded-xl" />)}
         </div>
       ) : equipos.length === 0 ? (
-        <div className="py-12 text-center"><p className="text-4xl mb-2">⚙️</p><p className="text-gray-500">Sin equipos registrados</p></div>
+        <div className="py-12 text-center"><p className="text-4xl mb-2"><Ic n="ajustes" /></p><p className="text-gray-500">Sin equipos registrados</p></div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {equipos.map(eq => {
@@ -159,19 +160,19 @@ export default function TabEquiposPollo({ loteActual }: Props) {
                       {vencido && <Badge className="bg-amber-100 text-amber-700 text-[10px]">Mant. vencido</Badge>}
                     </div>
                   </div>
-                  {eq.ubicacion && <p className="text-xs text-gray-500">📍 {eq.ubicacion}</p>}
+                  {eq.ubicacion && <p className="text-xs text-gray-500"><Ic n="ubicacion" /> {eq.ubicacion}</p>}
                   {eq.proximo_mantenimiento && (
                     <p className={`text-xs ${vencido ? 'text-amber-600 font-medium' : 'text-gray-400'}`}>
-                      🔧 {new Date(eq.proximo_mantenimiento + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      <Ic n="herramienta" /> {new Date(eq.proximo_mantenimiento + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
                     </p>
                   )}
                   {eq.sensor_id
-                    ? <p className="text-xs text-blue-600">📡 {eq.sensor_id}</p>
-                    : <p className="text-xs text-gray-300">📡 Sin sensor IoT</p>}
+                    ? <p className="text-xs text-blue-600"><Ic n="sensor" /> {eq.sensor_id}</p>
+                    : <p className="text-xs text-gray-300"><Ic n="sensor" /> Sin sensor IoT</p>}
                   <div className="flex gap-1.5 pt-1 flex-wrap">
-                    {eq.estado !== 'operativo' && <button onClick={() => cambiarEstado(eq.id, 'operativo')} className="text-[10px] px-2 py-0.5 rounded-full bg-green-100 text-green-700 hover:bg-green-200">✓ Operativo</button>}
-                    {eq.estado !== 'falla' && <button onClick={() => cambiarEstado(eq.id, 'falla')} className="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-700 hover:bg-red-200">✗ Falla</button>}
-                    {eq.estado !== 'mantenimiento' && <button onClick={() => cambiarEstado(eq.id, 'mantenimiento')} className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 hover:bg-yellow-200">⚙ Mant.</button>}
+                    {eq.estado !== 'operativo' && <button onClick={() => cambiarEstado(eq.id, 'operativo')} className="text-[10px] px-2 py-0.5 rounded-full bg-green-100 text-green-700 hover:bg-green-200"><Ic n="check" /> Operativo</button>}
+                    {eq.estado !== 'falla' && <button onClick={() => cambiarEstado(eq.id, 'falla')} className="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-700 hover:bg-red-200"><Ic n="x" /> Falla</button>}
+                    {eq.estado !== 'mantenimiento' && <button onClick={() => cambiarEstado(eq.id, 'mantenimiento')} className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 hover:bg-yellow-200"><Ic n="ajustes" /> Mant.</button>}
                   </div>
                 </CardContent>
               </Card>
@@ -182,11 +183,11 @@ export default function TabEquiposPollo({ loteActual }: Props) {
 
       <Card className="border-dashed border-gray-300 bg-gray-50">
         <CardContent className="p-4 text-center space-y-1">
-          <p className="text-xl">🤖</p>
+          <p className="text-xl"><Ic n="robot" /></p>
           <p className="font-medium text-gray-600 text-sm">Automatización de Galpón — Próximamente</p>
           <p className="text-xs text-gray-400">Control automático de cortinas, ventiladores y calefactores según T° y HR. Comederos y bebederos con sensores de nivel.</p>
           <div className="flex justify-center gap-2 mt-2">
-            {['📡 LoRaWAN', '🔌 Modbus', '📲 Alertas SMS', '📧 Email'].map(b => (
+            {['LoRaWAN', 'Modbus', 'Alertas SMS', 'Email'].map(b => (
               <span key={b} className="text-[10px] px-2 py-0.5 rounded-full bg-gray-200 text-gray-600">{b}</span>
             ))}
           </div>

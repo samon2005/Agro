@@ -15,6 +15,7 @@ import {
   dbGenerico, kilosVenta, totalVentaAnimales,
   type ConfigEspecie, type VentaGenerica,
 } from '@/lib/especiesConfig'
+import { Ic } from '@/components/ui/icon'
 
 interface Props {
   loteId: string
@@ -78,7 +79,7 @@ export default function TabVentasGenerico({ loteId, fincaId, config, animalesAct
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold text-gray-800">Ventas de {config.animalPlural}</h2>
+        <h2 className="text-lg font-semibold text-gray-800">Ventas de {config.animalPlural}</h2>
         <Button onClick={() => { setVentaEditar(null); setModalOpen(true) }} className={cn('text-sm', config.botonClase)}>
           + Registrar venta
         </Button>
@@ -120,7 +121,7 @@ export default function TabVentasGenerico({ loteId, fincaId, config, animalesAct
             <div className="p-4 space-y-2">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}</div>
           ) : ventas.length === 0 ? (
             <div className="py-12 text-center">
-              <p className="text-4xl mb-2">🧾</p>
+              <p className="text-4xl mb-2"><Ic n="recibo" /></p>
               <p className="text-gray-600 font-medium">Sin ventas registradas</p>
               <Button onClick={() => setModalOpen(true)} className={cn('mt-4', config.botonClase)}>+ Registrar venta</Button>
             </div>
@@ -162,13 +163,13 @@ export default function TabVentasGenerico({ loteId, fincaId, config, animalesAct
                       <TableCell className="text-right font-semibold text-sm">{cop(totalVentaAnimales(v))}</TableCell>
                       <TableCell>
                         <div className="flex items-center justify-end gap-1">
-                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={() => { setVentaEditar(v); setModalOpen(true) }}>✏️</Button>
+                          <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={() => { setVentaEditar(v); setModalOpen(true) }}><Ic n="editar" /></Button>
                           <Button
                             size="sm" variant="ghost"
                             className={confirmandoEliminar === v.id ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
                             onClick={() => eliminar(v)}
                           >
-                            {confirmandoEliminar === v.id ? '¿Confirmar?' : '🗑️'}
+                            {confirmandoEliminar === v.id ? '¿Confirmar?' : ''}
                           </Button>
                         </div>
                       </TableCell>

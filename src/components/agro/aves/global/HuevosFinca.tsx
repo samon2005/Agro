@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import type { Database } from '@/types/database'
+import { Ic } from '@/components/ui/icon'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 
@@ -108,7 +109,7 @@ export default function HuevosFinca({ fincaId, lotes }: Props) {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-base font-semibold text-gray-800">🥚 Huevos de la finca</h2>
+        <h2 className="text-lg font-semibold text-gray-800"><Ic n="huevo" /> Huevos de la finca</h2>
         <p className="text-xs text-gray-400">
           Todo el huevo de todos los galpones. Lo que se registra en producción suma y lo que
           se registra en Ventas baja.
@@ -182,7 +183,7 @@ export default function HuevosFinca({ fincaId, lotes }: Props) {
                     ) as PorTamano
                     return (
                       <TableRow key={f.loteId}>
-                        <TableCell className="font-medium text-sm">🐔 {f.nombre}</TableCell>
+                        <TableCell className="font-medium text-sm"><Ic n="ave" /> {f.nombre}</TableCell>
                         {TAMANOS.map(t => (
                           <TableCell key={t.key} className="text-right text-sm">
                             {disponible[t.key].toLocaleString('es-CO')}

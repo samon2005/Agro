@@ -7,6 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
+import { Ic } from '@/components/ui/icon'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 type Venta = Database['public']['Tables']['ventas_huevos_aves']['Row']
@@ -75,7 +76,7 @@ export default function VentasFinca({ fincaId, lotes }: Props) {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-base font-semibold text-gray-800">🧾 Ventas de huevo de la finca</h2>
+        <h2 className="text-lg font-semibold text-gray-800"><Ic n="recibo" /> Ventas de huevo de la finca</h2>
         <p className="text-xs text-gray-400">
           Todas las ventas de todos los galpones. Cada venta descuenta del huevo disponible que
           se ve en la pestaña Huevos. Para registrar una venta entra al galpón que la despacha.
@@ -121,7 +122,7 @@ export default function VentasFinca({ fincaId, lotes }: Props) {
         <CardContent className="p-0">
           {ventas.length === 0 ? (
             <div className="py-12 text-center">
-              <p className="text-4xl mb-2">🧾</p>
+              <p className="text-4xl mb-2"><Ic n="recibo" /></p>
               <p className="text-gray-600 font-medium">Sin ventas registradas</p>
               <p className="text-sm text-gray-400">Las ventas se registran desde el galpón que despacha el huevo.</p>
             </div>
@@ -141,7 +142,7 @@ export default function VentasFinca({ fincaId, lotes }: Props) {
                   {ventas.map(v => (
                     <TableRow key={v.id}>
                       <TableCell className="text-sm">{fmt(v.fecha)}</TableCell>
-                      <TableCell className="text-sm text-gray-600">🐔 {nombrePorLote.get(v.lote_id) ?? '—'}</TableCell>
+                      <TableCell className="text-sm text-gray-600"><Ic n="ave" /> {nombrePorLote.get(v.lote_id) ?? '—'}</TableCell>
                       <TableCell className="text-sm text-gray-600">{v.cliente ?? '—'}</TableCell>
                       <TableCell className="text-right text-sm">{huevosDe(v).toLocaleString('es-CO')}</TableCell>
                       <TableCell className="text-right font-semibold text-sm">{cop(totalVenta(v))}</TableCell>
@@ -174,7 +175,7 @@ export default function VentasFinca({ fincaId, lotes }: Props) {
                   {encargos.map(e => (
                     <TableRow key={e.id} className={e.fecha_entrega < hoyStr ? 'bg-red-50' : ''}>
                       <TableCell className="text-sm">{fmt(e.fecha_entrega)}</TableCell>
-                      <TableCell className="text-sm text-gray-600">🐔 {nombrePorLote.get(e.lote_id) ?? '—'}</TableCell>
+                      <TableCell className="text-sm text-gray-600"><Ic n="ave" /> {nombrePorLote.get(e.lote_id) ?? '—'}</TableCell>
                       <TableCell className="text-sm text-gray-600">{e.cliente ?? '—'}</TableCell>
                       <TableCell className="text-right text-sm">{huevosDe(e).toLocaleString('es-CO')}</TableCell>
                     </TableRow>

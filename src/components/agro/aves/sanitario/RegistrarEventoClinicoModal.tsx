@@ -32,13 +32,13 @@ const CAUSAS_BASE = [
 const AGREGAR_CAUSA = '__agregar_causa__'
 
 const TIPOS = [
-  { value: 'respiratorio', label: '🫁 Respiratorio' },
-  { value: 'locomotor', label: '🦴 Locomotor' },
-  { value: 'digestivo', label: '🫃 Digestivo' },
-  { value: 'reproductivo', label: '🥚 Reproductivo' },
-  { value: 'nervioso', label: '🧠 Nervioso' },
-  { value: 'piel', label: '🐾 Piel / Plumas' },
-  { value: 'otro', label: '❓ Otro' },
+  { value: 'respiratorio', label: 'Respiratorio' },
+  { value: 'locomotor', label: 'Locomotor' },
+  { value: 'digestivo', label: 'Digestivo' },
+  { value: 'reproductivo', label: 'Reproductivo' },
+  { value: 'nervioso', label: 'Nervioso' },
+  { value: 'piel', label: 'Piel / Plumas' },
+  { value: 'otro', label: 'Otro' },
 ]
 
 function defaultForm(evento?: EventoClinico | null) {
@@ -129,7 +129,7 @@ export default function RegistrarEventoClinicoModal({ open, onClose, loteId, fin
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{eventoExistente ? '✏️ Editar Evento Clínico' : '🏥 Registrar Evento Clínico'}</DialogTitle>
+          <DialogTitle>{eventoExistente ? 'Editar Evento Clínico' : 'Registrar Evento Clínico'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">

@@ -25,20 +25,20 @@ interface Props {
 }
 
 const TIPOS = [
-  { value: 'ventilador', label: '💨 Ventilador' },
-  { value: 'banda_recoleccion', label: '🔄 Banda de recolección' },
-  { value: 'lampara', label: '💡 Lámpara / Iluminación' },
-  { value: 'calefactor', label: '🔥 Calefactor' },
-  { value: 'cuenta_huevos', label: '🥚 Máquina cuenta huevos' },
-  { value: 'otro', label: '⚙️ Otro' },
+  { value: 'ventilador', label: 'Ventilador' },
+  { value: 'banda_recoleccion', label: 'Banda de recolección' },
+  { value: 'lampara', label: 'Lámpara / Iluminación' },
+  { value: 'calefactor', label: 'Calefactor' },
+  { value: 'cuenta_huevos', label: 'Máquina cuenta huevos' },
+  { value: 'otro', label: 'Otro' },
 ]
 
 const ESTADOS = [
-  { value: 'operativo', label: '✅ Operativo' },
-  { value: 'mantenimiento', label: '🔧 En mantenimiento' },
-  { value: 'falla', label: '❌ Con falla' },
-  { value: 'inactivo', label: '⏸️ Inactivo' },
-  { value: 'planificado', label: '🗓️ Planificado (futuro)' },
+  { value: 'operativo', label: 'Operativo' },
+  { value: 'mantenimiento', label: 'En mantenimiento' },
+  { value: 'falla', label: 'Con falla' },
+  { value: 'inactivo', label: 'Inactivo' },
+  { value: 'planificado', label: 'Planificado (futuro)' },
 ]
 
 function defaultForm(equipo?: Equipo | null) {
@@ -112,7 +112,7 @@ export default function CrearEquipoModal({ open, onClose, loteId, fincaId, equip
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>{equipoExistente ? '✏️ Editar Equipo' : '⚙️ Registrar Equipo'}</DialogTitle>
+          <DialogTitle>{equipoExistente ? 'Editar Equipo' : 'Registrar Equipo'}</DialogTitle>
           <p className="text-sm text-gray-500">Comederos y bebederos se manejan desde Inventario, no como equipo con mantenimiento</p>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import type { Database } from '@/types/database'
+import { Ic } from '@/components/ui/icon'
 
 type Horario = Database['public']['Tables']['horarios_recoleccion_aves']['Row']
 
@@ -70,7 +71,7 @@ export default function HorariosRecoleccion({ loteId, fincaId }: Props) {
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-semibold text-gray-700">🥚 Horarios de Recolección</CardTitle>
+        <CardTitle className="text-sm font-semibold text-gray-700"><Ic n="huevo" /> Horarios de Recolección</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         {loading ? (

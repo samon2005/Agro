@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { CurrencyInput } from '@/components/ui/currency-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Ic } from '@/components/ui/icon'
 
 const PERIODOS = [
   { value: 'mensual', label: 'Mensual' },
@@ -69,7 +70,7 @@ export default function InvitarOperarioModal({ open, onClose, fincaId, onCreated
         {credenciales ? (
           <>
             <DialogHeader>
-              <DialogTitle>✅ Operario creado</DialogTitle>
+              <DialogTitle><Ic n="listo" /> Operario creado</DialogTitle>
               <p className="text-sm text-gray-500">Comparte estas credenciales con el operario. La contraseña solo se muestra una vez.</p>
             </DialogHeader>
             <div className="space-y-3 bg-green-50 border border-green-200 rounded-lg p-4">
@@ -89,7 +90,7 @@ export default function InvitarOperarioModal({ open, onClose, fincaId, onCreated
         ) : (
           <>
             <DialogHeader>
-              <DialogTitle>👷 Nuevo Operario</DialogTitle>
+              <DialogTitle><Ic n="operario" /> Nuevo Operario</DialogTitle>
               <p className="text-sm text-gray-500">Se creará una cuenta con acceso limitado (sin ver costos ni configuración de la finca)</p>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">

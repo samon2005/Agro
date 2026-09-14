@@ -4,12 +4,191 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * Sistema visual de AgroGestión
+ * ─────────────────────────────
+ * Neutros cálidos (hueso, tierra) en vez de grises azulados; una sola familia de
+ * acento por especie, siempre desaturada; bordes de 1 px y sombras casi nulas.
+ * Las escalas de Tailwind se redefinen aquí para que los cientos de utilidades
+ * ya escritas en la app (bg-green-700, text-gray-500, border-amber-200…) cambien
+ * de golpe a la nueva paleta sin tocarlas una por una.
+ */
+@theme {
+  /* Neutros cálidos */
+  --color-gray-50: #faf9f6;
+  --color-gray-100: #f3f1ec;
+  --color-gray-200: #e7e4dd;
+  --color-gray-300: #d4d0c6;
+  --color-gray-400: #a29d92;
+  --color-gray-500: #77726a;
+  --color-gray-600: #5a564f;
+  --color-gray-700: #423f39;
+  --color-gray-800: #2b2925;
+  --color-gray-900: #1b1a17;
+  --color-gray-950: #121110;
+
+  /* Verde botánico — la marca */
+  --color-green-50: #f2f5ef;
+  --color-green-100: #e2e9da;
+  --color-green-200: #c6d4b8;
+  --color-green-300: #a4ba91;
+  --color-green-400: #7f9c69;
+  --color-green-500: #60814b;
+  --color-green-600: #4d6b3c;
+  --color-green-700: #3f5732;
+  --color-green-800: #31442a;
+  --color-green-900: #233120;
+  --color-green-950: #151e13;
+
+  --color-emerald-50: var(--color-green-50);
+  --color-emerald-100: var(--color-green-100);
+  --color-emerald-200: var(--color-green-200);
+  --color-emerald-300: var(--color-green-300);
+  --color-emerald-400: var(--color-green-400);
+  --color-emerald-500: var(--color-green-500);
+  --color-emerald-600: var(--color-green-600);
+  --color-emerald-700: var(--color-green-700);
+  --color-emerald-800: var(--color-green-800);
+  --color-emerald-900: var(--color-green-900);
+
+  --color-lime-50: #f4f6ec;
+  --color-lime-100: #e7ecd3;
+  --color-lime-200: #d0dab0;
+  --color-lime-300: #b3c288;
+  --color-lime-400: #93a862;
+  --color-lime-500: #768c47;
+  --color-lime-600: #5e7038;
+  --color-lime-700: #4a582e;
+  --color-lime-800: #384326;
+  --color-lime-900: #28301c;
+
+  --color-teal-50: var(--color-green-50);
+  --color-teal-100: var(--color-green-100);
+  --color-teal-200: var(--color-green-200);
+  --color-teal-600: var(--color-green-600);
+  --color-teal-700: var(--color-green-700);
+
+  /* Ocre — avisos y alimento */
+  --color-amber-50: #faf6ec;
+  --color-amber-100: #f3e9d0;
+  --color-amber-200: #e8d6a8;
+  --color-amber-300: #d9bd7a;
+  --color-amber-400: #c7a151;
+  --color-amber-500: #b08839;
+  --color-amber-600: #8f6d2c;
+  --color-amber-700: #715523;
+  --color-amber-800: #55401b;
+  --color-amber-900: #3d2e14;
+
+  --color-yellow-50: var(--color-amber-50);
+  --color-yellow-100: var(--color-amber-100);
+  --color-yellow-200: var(--color-amber-200);
+  --color-yellow-300: var(--color-amber-300);
+  --color-yellow-400: var(--color-amber-400);
+  --color-yellow-500: var(--color-amber-500);
+  --color-yellow-600: var(--color-amber-600);
+  --color-yellow-700: var(--color-amber-700);
+  --color-yellow-800: var(--color-amber-800);
+  --color-yellow-900: var(--color-amber-900);
+
+  /* Terracota — cerdos */
+  --color-orange-50: #faf3ee;
+  --color-orange-100: #f3e1d5;
+  --color-orange-200: #e8c6b0;
+  --color-orange-300: #d9a585;
+  --color-orange-400: #c6835e;
+  --color-orange-500: #ae6740;
+  --color-orange-600: #905334;
+  --color-orange-700: #72422a;
+  --color-orange-800: #553220;
+  --color-orange-900: #3c2417;
+
+  /* Ladrillo — peligro y muertes */
+  --color-red-50: #faf1ef;
+  --color-red-100: #f3dedb;
+  --color-red-200: #e8bfb8;
+  --color-red-300: #d89c92;
+  --color-red-400: #c4756a;
+  --color-red-500: #ae5547;
+  --color-red-600: #92433a;
+  --color-red-700: #74352e;
+  --color-red-800: #562823;
+  --color-red-900: #3d1c19;
+
+  --color-rose-50: var(--color-red-50);
+  --color-rose-100: var(--color-red-100);
+  --color-rose-200: var(--color-red-200);
+  --color-rose-600: var(--color-red-600);
+  --color-rose-700: var(--color-red-700);
+
+  /* Azul pizarra — información */
+  --color-blue-50: #f0f3f6;
+  --color-blue-100: #dfe6ec;
+  --color-blue-200: #c1cfdb;
+  --color-blue-300: #9db2c4;
+  --color-blue-400: #7690a8;
+  --color-blue-500: #58748e;
+  --color-blue-600: #475e75;
+  --color-blue-700: #394b5d;
+  --color-blue-800: #2b3845;
+  --color-blue-900: #1e2730;
+
+  --color-sky-50: var(--color-blue-50);
+  --color-sky-100: var(--color-blue-100);
+  --color-sky-200: var(--color-blue-200);
+  --color-sky-300: var(--color-blue-300);
+  --color-sky-500: var(--color-blue-500);
+  --color-sky-600: var(--color-blue-600);
+  --color-sky-700: var(--color-blue-700);
+  --color-sky-800: var(--color-blue-800);
+
+  --color-indigo-50: var(--color-blue-50);
+  --color-indigo-100: var(--color-blue-100);
+  --color-indigo-200: var(--color-blue-200);
+  --color-indigo-600: var(--color-blue-600);
+  --color-indigo-700: var(--color-blue-700);
+  --color-indigo-800: var(--color-blue-800);
+
+  /* Malva — postura y gestación */
+  --color-purple-50: #f4f1f5;
+  --color-purple-100: #e8e1ea;
+  --color-purple-200: #d3c5d7;
+  --color-purple-300: #b8a2bf;
+  --color-purple-400: #9a7ea4;
+  --color-purple-500: #7e6289;
+  --color-purple-600: #674f70;
+  --color-purple-700: #524058;
+  --color-purple-800: #3d3041;
+  --color-purple-900: #2a212d;
+
+  --color-violet-50: var(--color-purple-50);
+  --color-violet-100: var(--color-purple-100);
+  --color-violet-600: var(--color-purple-600);
+  --color-violet-700: var(--color-purple-700);
+
+  /* Rosa seco — cría */
+  --color-pink-50: #f9f1f2;
+  --color-pink-100: #f1dee1;
+  --color-pink-200: #e4c1c7;
+  --color-pink-300: #d29ea8;
+  --color-pink-400: #bc7a88;
+  --color-pink-500: #a25c6c;
+  --color-pink-600: #864a58;
+  --color-pink-700: #693b46;
+  --color-pink-800: #4e2c34;
+  --color-pink-900: #361f25;
+
+  /* Curvas de movimiento: rápidas al salir, suaves al llegar */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out-soft: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-heading: var(--font-heading-family);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -49,82 +228,213 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  --font-heading-family: var(--font-fraunces), Georgia, "Times New Roman", serif;
+
+  --background: #faf9f6;
+  --foreground: #1b1a17;
+  --card: #ffffff;
+  --card-foreground: #1b1a17;
+  --popover: #ffffff;
+  --popover-foreground: #1b1a17;
+  --primary: #3f5732;
+  --primary-foreground: #f7faf3;
+  --secondary: #f3f1ec;
+  --secondary-foreground: #2b2925;
+  --muted: #f3f1ec;
+  --muted-foreground: #77726a;
+  --accent: #f3f1ec;
+  --accent-foreground: #2b2925;
+  --destructive: #92433a;
+  --border: #e7e4dd;
+  --input: #d4d0c6;
+  --ring: #7f9c69;
+  --chart-1: #3f5732;
+  --chart-2: #b08839;
+  --chart-3: #58748e;
+  --chart-4: #ae6740;
+  --chart-5: #7e6289;
+  --radius: 0.75rem;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #2b2925;
+  --sidebar-primary: #3f5732;
+  --sidebar-primary-foreground: #f7faf3;
+  --sidebar-accent: #f3f1ec;
+  --sidebar-accent-foreground: #1b1a17;
+  --sidebar-border: #e7e4dd;
+  --sidebar-ring: #7f9c69;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: #171613;
+  --foreground: #efece5;
+  --card: #1f1e1a;
+  --card-foreground: #efece5;
+  --popover: #1f1e1a;
+  --popover-foreground: #efece5;
+  --primary: #a4ba91;
+  --primary-foreground: #151e13;
+  --secondary: #2b2925;
+  --secondary-foreground: #efece5;
+  --muted: #2b2925;
+  --muted-foreground: #a29d92;
+  --accent: #2b2925;
+  --accent-foreground: #efece5;
+  --destructive: #c4756a;
+  --border: rgb(255 255 255 / 10%);
+  --input: rgb(255 255 255 / 15%);
+  --ring: #7f9c69;
+  --sidebar: #1f1e1a;
+  --sidebar-foreground: #efece5;
+  --sidebar-primary: #a4ba91;
+  --sidebar-primary-foreground: #151e13;
+  --sidebar-accent: #2b2925;
+  --sidebar-accent-foreground: #efece5;
+  --sidebar-border: rgb(255 255 255 / 10%);
+  --sidebar-ring: #7f9c69;
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
-  body {
-    @apply bg-background text-foreground;
-  }
+
   html {
     @apply font-sans;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "ss01", "cv11";
+  }
+
+  /* Títulos en serif editorial, con el tracking apretado */
+  h1, h2 {
+    font-family: var(--font-heading-family);
+    letter-spacing: -0.015em;
+    font-variation-settings: "opsz" 72, "SOFT" 30;
+  }
+
+  h1 {
+    font-weight: 500;
+  }
+
+  h2 {
+    font-weight: 500;
+  }
+
+  /* Las cifras alineadas en tablas y tarjetas */
+  td, th, [data-slot="card-content"] {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Todo lo que se puede pulsar responde bajo el cursor */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  a[href],
+  summary {
+    cursor: pointer;
+  }
+
+  button, [role="button"], a[href] {
+    transition-property: color, background-color, border-color, box-shadow, transform, opacity;
+    transition-duration: 160ms;
+    transition-timing-function: var(--ease-out-soft);
+  }
+
+  button:not(:disabled):active,
+  [role="button"]:not([aria-disabled="true"]):active {
+    transform: translateY(1px) scale(0.985);
+  }
+
+  input, select, textarea {
+    transition: border-color 160ms var(--ease-out-soft), box-shadow 160ms var(--ease-out-soft), background-color 160ms;
+  }
+
+  ::selection {
+    background: #c6d4b8;
+    color: #1b1a17;
+  }
+
+  /* Barra de scroll discreta */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #d4d0c6 transparent;
+  }
+}
+
+/* ── Movimiento ─────────────────────────────────────────────── */
+@keyframes aparecer {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes aparecer-aviso {
+  from { opacity: 0; transform: translateY(-4px) scale(0.99); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes brillo {
+  from { background-position: 200% 0; }
+  to   { background-position: -200% 0; }
+}
+
+@keyframes pulso-suave {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+@layer components {
+  /* La página entra suave al cambiar de sección */
+  .pagina-entra {
+    animation: aparecer 320ms var(--ease-out-soft) both;
+  }
+
+  /* Los avisos de color (bg-amber-50, bg-red-50…) se anuncian al aparecer.
+     Solo animan al montarse: un re-render no los vuelve a mover. */
+  [class*="bg-amber-50"][class*="border"],
+  [class*="bg-red-50"][class*="border"],
+  [class*="bg-blue-50"][class*="border"],
+  [class*="bg-purple-50"][class*="border"],
+  [class*="bg-pink-50"][class*="border"],
+  [class*="bg-green-50"][class*="border"],
+  [class*="bg-orange-50"][class*="border"],
+  [class*="bg-yellow-50"][class*="border"] {
+    animation: aparecer-aviso 280ms var(--ease-out-soft) both;
+  }
+
+  /* Las tarjetas se sienten "de papel": borde fino, sombra apenas al pasar */
+  [data-slot="card"] {
+    transition: box-shadow 200ms var(--ease-out-soft), border-color 200ms var(--ease-out-soft), transform 200ms var(--ease-out-soft);
+  }
+  a > [data-slot="card"]:hover,
+  button > [data-slot="card"]:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px -12px rgb(27 26 23 / 18%);
+  }
+
+  /* Skeleton con brillo en vez de parpadeo */
+  [data-slot="skeleton"] {
+    animation: brillo 1.6s linear infinite;
+    background: linear-gradient(90deg, #efece5 0%, #f7f5f0 50%, #efece5 100%);
+    background-size: 200% 100%;
+  }
+
+  /* Toasts */
+  .cn-toast {
+    font-family: var(--font-sans) !important;
+    box-shadow: 0 12px 32px -16px rgb(27 26 23 / 25%), 0 0 0 1px rgb(27 26 23 / 6%) !important;
+    border: none !important;
+  }
+}
+
+/* Quien pide menos movimiento, lo recibe */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

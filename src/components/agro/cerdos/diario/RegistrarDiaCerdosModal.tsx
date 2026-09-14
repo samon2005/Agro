@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
 import { CAUSAS_MUERTE_CERDOS } from '@/lib/cerdos'
+import { Ic } from '@/components/ui/icon'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
 type NutricionDiaria = Database['public']['Tables']['nutricion_diaria_cerdos']['Row']
@@ -102,7 +103,7 @@ export default function RegistrarDiaCerdosModal({ open, onClose, lote, registroE
         await supabase.from('lotes_cerdos')
           .update({ animales_actuales: Math.max(0, lote.animales_actuales - muertes) })
           .eq('id', lote.id)
-        toast.warning(`⚠️ ${muertes} ${muertes === 1 ? 'muerte registrada' : 'muertes registradas'} por ${form.causa_muerte}`)
+        toast.warning(`${muertes} ${muertes === 1 ? 'muerte registrada' : 'muertes registradas'} por ${form.causa_muerte}`)
       }
     }
 
@@ -117,7 +118,7 @@ export default function RegistrarDiaCerdosModal({ open, onClose, lote, registroE
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{registroExistente ? '✏️ Editar Registro del Día' : '📋 Registrar Día'}</DialogTitle>
+          <DialogTitle>{registroExistente ? 'Editar Registro del Día' : 'Registrar Día'}</DialogTitle>
           <p className="text-sm text-gray-500">Lo que se anota todos los días del lote: alimento, agua y mortalidad.</p>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -140,7 +141,7 @@ export default function RegistrarDiaCerdosModal({ open, onClose, lote, registroE
           </div>
 
           <div className="p-3 bg-red-50 rounded-lg border border-red-200 space-y-3">
-            <p className="text-xs font-semibold text-red-700">💀 Mortalidad del día</p>
+            <p className="text-xs font-semibold text-red-700"><Ic n="muerte" /> Mortalidad del día</p>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs">Cantidad</Label>

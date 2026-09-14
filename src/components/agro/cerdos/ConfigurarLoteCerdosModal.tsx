@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { CurrencyInput } from '@/components/ui/currency-input'
 import type { Database } from '@/types/database'
 import { edadTexto } from '@/lib/cerdos'
+import { Ic } from '@/components/ui/icon'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
 
@@ -106,7 +107,7 @@ export default function ConfigurarLoteCerdosModal({ open, onClose, lote, onUpdat
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>⚙️ Configuración del Lote</DialogTitle>
+          <DialogTitle><Ic n="ajustes" /> Configuración del Lote</DialogTitle>
           <p className="text-sm text-gray-500">
             {esCria
               ? 'Datos del núcleo de cría: instalación, edad de las hembras y costos de referencia.'
@@ -170,7 +171,7 @@ export default function ConfigurarLoteCerdosModal({ open, onClose, lote, onUpdat
           </div>
 
           <div className="border border-red-200 bg-red-50 rounded-lg p-3 space-y-2">
-            <p className="text-sm font-semibold text-red-800">⚠️ Zona de peligro</p>
+            <p className="text-sm font-semibold text-red-800"><Ic n="alerta" /> Zona de peligro</p>
             <p className="text-xs text-red-600">
               Eliminar este lote borra permanentemente todo su historial: pesajes, mortalidad,
               nutrición, sanidad, costos, ventas y equipos{esCria ? ', además de las hembras, servicios, partos y destetes' : ''}.

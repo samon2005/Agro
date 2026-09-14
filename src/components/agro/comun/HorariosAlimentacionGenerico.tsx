@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { dbGenerico, type ConfigEspecie } from '@/lib/especiesConfig'
 import { hoyLocal } from '@/lib/fechas'
+import { Ic } from '@/components/ui/icon'
 
 interface Horario {
   id: string
@@ -176,7 +177,7 @@ export default function HorariosAlimentacionGenerico({ loteId, fincaId, config, 
     <Card>
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between flex-wrap gap-2">
-          <CardTitle className="text-sm font-semibold text-gray-700">🕐 Horarios de Alimentación</CardTitle>
+          <CardTitle className="text-sm font-semibold text-gray-700"><Ic n="reloj" /> Horarios de Alimentación</CardTitle>
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs font-semibold text-green-700 bg-green-50 border border-green-200 rounded-full px-2.5 py-1">
               Alimento parcial (hoy): {totalParcialKg.toFixed(1)} kg
@@ -206,7 +207,7 @@ export default function HorariosAlimentacionGenerico({ loteId, fincaId, config, 
                   onClick={() => setPermitirExceder(v => !v)}
                   className={`text-xs rounded-full px-2 py-0.5 border ${permitirExceder ? 'bg-red-50 border-red-200 text-red-600' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}
                 >
-                  {permitirExceder ? '🔓 Cambiar límites: activo' : '🔒 Cambiar límites'}
+                  {permitirExceder ? 'Cambiar límites: activo' : 'Cambiar límites'}
                 </button>
               )}
             </>
@@ -254,10 +255,10 @@ export default function HorariosAlimentacionGenerico({ loteId, fincaId, config, 
                     className={hecho ? 'h-7 text-xs bg-green-600 hover:bg-green-700 text-white' : 'h-7 text-xs'}
                     onClick={() => marcarHecho(h)}
                   >
-                    {hecho ? '✓ Hecho' : 'Marcar hecho'}
+                    {hecho ? 'Hecho' : 'Marcar hecho'}
                   </Button>
                   <button type="button" onClick={() => empezarEdicion(h)} className="text-amber-500 hover:text-amber-700 w-6 h-6 flex items-center justify-center" aria-label="Editar horario">
-                    ✏️
+                    <Ic n="editar" />
                   </button>
                   <button
                     type="button"

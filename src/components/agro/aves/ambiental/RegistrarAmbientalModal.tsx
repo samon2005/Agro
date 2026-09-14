@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { hoyLocal } from '@/lib/fechas'
+import { Ic } from '@/components/ui/icon'
 
 interface Props {
   open: boolean
@@ -79,7 +80,7 @@ export default function RegistrarAmbientalModal({ open, onClose, loteId, fincaId
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>🌡️ Registrar Parámetros Ambientales</DialogTitle>
+          <DialogTitle><Ic n="termometro" /> Registrar Parámetros Ambientales</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
@@ -94,7 +95,7 @@ export default function RegistrarAmbientalModal({ open, onClose, loteId, fincaId
           </div>
 
           <div className="p-3 bg-red-50 rounded-lg border border-red-200 space-y-3">
-            <p className="text-xs font-semibold text-red-700">🌡️ Temperatura (°C) — umbral crítico: &gt; 30°C</p>
+            <p className="text-xs font-semibold text-red-700"><Ic n="termometro" /> Temperatura (°C) — umbral crítico: &gt; 30°C</p>
             <div className="grid grid-cols-2 gap-3">
               <FieldWithBadge label="Interior">
                 <Input type="number" step="0.1" placeholder="Ej: 24.5" value={form.temperatura_interior} onChange={e => set('temperatura_interior', e.target.value)} />
@@ -106,7 +107,7 @@ export default function RegistrarAmbientalModal({ open, onClose, loteId, fincaId
           </div>
 
           <div className="p-3 bg-blue-50 rounded-lg border border-blue-200 space-y-3">
-            <p className="text-xs font-semibold text-blue-700">💧 Humedad relativa (%) — rango óptimo: 40–75%</p>
+            <p className="text-xs font-semibold text-blue-700"><Ic n="gota" /> Humedad relativa (%) — rango óptimo: 40–75%</p>
             <div className="grid grid-cols-2 gap-3">
               <FieldWithBadge label="Interior">
                 <Input type="number" step="0.1" placeholder="Ej: 65.0" value={form.humedad_interior} onChange={e => set('humedad_interior', e.target.value)} />
@@ -118,7 +119,7 @@ export default function RegistrarAmbientalModal({ open, onClose, loteId, fincaId
           </div>
 
           <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 space-y-3">
-            <p className="text-xs font-semibold text-gray-700">🌬️ Calidad del aire</p>
+            <p className="text-xs font-semibold text-gray-700"><Ic n="viento" /> Calidad del aire</p>
             <div className="grid grid-cols-2 gap-3">
               <FieldWithBadge label="NH₃ (ppm) — máx: 25">
                 <Input type="number" step="0.1" placeholder="Ej: 12.0" value={form.nh3_ppm} onChange={e => set('nh3_ppm', e.target.value)} />
@@ -130,7 +131,7 @@ export default function RegistrarAmbientalModal({ open, onClose, loteId, fincaId
           </div>
 
           <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-            <FieldWithBadge label="💡 Intensidad lumínica (lux)">
+            <FieldWithBadge label="Intensidad lumínica (lux)">
               <Input type="number" step="0.1" placeholder="Ej: 20.0 lux para postura" value={form.lux_intensidad} onChange={e => set('lux_intensidad', e.target.value)} />
             </FieldWithBadge>
           </div>

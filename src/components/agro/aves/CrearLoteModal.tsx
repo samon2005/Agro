@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { CurrencyInput } from '@/components/ui/currency-input'
 import type { Database } from '@/types/database'
 import { hoyLocal, aFechaLocal } from '@/lib/fechas'
+import { Ic } from '@/components/ui/icon'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 
@@ -126,7 +127,7 @@ export default function CrearLoteModal({ open, onClose, fincaId, onCreated }: Pr
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>🐔 Nuevo Galpón</DialogTitle>
+          <DialogTitle><Ic n="ave" /> Nuevo Galpón</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -179,7 +180,7 @@ export default function CrearLoteModal({ open, onClose, fincaId, onCreated }: Pr
               </Select>
             </div>
             <div className="col-span-2 border-t pt-3 mt-1">
-              <p className="text-sm font-medium text-gray-700">🥚 Configuración de postura</p>
+              <p className="text-sm font-medium text-gray-700"><Ic n="huevo" /> Configuración de postura</p>
               <p className="text-xs text-gray-400">La postura suele iniciar a las {SEMANAS_INICIO_POSTURA} semanas de vida — se calcula sola desde la fecha de entrada, pero puedes ajustarla.</p>
             </div>
             <div className="space-y-1">

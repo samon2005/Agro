@@ -11,6 +11,7 @@ import RegistrarAmbientalModal from './RegistrarAmbientalModal'
 import { getClimaActual, recomendacionesAmbientales, type ClimaActual } from '@/lib/clima'
 import { toast } from 'sonner'
 import type { Database } from '@/types/database'
+import { Ic } from '@/components/ui/icon'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 type Parametro = Database['public']['Tables']['parametros_ambientales_aves']['Row']
@@ -36,7 +37,7 @@ function AlertaBanner({ tipo, mensaje }: { tipo: 'danger' | 'warning'; mensaje: 
     : 'bg-amber-50 border-amber-300 text-amber-800'
   return (
     <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm ${cls}`}>
-      <span>{tipo === 'danger' ? '🚨' : '⚠️'}</span>
+      <span>{tipo === 'danger' ? '' : ''}</span>
       {mensaje}
     </div>
   )
@@ -113,7 +114,7 @@ export default function TabAmbiental({ loteActual, finca }: Props) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-semibold text-gray-800">Parámetros Ambientales</h2>
+        <h2 className="text-lg font-semibold text-gray-800">Parámetros Ambientales</h2>
         <Button onClick={() => setModalOpen(true)} className="bg-green-700 hover:bg-green-800 text-white text-sm">
           + Registrar lectura
         </Button>
@@ -121,11 +122,11 @@ export default function TabAmbiental({ loteActual, finca }: Props) {
 
       {finca && (finca.altitud_msnm || finca.velocidad_viento_kmh || finca.clima_predominante || finca.temperatura_promedio_ext) && (
         <div className="flex flex-wrap gap-4 px-4 py-2.5 rounded-lg bg-sky-50 border border-sky-200 text-sm text-sky-800">
-          <span className="font-semibold">📍 Finca:</span>
-          {finca.altitud_msnm != null && <span>⛰️ {finca.altitud_msnm} msnm</span>}
-          {finca.velocidad_viento_kmh != null && <span>💨 {finca.velocidad_viento_kmh} km/h</span>}
-          {finca.clima_predominante && <span>☁️ {CLIMA_LABEL[finca.clima_predominante] ?? finca.clima_predominante}</span>}
-          {finca.temperatura_promedio_ext != null && <span>🌡️ {finca.temperatura_promedio_ext}°C promedio</span>}
+          <span className="font-semibold"><Ic n="ubicacion" /> Finca:</span>
+          {finca.altitud_msnm != null && <span><Ic n="montana" /> {finca.altitud_msnm} msnm</span>}
+          {finca.velocidad_viento_kmh != null && <span><Ic n="viento" /> {finca.velocidad_viento_kmh} km/h</span>}
+          {finca.clima_predominante && <span><Ic n="nube" /> {CLIMA_LABEL[finca.clima_predominante] ?? finca.clima_predominante}</span>}
+          {finca.temperatura_promedio_ext != null && <span><Ic n="termometro" /> {finca.temperatura_promedio_ext}°C promedio</span>}
         </div>
       )}
 
@@ -140,7 +141,7 @@ export default function TabAmbiental({ loteActual, finca }: Props) {
         <Card className="border-sky-200">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-              🌤️ Clima exterior ahora {climaLoading && <span className="text-xs text-gray-400 font-normal">(actualizando...)</span>}
+              <Ic n="solnube" /> Clima exterior ahora {climaLoading && <span className="text-xs text-gray-400 font-normal">(actualizando...)</span>}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -178,15 +179,15 @@ export default function TabAmbiental({ loteActual, finca }: Props) {
       {/* Última lectura */}
       {ultimo && (
         <div>
-          <p className="text-xs text-gray-500 mb-2">Última lectura: {fmt(ultimo.fecha)} {ultimo.hora ?? ''} — <Badge variant="secondary" className="text-[10px]">{ultimo.fuente === 'sensor' ? '📡 Sensor' : '✍️ Manual'}</Badge></p>
+          <p className="text-xs text-gray-500 mb-2">Última lectura: {fmt(ultimo.fecha)} {ultimo.hora ?? ''} — <Badge variant="secondary" className="text-[10px]">{ultimo.fuente === 'sensor' ? 'Sensor' : 'Manual'}</Badge></p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <StatCard label="🌡️ Temp. interior" value={ultimo.temperatura_interior?.toFixed(1) ?? null} unit="°C" warning={!!ultimo.temperatura_interior && ultimo.temperatura_interior > 30} />
-            <StatCard label="🌡️ Temp. exterior" value={ultimo.temperatura_exterior?.toFixed(1) ?? null} unit="°C" />
-            <StatCard label="💧 Humedad int." value={ultimo.humedad_interior?.toFixed(1) ?? null} unit="%" warning={!!ultimo.humedad_interior && (ultimo.humedad_interior > 85 || ultimo.humedad_interior < 40)} />
-            <StatCard label="💧 Humedad ext." value={ultimo.humedad_exterior?.toFixed(1) ?? null} unit="%" />
-            <StatCard label="🌬️ NH₃" value={ultimo.nh3_ppm?.toFixed(1) ?? null} unit="ppm" warning={!!ultimo.nh3_ppm && ultimo.nh3_ppm > 25} />
-            <StatCard label="🌬️ CO₂" value={ultimo.co2_ppm?.toFixed(0) ?? null} unit="ppm" warning={!!ultimo.co2_ppm && ultimo.co2_ppm > 3000} />
-            <StatCard label="💡 Luminosidad" value={ultimo.lux_intensidad?.toFixed(1) ?? null} unit="lux" />
+            <StatCard label="Temp. interior" value={ultimo.temperatura_interior?.toFixed(1) ?? null} unit="°C" warning={!!ultimo.temperatura_interior && ultimo.temperatura_interior > 30} />
+            <StatCard label="Temp. exterior" value={ultimo.temperatura_exterior?.toFixed(1) ?? null} unit="°C" />
+            <StatCard label="Humedad int." value={ultimo.humedad_interior?.toFixed(1) ?? null} unit="%" warning={!!ultimo.humedad_interior && (ultimo.humedad_interior > 85 || ultimo.humedad_interior < 40)} />
+            <StatCard label="Humedad ext." value={ultimo.humedad_exterior?.toFixed(1) ?? null} unit="%" />
+            <StatCard label="NH₃" value={ultimo.nh3_ppm?.toFixed(1) ?? null} unit="ppm" warning={!!ultimo.nh3_ppm && ultimo.nh3_ppm > 25} />
+            <StatCard label="CO₂" value={ultimo.co2_ppm?.toFixed(0) ?? null} unit="ppm" warning={!!ultimo.co2_ppm && ultimo.co2_ppm > 3000} />
+            <StatCard label="Luminosidad" value={ultimo.lux_intensidad?.toFixed(1) ?? null} unit="lux" />
           </div>
         </div>
       )}
@@ -201,7 +202,7 @@ export default function TabAmbiental({ loteActual, finca }: Props) {
             <div className="p-4 space-y-2">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}</div>
           ) : registros.length === 0 ? (
             <div className="py-10 text-center">
-              <p className="text-4xl mb-2">🌡️</p>
+              <p className="text-4xl mb-2"><Ic n="termometro" /></p>
               <p className="text-gray-600 font-medium">Sin lecturas ambientales</p>
               <p className="text-sm text-gray-400 mb-4">Registra los parámetros del galpón</p>
               <Button onClick={() => setModalOpen(true)} className="bg-green-700 hover:bg-green-800 text-white">+ Registrar lectura</Button>
@@ -234,14 +235,14 @@ export default function TabAmbiental({ loteActual, finca }: Props) {
                       <TableCell className={`text-right text-sm ${r.nh3_ppm && r.nh3_ppm > 25 ? 'text-red-600 font-semibold' : ''}`}>{r.nh3_ppm?.toFixed(1) ?? '—'}</TableCell>
                       <TableCell className={`text-right text-sm ${r.co2_ppm && r.co2_ppm > 3000 ? 'text-red-600 font-semibold' : ''}`}>{r.co2_ppm?.toFixed(0) ?? '—'}</TableCell>
                       <TableCell className="text-right text-sm">{r.lux_intensidad?.toFixed(0) ?? '—'}</TableCell>
-                      <TableCell><Badge variant="secondary" className="text-[10px]">{r.fuente === 'sensor' ? '📡 Sensor' : '✍️ Manual'}</Badge></TableCell>
+                      <TableCell><Badge variant="secondary" className="text-[10px]">{r.fuente === 'sensor' ? 'Sensor' : 'Manual'}</Badge></TableCell>
                       <TableCell>
                         <Button
                           size="sm" variant="ghost"
                           className={confirmandoEliminar === r.id ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
                           onClick={() => eliminar(r)}
                         >
-                          {confirmandoEliminar === r.id ? '¿Confirmar?' : '🗑️'}
+                          {confirmandoEliminar === r.id ? '¿Confirmar?' : ''}
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -256,7 +257,7 @@ export default function TabAmbiental({ loteActual, finca }: Props) {
       {/* IoT Placeholder */}
       <Card className="border-dashed border-gray-300 bg-gray-50">
         <CardContent className="p-5 text-center space-y-2">
-          <p className="text-2xl">📡</p>
+          <p className="text-2xl"><Ic n="sensor" /></p>
           <p className="font-semibold text-gray-600">Integración con Sensores IoT — Próximamente</p>
           <p className="text-sm text-gray-400">Conecta sensores SHT40 (temperatura/humedad), MH-Z19B (CO₂) y MQ-135 (NH₃) para registro automático en tiempo real.</p>
           <div className="flex justify-center gap-2 mt-2">

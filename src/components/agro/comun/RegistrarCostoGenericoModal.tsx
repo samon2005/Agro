@@ -77,7 +77,7 @@ export default function RegistrarCostoGenericoModal({ open, onClose, loteId, fin
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>{costoExistente ? '✏️ Editar Costo' : '💰 Registrar Costo Operativo'}</DialogTitle>
+          <DialogTitle>{costoExistente ? 'Editar Costo' : 'Registrar Costo Operativo'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">

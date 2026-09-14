@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
+import { Ic } from '@/components/ui/icon'
 
 type LotePollo = Database['public']['Tables']['lotes_pollo']['Row']
 type ProduccionDiaria = Database['public']['Tables']['produccion_diaria_pollo']['Row']
@@ -119,7 +120,7 @@ export default function TabProduccionPollo({ loteActual, onLoteUpdated }: Props)
   let uniformidad: string | null = null
   if (ultimoPeso?.peso_minimo && ultimoPeso?.peso_maximo) {
     const cv = ((ultimoPeso.peso_maximo - ultimoPeso.peso_minimo) / ultimoPeso.peso_promedio) * 100
-    uniformidad = cv < 20 ? `✓ Uniforme (CV ${cv.toFixed(1)}%)` : `⚠ Heterogéneo (CV ${cv.toFixed(1)}%)`
+    uniformidad = cv < 20 ? `Uniforme (CV ${cv.toFixed(1)}%)` : `Heterogéneo (CV ${cv.toFixed(1)}%)`
   }
 
   function fmt(d: string) { return new Date(d + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short' }) }
@@ -127,10 +128,10 @@ export default function TabProduccionPollo({ loteActual, onLoteUpdated }: Props)
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h2 className="text-base font-semibold text-gray-800">Producción y Crecimiento</h2>
+        <h2 className="text-lg font-semibold text-gray-800">Producción y Crecimiento</h2>
         <div className="flex gap-2">
           <Button onClick={() => { setShowPeso(v => !v); setShowDiario(false) }} variant="outline" className="text-sm border-yellow-400 text-yellow-700 hover:bg-yellow-50">
-            {showPeso ? 'Cerrar' : '⚖️ Registrar pesaje'}
+            {showPeso ? 'Cerrar' : 'Registrar pesaje'}
           </Button>
           <Button onClick={() => { setShowDiario(v => !v); setShowPeso(false) }} className="bg-yellow-600 hover:bg-yellow-700 text-white text-sm">
             {showDiario ? 'Cerrar' : '+ Producción diaria'}
@@ -142,28 +143,28 @@ export default function TabProduccionPollo({ loteActual, onLoteUpdated }: Props)
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card className="border-yellow-200 bg-yellow-50">
           <CardContent className="p-4">
-            <p className="text-xs text-yellow-700 font-medium">⚖️ Último peso prom.</p>
+            <p className="text-xs text-yellow-700 font-medium"><Ic n="bascula" /> Último peso prom.</p>
             <p className="text-2xl font-bold text-yellow-800">{ultimoPeso ? `${ultimoPeso.peso_promedio.toFixed(3)} kg` : '—'}</p>
             {gananciaTotal && <p className="text-xs text-yellow-600">+{gananciaTotal} kg desde ingreso</p>}
           </CardContent>
         </Card>
         <Card className={`border-blue-200 bg-blue-50`}>
           <CardContent className="p-4">
-            <p className="text-xs text-blue-700 font-medium">📊 FCR acumulado</p>
+            <p className="text-xs text-blue-700 font-medium"><Ic n="grafica" /> FCR acumulado</p>
             <p className="text-2xl font-bold text-blue-800">{fcr ?? '—'}</p>
             <p className="text-xs text-blue-600">kg alim / kg ganancia</p>
           </CardContent>
         </Card>
         <Card className="border-green-200 bg-green-50">
           <CardContent className="p-4">
-            <p className="text-xs text-green-700 font-medium">🐥 Pollos actuales</p>
+            <p className="text-xs text-green-700 font-medium"><Ic n="pollo" /> Pollos actuales</p>
             <p className="text-2xl font-bold text-green-800">{loteActual.pollos_actuales.toLocaleString('es-CO')}</p>
-            {uniformidad && <p className={`text-xs ${uniformidad.startsWith('✓') ? 'text-green-600' : 'text-amber-600'}`}>{uniformidad}</p>}
+            {uniformidad && <p className={`text-xs ${uniformidad.startsWith('') ? 'text-green-600' : 'text-amber-600'}`}>{uniformidad}</p>}
           </CardContent>
         </Card>
         <Card className={`border-red-200 bg-red-50`}>
           <CardContent className="p-4">
-            <p className="text-xs text-red-700 font-medium">💀 Mortalidad acum.</p>
+            <p className="text-xs text-red-700 font-medium"><Ic n="muerte" /> Mortalidad acum.</p>
             <p className="text-2xl font-bold text-red-800">{mortalidadAcum.toLocaleString('es-CO')}</p>
             {mortalidadPct && <p className="text-xs text-red-600">{mortalidadPct}% del lote</p>}
           </CardContent>
@@ -206,7 +207,7 @@ export default function TabProduccionPollo({ loteActual, onLoteUpdated }: Props)
             {formPeso.peso_minimo && formPeso.peso_maximo && formPeso.peso_promedio && (
               <div className={`mb-3 px-3 py-2 rounded-lg text-xs font-medium ${((Number(formPeso.peso_maximo) - Number(formPeso.peso_minimo)) / Number(formPeso.peso_promedio)) * 100 < 20 ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
                 Uniformidad: CV = {(((Number(formPeso.peso_maximo) - Number(formPeso.peso_minimo)) / Number(formPeso.peso_promedio)) * 100).toFixed(1)}%
-                {((Number(formPeso.peso_maximo) - Number(formPeso.peso_minimo)) / Number(formPeso.peso_promedio)) * 100 < 20 ? ' — Lote uniforme ✓' : ' — Lote heterogéneo ⚠'}
+                {((Number(formPeso.peso_maximo) - Number(formPeso.peso_minimo)) / Number(formPeso.peso_promedio)) * 100 < 20 ? ' — Lote uniforme' : ' — Lote heterogéneo'}
               </div>
             )}
             <form onSubmit={handlePeso} className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -255,7 +256,7 @@ export default function TabProduccionPollo({ loteActual, onLoteUpdated }: Props)
                         <TableCell className="text-right text-sm text-gray-500">{p.peso_minimo?.toFixed(3) ?? '—'}</TableCell>
                         <TableCell className="text-right text-sm text-gray-500">{p.peso_maximo?.toFixed(3) ?? '—'}</TableCell>
                         <TableCell className="text-sm">{cv ? <Badge className={Number(cv) < 20 ? 'bg-green-100 text-green-700 text-[10px]' : 'bg-amber-100 text-amber-700 text-[10px]'}>CV {cv}%</Badge> : '—'}</TableCell>
-                        <TableCell><Badge variant="secondary" className="text-[10px]">{p.metodo === 'bascula_dinamica' ? '📡 Dinámica' : '✍️ Manual'}</Badge></TableCell>
+                        <TableCell><Badge variant="secondary" className="text-[10px]">{p.metodo === 'bascula_dinamica' ? 'Dinámica' : 'Manual'}</Badge></TableCell>
                       </TableRow>
                     )
                   })}
@@ -273,7 +274,7 @@ export default function TabProduccionPollo({ loteActual, onLoteUpdated }: Props)
           {loading ? (
             <div className="p-4 space-y-2">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}</div>
           ) : produccion.length === 0 ? (
-            <div className="py-8 text-center"><p className="text-3xl mb-2">🐥</p><p className="text-gray-400">Sin registros</p></div>
+            <div className="py-8 text-center"><p className="text-3xl mb-2"><Ic n="pollo" /></p><p className="text-gray-400">Sin registros</p></div>
           ) : (
             <div className="overflow-x-auto">
               <Table>

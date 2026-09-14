@@ -21,33 +21,35 @@ import { CONFIG_ESPECIES } from '@/lib/especiesConfig'
 import { Badge } from '@/components/ui/badge'
 import { edadTexto } from '@/lib/cerdos'
 import type { Database } from '@/types/database'
+import { Ic, type NombreIcono } from '@/components/ui/icon'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
 type Tab = 'diario' | 'crecimiento' | 'reproduccion' | 'nutricion' | 'sanitario' | 'ambiental' | 'ventas' | 'costos' | 'equipos'
 
 /** La pestaña de Reproducción solo existe si el lote trabaja con sistema de cría. */
-function tabsDelLote(sistema: string): { id: Tab; label: string }[] {
-  const base: { id: Tab; label: string }[] = [
-    { id: 'diario', label: '📋 Diario' },
-    { id: 'crecimiento', label: '📈 Crecimiento' },
+type TabItem = { id: Tab; label: string; icon: NombreIcono }
+function tabsDelLote(sistema: string): TabItem[] {
+  const base: TabItem[] = [
+    { id: 'diario', label: 'Diario', icon: 'diario' },
+    { id: 'crecimiento', label: 'Crecimiento', icon: 'tendencia' },
   ]
-  if (sistema === 'cria') base.push({ id: 'reproduccion', label: '🐖 Reproducción' })
+  if (sistema === 'cria') base.push({ id: 'reproduccion', label: 'Reproducción', icon: 'corazon' })
   return [
     ...base,
-    { id: 'nutricion', label: '🌾 Nutrición' },
-    { id: 'sanitario', label: '💉 Sanitario' },
-    { id: 'ambiental', label: '🌡️ Ambiental' },
-    { id: 'ventas', label: '🧾 Ventas' },
-    { id: 'costos', label: '💰 Finanzas' },
-    { id: 'equipos', label: '⚙️ Equipos' },
+    { id: 'nutricion', label: 'Nutrición', icon: 'alimento' },
+    { id: 'sanitario', label: 'Sanitario', icon: 'vacuna' },
+    { id: 'ambiental', label: 'Ambiental', icon: 'termometro' },
+    { id: 'ventas', label: 'Ventas', icon: 'recibo' },
+    { id: 'costos', label: 'Finanzas', icon: 'dinero' },
+    { id: 'equipos', label: 'Equipos', icon: 'ajustes' },
   ]
 }
 
 const CONFIG = CONFIG_ESPECIES.cerdos
 
 const ETAPAS_LABEL: Record<string, string> = {
-  precebo: '🐷 Precebo', levante: '🐖 Levante', ceba: '🐗 Ceba', finalizacion: '✅ Finalización',
-  vendido: '💰 Vendido', cria: '🐖 Cría / Reproducción'
+  precebo: 'Precebo', levante: 'Levante', ceba: 'Ceba', finalizacion: 'Finalización',
+  vendido: 'Vendido', cria: 'Cría / Reproducción'
 }
 
 export default function CerdosPage() {
@@ -87,14 +89,14 @@ export default function CerdosPage() {
   if (fincaLoading) return <div className="p-6 text-gray-500">Cargando...</div>
   if (!fincaActual) return (
     <div className="flex-1 flex items-center justify-center">
-      <div className="text-center"><p className="text-4xl mb-2">🌿</p><p className="text-gray-600">Selecciona una finca para continuar</p></div>
+      <div className="text-center"><p className="text-4xl mb-2"><Ic n="hoja" /></p><p className="text-gray-600">Selecciona una finca para continuar</p></div>
     </div>
   )
 
   return (
     <div className="flex-1 overflow-auto p-6 space-y-5">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">🐷 Cerdos</h1>
+        <h1 className="text-3xl font-medium text-gray-900">Cerdos</h1>
         <p className="text-sm text-gray-500">{fincaActual.nombre} · Gestión integral de lotes porcinos</p>
       </div>
 
@@ -111,7 +113,7 @@ export default function CerdosPage() {
                 <button key={lote.id} onClick={() => setLoteActual(lote)}
                   className={cn('px-4 py-1.5 rounded-full text-sm font-medium border transition-colors',
                     loteActual?.id === lote.id ? 'bg-orange-600 text-white border-orange-600' : 'bg-white text-gray-700 border-gray-300 hover:border-orange-400 hover:text-orange-700')}>
-                  🐷 {lote.nombre}
+                  <Ic n="cerdo" /> {lote.nombre}
                 </button>
               ))}
               <button onClick={() => setModalNuevo(true)}
@@ -138,13 +140,13 @@ export default function CerdosPage() {
               onClick={() => setConfigOpen(true)}
               className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors"
             >
-              ⚙️ Configurar lote
+              <Ic n="ajustes" /> Configurar lote
             </button>
           </div>
         )}
         {loteActual && loteActual.alimento_activo_id == null && (
           <div className="p-2.5 bg-amber-50 border border-amber-300 rounded-lg text-xs text-amber-800">
-            ⚠️ Este lote no tiene alimento asignado. Regístralo en la pestaña Nutrición: sin alimento
+            <Ic n="alerta" /> Este lote no tiene alimento asignado. Regístralo en la pestaña Nutrición: sin alimento
             no se puede llevar el diario ni calcular costo ni conversión.
           </div>
         )}
@@ -152,7 +154,7 @@ export default function CerdosPage() {
 
       {!loteActual && !loadingLotes && (
         <div className="py-16 text-center">
-          <p className="text-5xl mb-3">🐷</p>
+          <p className="text-5xl mb-3"><Ic n="cerdo" /></p>
           <p className="text-xl font-semibold text-gray-700 mb-1">Sin lotes activos</p>
           <p className="text-gray-400 mb-5">Crea tu primer lote de cerdos para comenzar</p>
           <button onClick={() => setModalNuevo(true)}
@@ -167,8 +169,9 @@ export default function CerdosPage() {
           <div className="flex border-b border-gray-100 overflow-x-auto">
             {tabsDelLote(loteActual.sistema).map(tab => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                className={cn('flex-shrink-0 px-5 py-3 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap',
-                  activeTab === tab.id ? 'border-orange-600 text-orange-700 bg-orange-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50')}>
+                className={cn('inline-flex flex-shrink-0 items-center gap-2 px-4 py-3 text-[0.8125rem] font-medium border-b-2 -mb-px transition-colors whitespace-nowrap',
+                  activeTab === tab.id ? 'border-orange-600 text-orange-900' : 'border-transparent text-gray-500 hover:text-gray-800')}>
+                <Ic n={tab.icon} className={cn('size-4', activeTab === tab.id ? 'text-orange-600' : 'text-gray-400')} />
                 {tab.label}
               </button>
             ))}

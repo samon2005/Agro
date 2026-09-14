@@ -6,6 +6,7 @@ import {
   ReferenceDot, ResponsiveContainer,
 } from 'recharts'
 import type { Database } from '@/types/database'
+import { Ic } from '@/components/ui/icon'
 
 type ProduccionDiaria = Database['public']['Tables']['produccion_diaria_aves']['Row']
 
@@ -47,7 +48,7 @@ export default function GraficaCurvaPostura({ fechaInicioLote, metaPosturaPct, s
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-semibold text-gray-700">📈 Curva de postura</CardTitle>
+        <CardTitle className="text-sm font-semibold text-gray-700"><Ic n="tendencia" /> Curva de postura</CardTitle>
         <p className="text-xs text-gray-400">
           % producido contra semanas de vida del lote.
           {meta != null && ' El punto marca el pico esperado que configuraste.'}

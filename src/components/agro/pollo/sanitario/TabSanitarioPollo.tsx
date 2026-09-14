@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import type { Database } from '@/types/database'
 import { hoyLocal, aFechaLocal } from '@/lib/fechas'
+import { Ic } from '@/components/ui/icon'
 
 type LotePollo = Database['public']['Tables']['lotes_pollo']['Row']
 type Vacuna = Database['public']['Tables']['vacunaciones_pollo']['Row']
@@ -162,7 +163,7 @@ export default function TabSanitarioPollo({ loteActual }: Props) {
     <div className="space-y-4">
       {enRetiro.length > 0 && (
         <div className="px-3 py-2 bg-amber-50 border border-amber-300 rounded-lg text-sm text-amber-800">
-          ⚠️ <strong>Período de retiro activo:</strong> {enRetiro.map(m => m.medicamento).join(', ')} — pollos no aptos para faena
+          <Ic n="alerta" /> <strong>Período de retiro activo:</strong> {enRetiro.map(m => m.medicamento).join(', ')} — pollos no aptos para faena
         </div>
       )}
 
@@ -171,7 +172,7 @@ export default function TabSanitarioPollo({ loteActual }: Props) {
           {(['vacunas', 'medicaciones', 'eventos', 'desinfecciones'] as SubTab[]).map(t => (
             <button key={t} onClick={() => { setSubTab(t); setShowForm(false) }}
               className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${subTab === t ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>
-              {t === 'vacunas' ? '💉 Vacunas' : t === 'medicaciones' ? '💊 Medicaciones' : t === 'eventos' ? '🩺 Eventos' : '🧴 Desinfección'}
+              {t === 'vacunas' ? 'Vacunas' : t === 'medicaciones' ? 'Medicaciones' : t === 'eventos' ? 'Eventos' : 'Desinfección'}
             </button>
           ))}
         </div>
@@ -220,7 +221,7 @@ export default function TabSanitarioPollo({ loteActual }: Props) {
             <div className="space-y-1"><Label className="text-xs">Retiro (días)</Label><Input type="number" min="0" value={fMed.periodo_retiro_dias} onChange={e => setFMed(p => ({ ...p, periodo_retiro_dias: e.target.value }))} /></div>
             {fMed.fecha_fin && fMed.periodo_retiro_dias && (
               <div className="col-span-2 md:col-span-3 text-xs text-amber-700 bg-amber-50 px-3 py-2 rounded-lg border border-amber-200">
-                ⚠️ Liberación: {(() => { const d = new Date(fMed.fecha_fin); d.setDate(d.getDate() + Number(fMed.periodo_retiro_dias)); return d.toLocaleDateString('es-CO') })()}
+                <Ic n="alerta" /> Liberación: {(() => { const d = new Date(fMed.fecha_fin); d.setDate(d.getDate() + Number(fMed.periodo_retiro_dias)); return d.toLocaleDateString('es-CO') })()}
               </div>
             )}
             <div className="col-span-2 space-y-1"><Label className="text-xs">Medicamento *</Label><Input placeholder="Nombre comercial" value={fMed.medicamento} onChange={e => setFMed(p => ({ ...p, medicamento: e.target.value }))} /></div>
@@ -280,7 +281,7 @@ export default function TabSanitarioPollo({ loteActual }: Props) {
         {loading ? (
           <div className="p-4 space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}</div>
         ) : subTab === 'vacunas' ? (
-          vacunas.length === 0 ? <div className="py-8 text-center text-gray-400"><p className="text-3xl mb-2">💉</p><p>Sin vacunaciones</p></div> : (
+          vacunas.length === 0 ? <div className="py-8 text-center text-gray-400"><p className="text-3xl mb-2"><Ic n="vacuna" /></p><p>Sin vacunaciones</p></div> : (
             <div className="overflow-x-auto"><Table>
               <TableHeader><TableRow><TableHead>Fecha</TableHead><TableHead>Vacuna</TableHead><TableHead>Vía</TableHead><TableHead>Laboratorio</TableHead><TableHead>Próxima dosis</TableHead></TableRow></TableHeader>
               <TableBody>{vacunas.map(v => {
@@ -299,7 +300,7 @@ export default function TabSanitarioPollo({ loteActual }: Props) {
             </Table></div>
           )
         ) : subTab === 'medicaciones' ? (
-          medicaciones.length === 0 ? <div className="py-8 text-center text-gray-400"><p className="text-3xl mb-2">💊</p><p>Sin medicaciones</p></div> : (
+          medicaciones.length === 0 ? <div className="py-8 text-center text-gray-400"><p className="text-3xl mb-2"><Ic n="medicamento" /></p><p>Sin medicaciones</p></div> : (
             <div className="overflow-x-auto"><Table>
               <TableHeader><TableRow><TableHead>Inicio</TableHead><TableHead>Fin</TableHead><TableHead>Medicamento</TableHead><TableHead>Vía</TableHead><TableHead className="text-right">Retiro (d)</TableHead><TableHead>Estado</TableHead></TableRow></TableHeader>
               <TableBody>{medicaciones.map(m => {
@@ -316,14 +317,14 @@ export default function TabSanitarioPollo({ loteActual }: Props) {
                     <TableCell className="text-sm font-medium">{m.medicamento}</TableCell>
                     <TableCell className="text-sm text-gray-500">{m.via_administracion ?? '—'}</TableCell>
                     <TableCell className="text-right text-sm">{m.periodo_retiro_dias ?? 0}</TableCell>
-                    <TableCell>{enRetiro ? <Badge className="bg-amber-100 text-amber-700 text-[10px]">⚠ Retiro hasta {liberacion && fmt(liberacion)}</Badge> : <Badge className="bg-green-100 text-green-700 text-[10px]">✓ OK</Badge>}</TableCell>
+                    <TableCell>{enRetiro ? <Badge className="bg-amber-100 text-amber-700 text-[10px]"><Ic n="alerta" /> Retiro hasta {liberacion && fmt(liberacion)}</Badge> : <Badge className="bg-green-100 text-green-700 text-[10px]"><Ic n="check" /> OK</Badge>}</TableCell>
                   </TableRow>
                 )
               })}</TableBody>
             </Table></div>
           )
         ) : subTab === 'desinfecciones' ? (
-          desinfecciones.length === 0 ? <div className="py-8 text-center text-gray-400"><p className="text-3xl mb-2">🧴</p><p>Sin desinfecciones registradas</p></div> : (
+          desinfecciones.length === 0 ? <div className="py-8 text-center text-gray-400"><p className="text-3xl mb-2"><Ic n="desinfeccion" /></p><p>Sin desinfecciones registradas</p></div> : (
             <div className="overflow-x-auto"><Table>
               <TableHeader><TableRow><TableHead>Fecha</TableHead><TableHead>Producto</TableHead><TableHead>Previene</TableHead><TableHead>Dosis</TableHead><TableHead>Responsable</TableHead><TableHead className="text-right">Costo</TableHead></TableRow></TableHeader>
               <TableBody>{desinfecciones.map(d => (
@@ -339,7 +340,7 @@ export default function TabSanitarioPollo({ loteActual }: Props) {
             </Table></div>
           )
         ) : (
-          eventos.length === 0 ? <div className="py-8 text-center text-gray-400"><p className="text-3xl mb-2">🩺</p><p>Sin eventos clínicos</p></div> : (
+          eventos.length === 0 ? <div className="py-8 text-center text-gray-400"><p className="text-3xl mb-2"><Ic n="clinico" /></p><p>Sin eventos clínicos</p></div> : (
             <div className="overflow-x-auto"><Table>
               <TableHeader><TableRow><TableHead>Fecha</TableHead><TableHead>Tipo</TableHead><TableHead>Descripción</TableHead><TableHead className="text-right">Afectadas</TableHead><TableHead>Estado</TableHead></TableRow></TableHeader>
               <TableBody>{eventos.map(ev => (
@@ -349,7 +350,7 @@ export default function TabSanitarioPollo({ loteActual }: Props) {
                   <TableCell className="text-sm max-w-xs truncate">{ev.descripcion}</TableCell>
                   <TableCell className="text-right text-sm">{ev.aves_afectadas ?? '—'}</TableCell>
                   <TableCell>
-                    {ev.resuelto ? <Badge className="bg-green-100 text-green-700 text-[10px]">✓ Resuelto</Badge>
+                    {ev.resuelto ? <Badge className="bg-green-100 text-green-700 text-[10px]"><Ic n="check" /> Resuelto</Badge>
                       : <button onClick={() => marcarResuelto(ev.id)} className="text-[10px] px-2 py-0.5 rounded-full bg-red-100 text-red-700 hover:bg-green-100 hover:text-green-700">Pendiente → Resolver</button>}
                   </TableCell>
                 </TableRow>

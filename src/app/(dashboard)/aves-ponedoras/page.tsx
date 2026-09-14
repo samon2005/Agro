@@ -19,6 +19,7 @@ import TabVentas from '@/components/agro/aves/ventas/TabVentas'
 import TabEquipos from '@/components/agro/aves/equipos/TabEquipos'
 import { calcularFechaLiberacion } from '@/lib/sanitario'
 import type { Database } from '@/types/database'
+import { Ic, type NombreIcono } from '@/components/ui/icon'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 type Medicacion = Database['public']['Tables']['medicaciones_aves']['Row']
@@ -28,13 +29,13 @@ type Produccion = Database['public']['Tables']['produccion_diaria_aves']['Row']
 
 type Tab = 'produccion' | 'ambiental' | 'sanitario' | 'ventas' | 'costos' | 'equipos'
 
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'produccion', label: '🥚 Producción' },
-  { id: 'ambiental', label: '🌡️ Ambiental' },
-  { id: 'sanitario', label: '💉 Sanitario' },
-  { id: 'ventas', label: '🧾 Ventas' },
-  { id: 'costos', label: '💰 Finanzas' },
-  { id: 'equipos', label: '⚙️ Equipos' },
+const TABS: { id: Tab; label: string; icon: NombreIcono }[] = [
+  { id: 'produccion', label: 'Producción', icon: 'huevo' },
+  { id: 'ambiental', label: 'Ambiental', icon: 'termometro' },
+  { id: 'sanitario', label: 'Sanitario', icon: 'vacuna' },
+  { id: 'ventas', label: 'Ventas', icon: 'recibo' },
+  { id: 'costos', label: 'Finanzas', icon: 'dinero' },
+  { id: 'equipos', label: 'Equipos', icon: 'ajustes' },
 ]
 
 interface Alerta { tipo: 'danger' | 'warning'; mensaje: string }
@@ -132,7 +133,7 @@ export default function AvesPonedorasPage() {
     return (
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center">
-          <p className="text-4xl mb-2">🌿</p>
+          <p className="text-4xl mb-2"><Ic n="hoja" /></p>
           <p className="text-gray-600">Selecciona una finca para continuar</p>
         </div>
       </div>
@@ -144,14 +145,14 @@ export default function AvesPonedorasPage() {
       {/* Encabezado */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">🐔 Galpones</h1>
+          <h1 className="text-3xl font-medium text-gray-900">Galpones</h1>
           <p className="text-sm text-gray-500">{fincaActual.nombre} · Gestión integral de lotes</p>
         </div>
         <button
           onClick={() => setModalFinca(true)}
           className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors"
         >
-          📍 Datos geográficos de la finca
+          <Ic n="ubicacion" /> Datos geográficos de la finca
         </button>
       </div>
 
@@ -165,7 +166,7 @@ export default function AvesPonedorasPage() {
                 a.tipo === 'danger' ? 'bg-red-50 border-red-300 text-red-800' : 'bg-amber-50 border-amber-300 text-amber-800'
               }`}
             >
-              {a.tipo === 'danger' ? '🚨' : '⚠️'} {a.mensaje}
+              {a.tipo === 'danger' ? '' : ''} {a.mensaje}
             </div>
           ))}
         </div>
@@ -199,7 +200,7 @@ export default function AvesPonedorasPage() {
 
       {!vistaGlobal && !loteActual && !loadingLotes && (
         <div className="py-16 text-center">
-          <p className="text-5xl mb-3">🐔</p>
+          <p className="text-5xl mb-3"><Ic n="ave" /></p>
           <p className="text-xl font-semibold text-gray-700 mb-1">Sin lotes activos</p>
           <p className="text-gray-400 mb-5">Crea tu primer lote para comenzar el seguimiento</p>
           <button
@@ -221,12 +222,13 @@ export default function AvesPonedorasPage() {
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={cn(
-                    'flex-shrink-0 px-5 py-3 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap',
+                    'inline-flex flex-shrink-0 items-center gap-2 px-4 py-3 text-[0.8125rem] font-medium border-b-2 -mb-px transition-colors whitespace-nowrap',
                     activeTab === tab.id
-                      ? 'border-green-600 text-green-700 bg-green-50/50'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                      ? 'border-green-700 text-green-900'
+                      : 'border-transparent text-gray-500 hover:text-gray-800'
                   )}
                 >
+                  <Ic n={tab.icon} className={cn('size-4', activeTab === tab.id ? 'text-green-700' : 'text-gray-400')} />
                   {tab.label}
                 </button>
               ))}
