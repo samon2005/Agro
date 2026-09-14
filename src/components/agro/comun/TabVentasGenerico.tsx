@@ -1,5 +1,6 @@
 'use client'
 
+import { Indicador } from '@/components/ui/indicador'
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -86,30 +87,10 @@ export default function TabVentasGenerico({ loteId, fincaId, config, animalesAct
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card className="border-emerald-200 bg-emerald-50">
-          <CardContent className="p-4">
-            <p className="text-xs text-emerald-700 font-medium">Ingreso del mes</p>
-            <p className="text-2xl font-bold text-emerald-800">{ingresoMes > 0 ? cop(ingresoMes) : '—'}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-emerald-200 bg-emerald-50">
-          <CardContent className="p-4">
-            <p className="text-xs text-emerald-700 font-medium">{config.animalPlural} vendidos (mes)</p>
-            <p className="text-2xl font-bold text-emerald-800">{animalesVendidosMes.toLocaleString('es-CO')}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-emerald-200 bg-emerald-50">
-          <CardContent className="p-4">
-            <p className="text-xs text-emerald-700 font-medium">Kilos vendidos (mes)</p>
-            <p className="text-2xl font-bold text-emerald-800">{kilosMes > 0 ? kilosMes.toLocaleString('es-CO', { maximumFractionDigits: 1 }) : '—'}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-emerald-200 bg-emerald-50">
-          <CardContent className="p-4">
-            <p className="text-xs text-emerald-700 font-medium">Precio promedio / kg</p>
-            <p className="text-2xl font-bold text-emerald-800">{precioPromedioKg > 0 ? cop(precioPromedioKg) : '—'}</p>
-          </CardContent>
-        </Card>
+        <Indicador tono="green" etiqueta="Ingreso del mes" valor={ingresoMes > 0 ? cop(ingresoMes) : '—'} />
+        <Indicador tono="green" etiqueta={<>{config.animalPlural} vendidos (mes)</>} valor={animalesVendidosMes.toLocaleString('es-CO')} />
+        <Indicador tono="green" etiqueta="Kilos vendidos (mes)" valor={kilosMes > 0 ? kilosMes.toLocaleString('es-CO', { maximumFractionDigits: 1 }) : '—'} />
+        <Indicador tono="green" etiqueta="Precio promedio / kg" valor={precioPromedioKg > 0 ? cop(precioPromedioKg) : '—'} />
       </div>
 
       <Card>

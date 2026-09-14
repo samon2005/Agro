@@ -1,5 +1,6 @@
 'use client'
 
+import { Indicador, GrupoIndicadores } from '@/components/ui/indicador'
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -480,172 +481,93 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
         </div>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <GrupoIndicadores titulo={enPostura ? 'Producción de hoy' : 'Estado del lote'} columnas={5}>
         {enPostura && (<>
-        <Card className="border-yellow-200 bg-yellow-50">
-          <CardContent className="p-4">
-            <p className="text-xs text-yellow-700 font-medium">Huevos puestos hoy</p>
-            <p className="text-2xl font-bold text-yellow-800">{hoy ? hoy.huevos_totales.toLocaleString('es-CO') : '—'}</p>
-            <p className="text-xs text-yellow-600 mt-0.5">Comerciales: {hoy ? (hoy.huevos_totales - hoy.huevos_rotos - hoy.huevos_deformes).toLocaleString('es-CO') : '—'}</p>
-          </CardContent>
-        </Card>
-        <Card className={metaHuevosDiaria && hoy && hoy.huevos_totales < metaHuevosDiaria ? 'border-red-200 bg-red-50' : 'border-teal-200 bg-teal-50'}>
-          <CardContent className="p-4">
-            <p className={`text-xs font-medium ${metaHuevosDiaria && hoy && hoy.huevos_totales < metaHuevosDiaria ? 'text-red-700' : 'text-teal-700'}`}>Meta de huevos/día</p>
-            <p className={`text-2xl font-bold ${metaHuevosDiaria && hoy && hoy.huevos_totales < metaHuevosDiaria ? 'text-red-800' : 'text-teal-800'}`}>{metaHuevosDiaria ? metaHuevosDiaria.toLocaleString('es-CO') : '—'}</p>
-            <p className="text-xs mt-0.5 text-gray-500">{cumplimientoMeta ? `${cumplimientoMeta}% cumplido hoy` : metaHuevosDiaria ? 'Sin registro de hoy' : 'Configura la meta en "Configurar galpón"'}</p>
-          </CardContent>
-        </Card>
-        <Card className={posturaHoy && Number(posturaHoy) < metaPostura ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50'}>
-          <CardContent className="p-4">
-            <p className={`text-xs font-medium ${posturaHoy && Number(posturaHoy) < metaPostura ? 'text-red-700' : 'text-green-700'}`}>% Postura hoy</p>
-            <p className={`text-2xl font-bold ${posturaHoy && Number(posturaHoy) < metaPostura ? 'text-red-800' : 'text-green-800'}`}>{posturaHoy ? `${posturaHoy}%` : '—'}</p>
-            <p className={`text-xs mt-0.5 ${posturaHoy && Number(posturaHoy) < metaPostura ? 'text-red-600' : 'text-green-600'}`}>Meta lote: {metaPostura}%</p>
-            {diffPuntosHoy != null && (
-              <p className={`text-xs mt-0.5 font-medium ${diffPuntosHoy < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                {diffPuntosHoy < 0
-                  ? `Faltan ${Math.abs(diffPuntosHoy).toFixed(1)} pts (${Math.round(perdidaHoy).toLocaleString('es-CO')} huevos bajo la meta)`
-                  : `+${diffPuntosHoy.toFixed(1)} pts (${Math.round(excedenteHoy).toLocaleString('es-CO')} huevos sobre la meta)`}
-              </p>
-            )}
-          </CardContent>
-        </Card>
-        <Card className="border-blue-200 bg-blue-50">
-          <CardContent className="p-4">
-            <p className="text-xs text-blue-700 font-medium">ICA (últimos 30d)</p>
-            <p className="text-2xl font-bold text-blue-800">{ica ?? '—'}</p>
-            <p className="text-xs text-blue-600 mt-0.5">kg alim / docena</p>
-          </CardContent>
-        </Card>
+        <Indicador tono="amber" icono="huevo" etiqueta="Huevos puestos hoy" valor={hoy ? hoy.huevos_totales.toLocaleString('es-CO') : '—'} detalle={<>Comerciales: {hoy ? (hoy.huevos_totales - hoy.huevos_rotos - hoy.huevos_deformes).toLocaleString('es-CO') : '—'}</>} />
+        <Indicador
+          tono={metaHuevosDiaria && hoy && hoy.huevos_totales < metaHuevosDiaria ? 'red' : 'green'}
+          icono="meta"
+          etiqueta="Meta de huevos/día"
+          valor={metaHuevosDiaria ? metaHuevosDiaria.toLocaleString('es-CO') : '—'}
+          detalle={cumplimientoMeta ? `${cumplimientoMeta}% cumplido hoy` : metaHuevosDiaria ? 'Sin registro de hoy' : 'Configura la meta en "Configurar galpón"'}
+        />
+        <Indicador
+          tono={posturaHoy && Number(posturaHoy) < metaPostura ? 'red' : 'green'}
+          icono="huevo"
+          etiqueta="% Postura hoy"
+          valor={posturaHoy ? `${posturaHoy}%` : '—'}
+          detalle={<>Meta lote: {metaPostura}%</>}
+        >
+          {diffPuntosHoy != null && (
+            <p className={`mt-1 text-xs font-medium ${diffPuntosHoy < 0 ? 'text-red-600' : 'text-green-600'}`}>
+              {diffPuntosHoy < 0
+                ? `Faltan ${Math.abs(diffPuntosHoy).toFixed(1)} pts (${Math.round(perdidaHoy).toLocaleString('es-CO')} huevos bajo la meta)`
+                : `+${diffPuntosHoy.toFixed(1)} pts (${Math.round(excedenteHoy).toLocaleString('es-CO')} huevos sobre la meta)`}
+            </p>
+          )}
+        </Indicador>
+        <Indicador tono="blue" icono="bascula" etiqueta="ICA (últimos 30d)" valor={ica ?? '—'} detalle="kg alim / docena" />
         </>)}
-        <Card className="border-gray-200 bg-gray-50">
-          <CardContent className="p-4">
-            <p className="text-xs text-gray-700 font-medium">Mortalidad acum.</p>
-            <p className="text-2xl font-bold text-gray-800">{mortAcum}</p>
-            <p className="text-xs text-gray-600 mt-0.5">{mortPct}% del lote inicial</p>
-          </CardContent>
-        </Card>
-      </div>
+        <Indicador tono="gray" icono="muerte" etiqueta="Mortalidad acum." valor={mortAcum} detalle={<>{mortPct}% del lote inicial</>} />
+      </GrupoIndicadores>
 
       {/* Ciclo de postura y densidad */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <Card className="border-purple-200 bg-purple-50">
-          <CardContent className="p-4">
-            <p className="text-xs text-purple-700 font-medium">{semanaPostura != null ? 'Semana de postura' : 'Postura'}</p>
-            <p className="text-2xl font-bold text-purple-800">
-              {semanaPostura ?? (semanasFaltantesPostura != null ? `Faltan ${semanasFaltantesPostura}` : '—')}
-            </p>
-            <p className="text-xs text-purple-600 mt-0.5">
-              {inicioSemanaActual && finSemanaActual
+      <GrupoIndicadores titulo="Ciclo y galpón" columnas={5}>
+        <Indicador tono="purple" icono="reloj" etiqueta={semanaPostura != null ? 'Semana de postura' : 'Postura'} valor={semanaPostura ?? (semanasFaltantesPostura != null ? `Faltan ${semanasFaltantesPostura}` : '—')} detalle={<>{inicioSemanaActual && finSemanaActual
                 ? `${inicioSemanaActual.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })} – ${finSemanaActual.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}`
-                : semanasFaltantesPostura != null ? `semana${semanasFaltantesPostura === 1 ? '' : 's'} para iniciar` : 'Sin fecha de inicio'}
-            </p>
-            {fechaFinEstimada && (
-              <p className="text-xs text-purple-500 mt-0.5">
-                Fin ciclo est.: {fechaFinEstimada.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
-              </p>
-            )}
-          </CardContent>
-        </Card>
+                : semanasFaltantesPostura != null ? `semana${semanasFaltantesPostura === 1 ? '' : 's'} para iniciar` : 'Sin fecha de inicio'}</>}>
+          {fechaFinEstimada && (
+          <p className="text-xs text-purple-500 mt-0.5">
+          Fin ciclo est.: {fechaFinEstimada.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
+          </p>
+          )}
+        </Indicador>
         {enPostura && (<>
-        <Card className="border-emerald-200 bg-emerald-50">
-          <CardContent className="p-4">
-            <p className="text-xs text-emerald-700 font-medium">Ingreso por venta (hoy)</p>
-            <p className="text-2xl font-bold text-emerald-800">{ingresoHoy > 0 ? cop(ingresoHoy) : '—'}</p>
-            <p className="text-xs text-emerald-600 mt-0.5">
-              {precioPromedio > 0 ? 'Según precio por tamaño configurado' : 'Configura el precio del huevo en Ventas'}
-            </p>
-          </CardContent>
-        </Card>
-        <Card className={perdidaHoy > 0 ? 'border-red-200 bg-red-50' : 'border-gray-200'}>
-          <CardContent className="p-4">
-            <p className={`text-xs font-medium ${perdidaHoy > 0 ? 'text-red-700' : 'text-gray-500'}`}>Pérdida por baja postura (hoy)</p>
-            <p className={`text-2xl font-bold ${perdidaHoy > 0 ? 'text-red-800' : 'text-gray-700'}`}>
-              {precioPromedio > 0
-                ? (valorPerdidoHoy > 0 ? cop(valorPerdidoHoy) : cop(0))
-                : `${Math.round(perdidaHoy).toLocaleString('es-CO')}`}
-            </p>
-            <p className="text-xs text-gray-500 mt-0.5">
-              {precioPromedio > 0
-                ? `${Math.round(perdidaHoy).toLocaleString('es-CO')} huevos bajo la meta`
-                : 'huevos bajo la meta · pon el precio en Ventas para verlo en pesos'}
-            </p>
-          </CardContent>
-        </Card>
-        <Card className={huevosPerdidos30 > 0 ? 'border-red-200 bg-red-50' : 'border-gray-200'}>
-          <CardContent className="p-4">
-            <p className={`text-xs font-medium ${huevosPerdidos30 > 0 ? 'text-red-700' : 'text-gray-500'}`}>Pérdida acumulada (30d)</p>
-            <p className={`text-2xl font-bold ${huevosPerdidos30 > 0 ? 'text-red-800' : 'text-gray-700'}`}>
-              {precioPromedio > 0
-                ? (valorPerdido30 > 0 ? cop(valorPerdido30) : cop(0))
-                : `${Math.round(huevosPerdidos30).toLocaleString('es-CO')}`}
-            </p>
-            <p className="text-xs text-gray-500 mt-0.5">
-              {precioPromedio > 0
-                ? `${Math.round(huevosPerdidos30).toLocaleString('es-CO')} huevos bajo la meta`
-                : 'huevos bajo la meta · pon el precio en Ventas para verlo en pesos'}
-            </p>
-          </CardContent>
-        </Card>
+        <Indicador tono="green" icono="dinero" etiqueta="Ingreso por venta (hoy)" valor={ingresoHoy > 0 ? cop(ingresoHoy) : '—'} detalle={precioPromedio > 0 ? 'Según precio por tamaño configurado' : 'Configura el precio del huevo en Ventas'} />
+        <Indicador
+          tono={perdidaHoy > 0 ? 'red' : 'gray'}
+          icono="tendencia"
+          etiqueta="Pérdida por baja postura (hoy)"
+          valor={precioPromedio > 0
+            ? (valorPerdidoHoy > 0 ? cop(valorPerdidoHoy) : cop(0))
+            : `${Math.round(perdidaHoy).toLocaleString('es-CO')}`}
+          detalle={precioPromedio > 0
+            ? `${Math.round(perdidaHoy).toLocaleString('es-CO')} huevos bajo la meta`
+            : 'huevos bajo la meta · pon el precio en Ventas para verlo en pesos'}
+        />
+        <Indicador
+          tono={huevosPerdidos30 > 0 ? 'red' : 'gray'}
+          icono="calendario"
+          etiqueta="Pérdida acumulada (30d)"
+          valor={precioPromedio > 0
+            ? (valorPerdido30 > 0 ? cop(valorPerdido30) : cop(0))
+            : `${Math.round(huevosPerdidos30).toLocaleString('es-CO')}`}
+          detalle={precioPromedio > 0
+            ? `${Math.round(huevosPerdidos30).toLocaleString('es-CO')} huevos bajo la meta`
+            : 'huevos bajo la meta · pon el precio en Ventas para verlo en pesos'}
+        />
         </>)}
         {!enPostura && (
-          <Card className="border-blue-200 bg-blue-50">
-            <CardContent className="p-4">
-              <p className="text-xs text-blue-700 font-medium">Semana de preparación</p>
-              <p className="text-2xl font-bold text-blue-800">{semanasEnGalpon + 1}</p>
-              <p className="text-xs text-blue-600 mt-0.5">
-                {semanasFaltantesPostura != null
+          <Indicador tono="blue" icono="calendario" etiqueta="Semana de preparación" valor={semanasEnGalpon + 1} detalle={semanasFaltantesPostura != null
                   ? `Faltan ${semanasFaltantesPostura} semana${semanasFaltantesPostura === 1 ? '' : 's'} para postura`
-                  : 'Aún no inicia postura'}
-              </p>
-              {loteActual.fecha_inicio_postura && (
-                <p className="text-xs text-blue-500 mt-0.5">
-                  Tentativa: {new Date(loteActual.fecha_inicio_postura + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
-                </p>
-              )}
-            </CardContent>
-          </Card>
+                  : 'Aún no inicia postura'}>
+            {loteActual.fecha_inicio_postura && (
+            <p className="text-xs text-blue-500 mt-0.5">
+            Tentativa: {new Date(loteActual.fecha_inicio_postura + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
+            </p>
+            )}
+          </Indicador>
         )}
-        <Card className="border-orange-200 bg-orange-50">
-          <CardContent className="p-4">
-            <p className="text-xs text-orange-700 font-medium">Densidad</p>
-            <p className="text-2xl font-bold text-orange-800">{densidad ?? '—'}</p>
-            <p className="text-xs text-orange-600 mt-0.5">aves / m²</p>
-          </CardContent>
-        </Card>
-      </div>
+        <Indicador tono="orange" icono="ubicacion" etiqueta="Densidad" valor={densidad ?? '—'} detalle="aves / m²" />
+      </GrupoIndicadores>
 
       {/* Alimento: costo, bultos, gramos/gallina y kg totales (consumo activo) */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card className="border-amber-200 bg-amber-50">
-          <CardContent className="p-4">
-            <p className="text-xs text-amber-700 font-medium">Costo de alimento (activo)</p>
-            <p className="text-2xl font-bold text-amber-800">{costoAlimentoHoy > 0 ? cop(costoAlimentoHoy) : '—'}</p>
-            <p className="text-xs text-amber-600 mt-0.5">{consumoActivoKg > 0 ? `${consumoActivoKg.toFixed(1)} kg consumidos` : 'Sin consumo registrado'}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-amber-200 bg-amber-50">
-          <CardContent className="p-4">
-            <p className="text-xs text-amber-700 font-medium">Bultos (consumo activo)</p>
-            <p className="text-2xl font-bold text-amber-800">{bultosHoy > 0 ? bultosHoy.toFixed(2) : '—'}</p>
-            <p className="text-xs text-amber-600 mt-0.5">Bulto de {pesoBulto} kg</p>
-          </CardContent>
-        </Card>
-        <Card className="border-amber-200 bg-amber-50">
-          <CardContent className="p-4">
-            <p className="text-xs text-amber-700 font-medium">Alimento por gallina</p>
-            <p className="text-2xl font-bold text-amber-800">{gramosGallinaHoy != null ? gramosGallinaHoy.toFixed(0) : '—'}</p>
-            <p className="text-xs text-amber-600 mt-0.5">gramos / gallina / día</p>
-          </CardContent>
-        </Card>
-        <Card className="border-amber-200 bg-amber-50">
-          <CardContent className="p-4">
-            <p className="text-xs text-amber-700 font-medium">Alimento total del galpón</p>
-            <p className="text-2xl font-bold text-amber-800">{kgTotalHoy != null ? kgTotalHoy.toFixed(1) : '—'}</p>
-            <p className="text-xs text-amber-600 mt-0.5">kg / día</p>
-          </CardContent>
-        </Card>
-      </div>
+      <GrupoIndicadores titulo="Alimento" columnas={4}>
+        <Indicador tono="amber" icono="dinero" etiqueta="Costo de alimento (activo)" valor={costoAlimentoHoy > 0 ? cop(costoAlimentoHoy) : '—'} detalle={consumoActivoKg > 0 ? `${consumoActivoKg.toFixed(1)} kg consumidos` : 'Sin consumo registrado'} />
+        <Indicador tono="amber" icono="caja" etiqueta="Bultos (consumo activo)" valor={bultosHoy > 0 ? bultosHoy.toFixed(2) : '—'} detalle={<>Bulto de {pesoBulto} kg</>} />
+        <Indicador tono="amber" icono="alimento" etiqueta="Alimento por gallina" valor={gramosGallinaHoy != null ? gramosGallinaHoy.toFixed(0) : '—'} detalle="gramos / gallina / día" />
+        <Indicador tono="amber" icono="bascula" etiqueta="Alimento total del galpón" valor={kgTotalHoy != null ? kgTotalHoy.toFixed(1) : '—'} detalle="kg / día" />
+      </GrupoIndicadores>
 
       {enPostura && (
         <>

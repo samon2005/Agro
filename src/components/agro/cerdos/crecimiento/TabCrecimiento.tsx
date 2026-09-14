@@ -1,5 +1,6 @@
 'use client'
 
+import { Indicador } from '@/components/ui/indicador'
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -158,34 +159,10 @@ export default function TabCrecimiento({ loteActual, onLoteUpdated }: Props) {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card className="border-blue-200 bg-blue-50">
-          <CardContent className="p-4">
-            <p className="text-xs text-blue-700 font-medium">Peso promedio</p>
-            <p className="text-2xl font-bold text-blue-800">{ultimoPeso ? `${ultimoPeso.peso_promedio.toFixed(1)} kg` : '—'}</p>
-            <p className="text-xs text-blue-600 mt-0.5">{ultimoPeso ? fmt(ultimoPeso.fecha) : 'Sin pesajes'}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-green-200 bg-green-50">
-          <CardContent className="p-4">
-            <p className="text-xs text-green-700 font-medium">Ganancia total</p>
-            <p className="text-2xl font-bold text-green-800">{gananciaTotal !== null ? `${gananciaTotal.toFixed(1)} kg` : '—'}</p>
-            <p className="text-xs text-green-600 mt-0.5">vs peso inicial</p>
-          </CardContent>
-        </Card>
-        <Card className="border-orange-200 bg-orange-50">
-          <CardContent className="p-4">
-            <p className="text-xs text-orange-700 font-medium">Etapa actual</p>
-            <p className="text-lg font-bold text-orange-800">{ETAPAS_LABEL[loteActual.etapa_actual] ?? loteActual.etapa_actual}</p>
-            <p className="text-xs text-orange-600 mt-0.5">{loteActual.animales_actuales} animales</p>
-          </CardContent>
-        </Card>
-        <Card className="border-gray-200 bg-gray-50">
-          <CardContent className="p-4">
-            <p className="text-xs text-gray-700 font-medium">Mortalidad acum.</p>
-            <p className="text-2xl font-bold text-gray-800">{mortAcum}</p>
-            <p className="text-xs text-gray-600 mt-0.5">{mortPct}% del lote inicial</p>
-          </CardContent>
-        </Card>
+        <Indicador tono="blue" icono="bascula" etiqueta="Peso promedio" valor={ultimoPeso ? `${ultimoPeso.peso_promedio.toFixed(1)} kg` : '—'} detalle={ultimoPeso ? fmt(ultimoPeso.fecha) : 'Sin pesajes'} />
+        <Indicador tono="green" icono="tendencia" etiqueta="Ganancia total" valor={gananciaTotal !== null ? `${gananciaTotal.toFixed(1)} kg` : '—'} detalle="vs peso inicial" />
+        <Indicador tono="orange" icono="ciclo" compacto etiqueta="Etapa actual" valor={ETAPAS_LABEL[loteActual.etapa_actual] ?? loteActual.etapa_actual} detalle={<>{loteActual.animales_actuales} animales</>} />
+        <Indicador tono="gray" icono="muerte" etiqueta="Mortalidad acum." valor={mortAcum} detalle={<>{mortPct}% del lote inicial</>} />
       </div>
 
       {/* Sub-tabs */}

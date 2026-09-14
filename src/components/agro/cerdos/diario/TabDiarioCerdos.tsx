@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { toast } from 'sonner'
 import RegistrarDiaCerdosModal from './RegistrarDiaCerdosModal'
+import { Indicador, GrupoIndicadores } from '@/components/ui/indicador'
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
 import { Ic } from '@/components/ui/icon'
@@ -99,28 +100,18 @@ export default function TabDiarioCerdos({ loteActual, onLoteUpdated }: Props) {
         </div>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-        <Card className={registroHoy ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50'}>
-          <CardContent className="p-4">
-            <p className={`text-xs font-medium ${registroHoy ? 'text-green-700' : 'text-amber-700'}`}>Hoy</p>
-            <p className={`text-lg font-bold ${registroHoy ? 'text-green-800' : 'text-amber-800'}`}>
-              {registroHoy ? `${Number(registroHoy.alimento_kg).toFixed(1)} kg registrados` : 'Sin registrar'}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs text-gray-500 font-medium">Alimento últimos 7 días</p>
-            <p className="text-2xl font-bold text-gray-800">{alimento7.toFixed(1)} kg</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs text-gray-500 font-medium">Días registrados</p>
-            <p className="text-2xl font-bold text-gray-800">{registros.length}</p>
-          </CardContent>
-        </Card>
-      </div>
+      <GrupoIndicadores titulo="Diario" columnas={3}>
+        <Indicador
+          tono={registroHoy ? 'green' : 'amber'}
+          icono="diario"
+          compacto
+          etiqueta="Hoy"
+          valor={registroHoy ? `${Number(registroHoy.alimento_kg).toFixed(1)} kg registrados` : 'Sin registrar'}
+          detalle={registroHoy ? 'Día al día' : 'Todavía no se ha registrado el día'}
+        />
+        <Indicador tono="amber" icono="alimento" etiqueta="Alimento últimos 7 días" valor={<>{alimento7.toFixed(1)} kg</>} />
+        <Indicador tono="blue" icono="calendario" etiqueta="Días registrados" valor={registros.length} />
+      </GrupoIndicadores>
 
       <Card>
         <CardHeader className="pb-2">

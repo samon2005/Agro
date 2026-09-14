@@ -28,16 +28,16 @@
   --color-gray-950: #121110;
 
   /* Verde botánico — la marca */
-  --color-green-50: #f2f5ef;
-  --color-green-100: #e2e9da;
-  --color-green-200: #c6d4b8;
-  --color-green-300: #a4ba91;
-  --color-green-400: #7f9c69;
-  --color-green-500: #60814b;
-  --color-green-600: #4d6b3c;
-  --color-green-700: #3f5732;
-  --color-green-800: #31442a;
-  --color-green-900: #233120;
+  --color-green-50: #eef6ea;
+  --color-green-100: #d9ead0;
+  --color-green-200: #b6d6a6;
+  --color-green-300: #8cbd78;
+  --color-green-400: #62a24c;
+  --color-green-500: #418b30;
+  --color-green-600: #337327;
+  --color-green-700: #2a5d22;
+  --color-green-800: #22491c;
+  --color-green-900: #193617;
   --color-green-950: #151e13;
 
   --color-emerald-50: var(--color-green-50);
@@ -55,10 +55,10 @@
   --color-lime-100: #e7ecd3;
   --color-lime-200: #d0dab0;
   --color-lime-300: #b3c288;
-  --color-lime-400: #93a862;
-  --color-lime-500: #768c47;
-  --color-lime-600: #5e7038;
-  --color-lime-700: #4a582e;
+  --color-lime-400: #9ab84a;
+  --color-lime-500: #7c9c32;
+  --color-lime-600: #627e27;
+  --color-lime-700: #4c6220;
   --color-lime-800: #384326;
   --color-lime-900: #28301c;
 
@@ -69,16 +69,16 @@
   --color-teal-700: var(--color-green-700);
 
   /* Ocre — avisos y alimento */
-  --color-amber-50: #faf6ec;
-  --color-amber-100: #f3e9d0;
-  --color-amber-200: #e8d6a8;
-  --color-amber-300: #d9bd7a;
-  --color-amber-400: #c7a151;
-  --color-amber-500: #b08839;
-  --color-amber-600: #8f6d2c;
-  --color-amber-700: #715523;
-  --color-amber-800: #55401b;
-  --color-amber-900: #3d2e14;
+  --color-amber-50: #fdf6e3;
+  --color-amber-100: #f9e9bd;
+  --color-amber-200: #f3d98a;
+  --color-amber-300: #ebc35a;
+  --color-amber-400: #dfa832;
+  --color-amber-500: #c98f1c;
+  --color-amber-600: #a67217;
+  --color-amber-700: #815814;
+  --color-amber-800: #614211;
+  --color-amber-900: #452f0d;
 
   --color-yellow-50: var(--color-amber-50);
   --color-yellow-100: var(--color-amber-100);
@@ -92,28 +92,28 @@
   --color-yellow-900: var(--color-amber-900);
 
   /* Terracota — cerdos */
-  --color-orange-50: #faf3ee;
-  --color-orange-100: #f3e1d5;
-  --color-orange-200: #e8c6b0;
-  --color-orange-300: #d9a585;
-  --color-orange-400: #c6835e;
-  --color-orange-500: #ae6740;
-  --color-orange-600: #905334;
-  --color-orange-700: #72422a;
-  --color-orange-800: #553220;
-  --color-orange-900: #3c2417;
+  --color-orange-50: #fdf1ea;
+  --color-orange-100: #f9dfd0;
+  --color-orange-200: #f2c2a6;
+  --color-orange-300: #e89e74;
+  --color-orange-400: #de7a49;
+  --color-orange-500: #cc5f2c;
+  --color-orange-600: #ab4c22;
+  --color-orange-700: #883c1c;
+  --color-orange-800: #652d16;
+  --color-orange-900: #482010;
 
   /* Ladrillo — peligro y muertes */
-  --color-red-50: #faf1ef;
-  --color-red-100: #f3dedb;
-  --color-red-200: #e8bfb8;
-  --color-red-300: #d89c92;
-  --color-red-400: #c4756a;
-  --color-red-500: #ae5547;
-  --color-red-600: #92433a;
-  --color-red-700: #74352e;
-  --color-red-800: #562823;
-  --color-red-900: #3d1c19;
+  --color-red-50: #fdf0ee;
+  --color-red-100: #f9dbd6;
+  --color-red-200: #f2b9b0;
+  --color-red-300: #e78f82;
+  --color-red-400: #da6656;
+  --color-red-500: #c8473a;
+  --color-red-600: #a8362c;
+  --color-red-700: #862b24;
+  --color-red-800: #65221c;
+  --color-red-900: #481814;
 
   --color-rose-50: var(--color-red-50);
   --color-rose-100: var(--color-red-100);
@@ -122,16 +122,16 @@
   --color-rose-700: var(--color-red-700);
 
   /* Azul pizarra — información */
-  --color-blue-50: #f0f3f6;
-  --color-blue-100: #dfe6ec;
-  --color-blue-200: #c1cfdb;
-  --color-blue-300: #9db2c4;
-  --color-blue-400: #7690a8;
-  --color-blue-500: #58748e;
-  --color-blue-600: #475e75;
-  --color-blue-700: #394b5d;
-  --color-blue-800: #2b3845;
-  --color-blue-900: #1e2730;
+  --color-blue-50: #eef3f9;
+  --color-blue-100: #dae6f3;
+  --color-blue-200: #b9cfe8;
+  --color-blue-300: #8fb2d8;
+  --color-blue-400: #6491c5;
+  --color-blue-500: #4574ad;
+  --color-blue-600: #365e8f;
+  --color-blue-700: #2c4b72;
+  --color-blue-800: #223856;
+  --color-blue-900: #19283d;
 
   --color-sky-50: var(--color-blue-50);
   --color-sky-100: var(--color-blue-100);
@@ -150,16 +150,16 @@
   --color-indigo-800: var(--color-blue-800);
 
   /* Malva — postura y gestación */
-  --color-purple-50: #f4f1f5;
-  --color-purple-100: #e8e1ea;
-  --color-purple-200: #d3c5d7;
-  --color-purple-300: #b8a2bf;
-  --color-purple-400: #9a7ea4;
-  --color-purple-500: #7e6289;
-  --color-purple-600: #674f70;
-  --color-purple-700: #524058;
-  --color-purple-800: #3d3041;
-  --color-purple-900: #2a212d;
+  --color-purple-50: #f5f0f8;
+  --color-purple-100: #eadff1;
+  --color-purple-200: #d6c1e3;
+  --color-purple-300: #bb9dd0;
+  --color-purple-400: #9d78bb;
+  --color-purple-500: #815aa3;
+  --color-purple-600: #6a4887;
+  --color-purple-700: #553a6c;
+  --color-purple-800: #402c51;
+  --color-purple-900: #2d1f39;
 
   --color-violet-50: var(--color-purple-50);
   --color-violet-100: var(--color-purple-100);
@@ -167,16 +167,16 @@
   --color-violet-700: var(--color-purple-700);
 
   /* Rosa seco — cría */
-  --color-pink-50: #f9f1f2;
-  --color-pink-100: #f1dee1;
-  --color-pink-200: #e4c1c7;
-  --color-pink-300: #d29ea8;
-  --color-pink-400: #bc7a88;
-  --color-pink-500: #a25c6c;
-  --color-pink-600: #864a58;
-  --color-pink-700: #693b46;
-  --color-pink-800: #4e2c34;
-  --color-pink-900: #361f25;
+  --color-pink-50: #fcf0f3;
+  --color-pink-100: #f8dbe2;
+  --color-pink-200: #f1b9c7;
+  --color-pink-300: #e58fa6;
+  --color-pink-400: #d66685;
+  --color-pink-500: #c04769;
+  --color-pink-600: #a03656;
+  --color-pink-700: #802b45;
+  --color-pink-800: #602135;
+  --color-pink-900: #441726;
 
   /* Curvas de movimiento: rápidas al salir, suaves al llegar */
   --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
@@ -237,7 +237,7 @@
   --card-foreground: #1b1a17;
   --popover: #ffffff;
   --popover-foreground: #1b1a17;
-  --primary: #3f5732;
+  --primary: #2a5d22;
   --primary-foreground: #f7faf3;
   --secondary: #f3f1ec;
   --secondary-foreground: #2b2925;
@@ -248,21 +248,21 @@
   --destructive: #92433a;
   --border: #e7e4dd;
   --input: #d4d0c6;
-  --ring: #7f9c69;
-  --chart-1: #3f5732;
-  --chart-2: #b08839;
-  --chart-3: #58748e;
-  --chart-4: #ae6740;
-  --chart-5: #7e6289;
+  --ring: #62a24c;
+  --chart-1: #2a5d22;
+  --chart-2: #c98f1c;
+  --chart-3: #4574ad;
+  --chart-4: #cc5f2c;
+  --chart-5: #815aa3;
   --radius: 0.75rem;
   --sidebar: #ffffff;
   --sidebar-foreground: #2b2925;
-  --sidebar-primary: #3f5732;
+  --sidebar-primary: #2a5d22;
   --sidebar-primary-foreground: #f7faf3;
   --sidebar-accent: #f3f1ec;
   --sidebar-accent-foreground: #1b1a17;
   --sidebar-border: #e7e4dd;
-  --sidebar-ring: #7f9c69;
+  --sidebar-ring: #62a24c;
 }
 
 .dark {
@@ -354,7 +354,7 @@
   }
 
   ::selection {
-    background: #c6d4b8;
+    background: #b6d6a6;
     color: #1b1a17;
   }
 

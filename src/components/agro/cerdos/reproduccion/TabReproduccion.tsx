@@ -1,5 +1,6 @@
 'use client'
 
+import { Indicador } from '@/components/ui/indicador'
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -191,36 +192,10 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
 
       {/* KPIs del núcleo de cría */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card className="border-pink-200 bg-pink-50">
-          <CardContent className="p-4">
-            <p className="text-xs text-pink-700 font-medium">Hembras activas</p>
-            <p className="text-2xl font-bold text-pink-800">{activas.length}</p>
-            <p className="text-xs text-pink-600 mt-0.5">
-              {gestantes.length} gestantes · {lactantes.length} lactantes · {vacias.length} vacías
-            </p>
-          </CardContent>
-        </Card>
-        <Card className="border-purple-200 bg-purple-50">
-          <CardContent className="p-4">
-            <p className="text-xs text-purple-700 font-medium">Nacidos vivos / parto</p>
-            <p className="text-2xl font-bold text-purple-800">{promedioNacidosVivos ?? '—'}</p>
-            <p className="text-xs text-purple-600 mt-0.5">{partos.length} partos registrados</p>
-          </CardContent>
-        </Card>
-        <Card className="border-gray-200 bg-gray-50">
-          <CardContent className="p-4">
-            <p className="text-xs text-gray-700 font-medium">Mortinatos + momias</p>
-            <p className="text-2xl font-bold text-gray-800">{mortalidadNacimiento ? `${mortalidadNacimiento}%` : '—'}</p>
-            <p className="text-xs text-gray-600 mt-0.5">de los nacidos totales</p>
-          </CardContent>
-        </Card>
-        <Card className="border-green-200 bg-green-50">
-          <CardContent className="p-4">
-            <p className="text-xs text-green-700 font-medium">Lechones destetados</p>
-            <p className="text-2xl font-bold text-green-800">{destetadosTotal}</p>
-            <p className="text-xs text-green-600 mt-0.5">{partosMes.length} partos este mes</p>
-          </CardContent>
-        </Card>
+        <Indicador tono="pink" icono="cerdo" etiqueta="Hembras activas" valor={activas.length} detalle={<>{gestantes.length} gestantes · {lactantes.length} lactantes · {vacias.length} vacías</>} />
+        <Indicador tono="purple" icono="tetero" etiqueta="Nacidos vivos / parto" valor={promedioNacidosVivos ?? '—'} detalle={<>{partos.length} partos registrados</>} />
+        <Indicador tono="gray" icono="muerte" etiqueta="Mortinatos + momias" valor={mortalidadNacimiento ? `${mortalidadNacimiento}%` : '—'} detalle="de los nacidos totales" />
+        <Indicador tono="green" icono="brote" etiqueta="Lechones destetados" valor={destetadosTotal} detalle={<>{partosMes.length} partos este mes</>} />
       </div>
 
       <div className="flex gap-2 border-b border-gray-200 pb-0 overflow-x-auto">

@@ -1,5 +1,6 @@
 'use client'
 
+import { Indicador } from '@/components/ui/indicador'
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -84,18 +85,8 @@ export default function VentasFinca({ fincaId, lotes }: Props) {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card className="border-emerald-200 bg-emerald-50">
-          <CardContent className="p-4">
-            <p className="text-xs text-emerald-700 font-medium">Ingreso del mes</p>
-            <p className="text-2xl font-bold text-emerald-800">{ingresoMes > 0 ? cop(ingresoMes) : '—'}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-emerald-200 bg-emerald-50">
-          <CardContent className="p-4">
-            <p className="text-xs text-emerald-700 font-medium">Ingreso acumulado</p>
-            <p className="text-2xl font-bold text-emerald-800">{ingresoTotal > 0 ? cop(ingresoTotal) : '—'}</p>
-          </CardContent>
-        </Card>
+        <Indicador tono="green" etiqueta="Ingreso del mes" valor={ingresoMes > 0 ? cop(ingresoMes) : '—'} />
+        <Indicador tono="green" etiqueta="Ingreso acumulado" valor={ingresoTotal > 0 ? cop(ingresoTotal) : '—'} />
         <Card>
           <CardContent className="p-4">
             <p className="text-xs text-gray-500 font-medium">Huevos vendidos (mes)</p>

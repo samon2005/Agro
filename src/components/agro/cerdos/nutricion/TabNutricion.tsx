@@ -1,5 +1,6 @@
 'use client'
 
+import { Indicador } from '@/components/ui/indicador'
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
@@ -105,34 +106,10 @@ export default function TabNutricion({ loteActual }: Props) {
       <h2 className="text-lg font-semibold text-gray-800">Nutrición y Eficiencia Alimenticia</h2>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card className="border-orange-200 bg-orange-50">
-          <CardContent className="p-4">
-            <p className="text-xs text-orange-700 font-medium"><Ic n="alimento" /> Alimento prom/día (30d)</p>
-            <p className="text-2xl font-bold text-orange-800">{promedioAlimentoDia ? `${promedioAlimentoDia} kg` : '—'}</p>
-            <p className="text-xs text-orange-600 mt-0.5">{alimPorAnimal ?? 'Total lote'}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-blue-200 bg-blue-50">
-          <CardContent className="p-4">
-            <p className="text-xs text-blue-700 font-medium"><Ic n="gota" /> Agua total (30d)</p>
-            <p className="text-2xl font-bold text-blue-800">{totalAgua30 > 0 ? `${totalAgua30.toFixed(0)} L` : '—'}</p>
-            <p className="text-xs text-blue-600 mt-0.5">prom: {totalAgua30 > 0 && registros.length > 0 ? (totalAgua30 / Math.min(registros.length, 30)).toFixed(0) : '—'} L/día</p>
-          </CardContent>
-        </Card>
-        <Card className="border-green-200 bg-green-50">
-          <CardContent className="p-4">
-            <p className="text-xs text-green-700 font-medium"><Ic n="caja" /> Total alimento (30d)</p>
-            <p className="text-2xl font-bold text-green-800">{totalAlimento30 > 0 ? `${totalAlimento30.toFixed(1)} kg` : '—'}</p>
-            <p className="text-xs text-green-600 mt-0.5">acumulado</p>
-          </CardContent>
-        </Card>
-        <Card className="border-purple-200 bg-purple-50">
-          <CardContent className="p-4">
-            <p className="text-xs text-purple-700 font-medium"><Ic n="calendario" /> Días registrados</p>
-            <p className="text-2xl font-bold text-purple-800">{registros.length}</p>
-            <p className="text-xs text-purple-600 mt-0.5">historial completo</p>
-          </CardContent>
-        </Card>
+        <Indicador tono="orange" icono="alimento" etiqueta="Alimento prom/día (30d)" valor={promedioAlimentoDia ? `${promedioAlimentoDia} kg` : '—'} detalle={alimPorAnimal ?? 'Total lote'} />
+        <Indicador tono="blue" icono="gota" etiqueta="Agua total (30d)" valor={totalAgua30 > 0 ? `${totalAgua30.toFixed(0)} L` : '—'} detalle={<>prom: {totalAgua30 > 0 && registros.length > 0 ? (totalAgua30 / Math.min(registros.length, 30)).toFixed(0) : '—'} L/día</>} />
+        <Indicador tono="green" icono="caja" etiqueta="Total alimento (30d)" valor={totalAlimento30 > 0 ? `${totalAlimento30.toFixed(1)} kg` : '—'} detalle="acumulado" />
+        <Indicador tono="purple" icono="calendario" etiqueta="Días registrados" valor={registros.length} detalle="historial completo" />
       </div>
 
       {/* Formulario de registro */}

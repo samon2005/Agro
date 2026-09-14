@@ -1,5 +1,6 @@
 'use client'
 
+import { Indicador } from '@/components/ui/indicador'
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -117,13 +118,7 @@ export default function HuevosFinca({ fincaId, lotes }: Props) {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-        <Card className="border-yellow-200 bg-yellow-50">
-          <CardContent className="p-4">
-            <p className="text-xs text-yellow-700 font-medium">Disponible en la finca</p>
-            <p className="text-2xl font-bold text-yellow-800">{total(disponibleFinca).toLocaleString('es-CO')}</p>
-            <p className="text-xs text-yellow-600">huevos sin vender</p>
-          </CardContent>
-        </Card>
+        <Indicador tono="amber" etiqueta="Disponible en la finca" valor={total(disponibleFinca).toLocaleString('es-CO')} detalle="huevos sin vender" />
         <Card>
           <CardContent className="p-4">
             <p className="text-xs text-gray-500 font-medium">Puestos (histórico)</p>

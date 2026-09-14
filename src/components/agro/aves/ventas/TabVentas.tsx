@@ -1,5 +1,6 @@
 'use client'
 
+import { Indicador } from '@/components/ui/indicador'
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -238,24 +239,9 @@ export default function TabVentas({ loteActual, onLoteUpdated }: Props) {
       </Card>
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-        <Card className="border-emerald-200 bg-emerald-50">
-          <CardContent className="p-4">
-            <p className="text-xs text-emerald-700 font-medium">Ingreso por ventas (hoy)</p>
-            <p className="text-2xl font-bold text-emerald-800">{ingresoHoy > 0 ? cop(ingresoHoy) : '—'}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-emerald-200 bg-emerald-50">
-          <CardContent className="p-4">
-            <p className="text-xs text-emerald-700 font-medium">Ingreso por ventas (mes)</p>
-            <p className="text-2xl font-bold text-emerald-800">{ingresoMes > 0 ? cop(ingresoMes) : '—'}</p>
-          </CardContent>
-        </Card>
-        <Card className="border-emerald-200 bg-emerald-50">
-          <CardContent className="p-4">
-            <p className="text-xs text-emerald-700 font-medium">Huevos vendidos (mes)</p>
-            <p className="text-2xl font-bold text-emerald-800">{huevosVendidosMes.toLocaleString('es-CO')}</p>
-          </CardContent>
-        </Card>
+        <Indicador tono="green" icono="dinero" etiqueta="Ingreso por ventas (hoy)" valor={ingresoHoy > 0 ? cop(ingresoHoy) : '—'} />
+        <Indicador tono="green" icono="calendario" etiqueta="Ingreso por ventas (mes)" valor={ingresoMes > 0 ? cop(ingresoMes) : '—'} />
+        <Indicador tono="amber" icono="huevo" etiqueta="Huevos vendidos (mes)" valor={huevosVendidosMes.toLocaleString('es-CO')} />
       </div>
 
       <Card>

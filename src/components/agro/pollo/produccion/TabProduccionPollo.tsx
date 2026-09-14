@@ -1,5 +1,6 @@
 'use client'
 
+import { Indicador } from '@/components/ui/indicador'
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
@@ -141,34 +142,16 @@ export default function TabProduccionPollo({ loteActual, onLoteUpdated }: Props)
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card className="border-yellow-200 bg-yellow-50">
-          <CardContent className="p-4">
-            <p className="text-xs text-yellow-700 font-medium"><Ic n="bascula" /> Último peso prom.</p>
-            <p className="text-2xl font-bold text-yellow-800">{ultimoPeso ? `${ultimoPeso.peso_promedio.toFixed(3)} kg` : '—'}</p>
-            {gananciaTotal && <p className="text-xs text-yellow-600">+{gananciaTotal} kg desde ingreso</p>}
-          </CardContent>
-        </Card>
-        <Card className={`border-blue-200 bg-blue-50`}>
-          <CardContent className="p-4">
-            <p className="text-xs text-blue-700 font-medium"><Ic n="grafica" /> FCR acumulado</p>
-            <p className="text-2xl font-bold text-blue-800">{fcr ?? '—'}</p>
-            <p className="text-xs text-blue-600">kg alim / kg ganancia</p>
-          </CardContent>
-        </Card>
-        <Card className="border-green-200 bg-green-50">
-          <CardContent className="p-4">
-            <p className="text-xs text-green-700 font-medium"><Ic n="pollo" /> Pollos actuales</p>
-            <p className="text-2xl font-bold text-green-800">{loteActual.pollos_actuales.toLocaleString('es-CO')}</p>
-            {uniformidad && <p className={`text-xs ${uniformidad.startsWith('') ? 'text-green-600' : 'text-amber-600'}`}>{uniformidad}</p>}
-          </CardContent>
-        </Card>
-        <Card className={`border-red-200 bg-red-50`}>
-          <CardContent className="p-4">
-            <p className="text-xs text-red-700 font-medium"><Ic n="muerte" /> Mortalidad acum.</p>
-            <p className="text-2xl font-bold text-red-800">{mortalidadAcum.toLocaleString('es-CO')}</p>
-            {mortalidadPct && <p className="text-xs text-red-600">{mortalidadPct}% del lote</p>}
-          </CardContent>
-        </Card>
+        <Indicador tono="amber" icono="bascula" etiqueta="Último peso prom." valor={ultimoPeso ? `${ultimoPeso.peso_promedio.toFixed(3)} kg` : '—'}>
+          {gananciaTotal && <p className="text-xs text-yellow-600">+{gananciaTotal} kg desde ingreso</p>}
+        </Indicador>
+        <Indicador tono="blue" icono="grafica" etiqueta="FCR acumulado" valor={fcr ?? '—'} detalle="kg alim / kg ganancia" />
+        <Indicador tono="green" icono="pollo" etiqueta="Pollos actuales" valor={loteActual.pollos_actuales.toLocaleString('es-CO')}>
+          {uniformidad && <p className={`text-xs ${uniformidad.startsWith('') ? 'text-green-600' : 'text-amber-600'}`}>{uniformidad}</p>}
+        </Indicador>
+        <Indicador tono="red" icono="muerte" etiqueta="Mortalidad acum." valor={mortalidadAcum.toLocaleString('es-CO')}>
+          {mortalidadPct && <p className="text-xs text-red-600">{mortalidadPct}% del lote</p>}
+        </Indicador>
       </div>
 
       {/* Form producción diaria */}

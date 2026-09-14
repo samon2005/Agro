@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Ic } from '@/components/ui/icon'
+import MediaFinca from '@/components/agro/MediaFinca'
 import { toast } from 'sonner'
 
 export default function LoginPage() {
@@ -32,16 +33,17 @@ export default function LoginPage() {
   return (
     <div className="grid min-h-screen bg-background lg:grid-cols-[1.1fr_1fr]">
       {/* Lado de marca: un plano de color, tipografía grande y una frase */}
-      <aside className="relative hidden flex-col justify-between overflow-hidden bg-green-900 p-12 text-green-50 lg:flex">
-        <div className="flex items-center gap-2.5">
+      <aside className="relative hidden flex-col justify-between overflow-hidden bg-green-950 p-12 text-green-50 lg:flex">
+        <MediaFinca />
+        <div className="relative z-10 flex items-center gap-2.5">
           <span className="flex size-9 items-center justify-center rounded-lg bg-green-50/10 ring-1 ring-green-50/20">
             <Ic n="hoja" className="size-[18px]" strokeWidth={2} />
           </span>
           <span className="font-heading text-2xl font-medium tracking-tight">AgroGestión</span>
         </div>
 
-        <div className="pagina-entra max-w-md">
-          <h1 className="font-heading text-[2.75rem] leading-[1.05] font-medium tracking-tight text-white">
+        <div className="pagina-entra relative z-10 max-w-md">
+          <h1 className="font-heading text-[2.75rem] leading-[1.05] font-medium tracking-tight text-white [text-shadow:0_2px_24px_rgb(0_0_0/35%)]">
             Lo que pasa en la finca, anotado el mismo día.
           </h1>
           <p className="mt-5 text-[0.9375rem] leading-relaxed text-green-100/80">
@@ -50,14 +52,8 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <p className="text-xs text-green-100/50">Hecho para fincas colombianas</p>
+        <p className="relative z-10 text-xs text-green-100/60">Hecho para fincas colombianas · video: Pexels</p>
 
-        {/* Textura sutil: líneas finas que recuerdan surcos */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-[0.07]"
-          style={{ backgroundImage: 'repeating-linear-gradient(115deg, #fff 0 1px, transparent 1px 28px)' }}
-        />
       </aside>
 
       {/* Formulario */}
