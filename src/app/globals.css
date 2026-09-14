@@ -15,8 +15,8 @@
  */
 @theme {
   /* Neutros cálidos */
-  --color-gray-50: #f4f8f2;
-  --color-gray-100: #e9f0e6;
+  --color-gray-50: #f2f8ef;
+  --color-gray-100: #e6efe2;
   --color-gray-200: #d9e3d4;
   --color-gray-300: #c3d0be;
   --color-gray-400: #93a394;
@@ -231,7 +231,7 @@
   --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
   --font-heading-family: var(--font-fraunces), Georgia, "Times New Roman", serif;
 
-  --background: #e6f1e1;
+  --background: #dfeed9;
   --foreground: #16231a;
   --card: #ffffff;
   --card-foreground: #16231a;
