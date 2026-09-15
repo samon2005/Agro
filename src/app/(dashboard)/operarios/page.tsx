@@ -133,7 +133,7 @@ export default function OperariosPage() {
   return (
     <div className="p-8 space-y-6">
       <div>
-        <h2 className="text-3xl font-medium text-gray-900">Operarios</h2>
+        <h2 className="font-heading text-3xl font-medium text-gray-900">Operarios</h2>
         <p className="text-gray-500 mt-1">Equipo de trabajo, turnos y tareas de la finca</p>
       </div>
 

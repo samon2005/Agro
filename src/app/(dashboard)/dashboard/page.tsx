@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { EspecieFinca } from '@/lib/especies'
 import { Ic, type NombreIcono } from '@/components/ui/icon'
+import { Indicador } from '@/components/ui/indicador'
 
 type Stats = {
   totalAnimales: number
@@ -99,7 +100,7 @@ export default function DashboardPage() {
 
       <div className="p-8">
         <div className="mb-8">
-          <h2 className="text-3xl font-medium text-gray-900">
+          <h2 className="font-heading text-3xl font-medium text-gray-900">
             Bienvenido, {userName}
           </h2>
           {fincaActual && (
@@ -118,18 +119,18 @@ export default function DashboardPage() {
           <ResumenFinanciero fincaId={fincaActual.id} especies={(fincaActual.tipo_produccion ?? []) as EspecieFinca[]} />
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="mb-8 grid grid-cols-[repeat(auto-fit,minmax(13rem,1fr))] gap-3">
           <StatCard title="Total Animales" value={stats?.totalAnimales ?? '—'} icon="ganado" description="Animales activos" color="green" />
           <StatCard title="Ítems en Inventario" value={stats?.totalInventario ?? '—'} icon="caja" description="Insumos registrados" color="blue" />
           <StatCard title="Fincas" value={fincas.length} icon="hoja" description="Registradas" color="yellow" />
           <StatCard title="Alertas Stock" value={stats?.animalesBajos ?? '—'} icon="alerta" description="Por debajo del mínimo" color="red" />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
-                <span><Ic n="hoja" /></span> Tus Fincas
+                <Ic n="hoja" className="size-4 text-green-700" /> Tus Fincas
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -138,7 +139,7 @@ export default function DashboardPage() {
               ) : (
                 <div className="space-y-2">
                   {fincas.map(f => (
-                    <div key={f.id} className="flex items-center justify-between p-3 rounded-lg bg-green-50 border border-green-100">
+                    <div key={f.id} className="flex items-center justify-between rounded-xl bg-gray-50 p-3">
                       <div>
                         <p className="font-medium text-green-900">{f.nombre}</p>
                         {f.municipio && <p className="text-xs text-gray-500">{f.municipio}, {f.departamento}</p>}
@@ -193,21 +194,8 @@ export default function DashboardPage() {
 function StatCard({ title, value, icon, description, color }: {
   title: string; value: number | string; icon: NombreIcono; description: string; color: 'green' | 'blue' | 'yellow' | 'red'
 }) {
-  const colors = { green: 'bg-green-100 text-green-800', blue: 'bg-blue-100 text-blue-800', yellow: 'bg-amber-100 text-amber-800', red: 'bg-red-100 text-red-800' }
-  return (
-    <Card>
-      <CardContent className="pt-6">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-sm font-medium text-gray-600">{title}</p>
-            <p className="text-3xl font-bold text-gray-900 mt-1">{value}</p>
-            <p className="text-xs text-gray-500 mt-1">{description}</p>
-          </div>
-          <span className={`flex size-10 shrink-0 items-center justify-center rounded-full ${colors[color]}`}><Ic n={icon} className="size-[18px]" /></span>
-        </div>
-      </CardContent>
-    </Card>
-  )
+  const tono = { green: 'green', blue: 'blue', yellow: 'amber', red: 'red' } as const
+  return <Indicador tono={tono[color]} icono={icon} etiqueta={title} valor={value} detalle={description} />
 }
 
 function EmptyState({ message, hint }: { message: string; hint: string }) {

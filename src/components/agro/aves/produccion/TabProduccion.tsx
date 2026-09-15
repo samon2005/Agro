@@ -428,11 +428,11 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
   })
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-800">Producción y Crecimiento</h2>
-        <div className="flex gap-2 flex-wrap">
-          <Button onClick={() => setConfigOpen(true)} variant="outline" className="text-sm">
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold text-gray-900">Producción y crecimiento</h2>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={() => setConfigOpen(true)} variant="ghost">
             <Ic n="ajustes" /> Configurar galpón
           </Button>
           {!enPostura && (
@@ -440,7 +440,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
               onClick={marcarInicioPostura}
               disabled={!listoParaRegistrar}
               title={!listoParaRegistrar ? faltaParaRegistrar : undefined}
-              className="bg-blue-700 hover:bg-blue-800 text-white text-sm"
+              variant="outline"
             >
               <Ic n="huevo" /> Marcar inicio de postura
             </Button>
@@ -451,7 +451,6 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
               disabled={!listoParaRegistrar || guardandoSinNovedades}
               title={!listoParaRegistrar ? faltaParaRegistrar : undefined}
               variant="outline"
-              className="text-sm"
             >
               {guardandoSinNovedades ? 'Guardando...' : 'Día sin novedades'}
             </Button>
@@ -460,28 +459,31 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
             onClick={() => { setRegistroEditar(null); setModalOpen(true) }}
             disabled={!listoParaRegistrar}
             title={!listoParaRegistrar ? faltaParaRegistrar : undefined}
-            className="bg-green-700 hover:bg-green-800 text-white text-sm"
           >
-            + Registrar día
+            <Ic n="mas" /> Registrar día
           </Button>
         </div>
       </div>
 
       {!listoParaRegistrar && (
-        <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg border border-amber-200 bg-amber-50">
-          <div>
-            <p className="text-sm font-semibold text-amber-800">
-              <Ic n="alerta" /> Este galpón todavía no tiene alimento registrado
-            </p>
-            <p className="text-xs text-amber-700 mt-0.5">{faltaParaRegistrar}</p>
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-amber-50 px-4 py-3.5 ring-1 ring-amber-200/70">
+          <div className="flex items-start gap-3">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
+              <Ic n="alerta" className="size-4" />
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-gray-900">Este galpón todavía no tiene alimento registrado</p>
+              <p className="mt-0.5 text-xs text-gray-600">{faltaParaRegistrar}</p>
+            </div>
           </div>
           <Link href="/alimento">
-            <Button size="sm" className="bg-amber-700 hover:bg-amber-800 text-white text-xs">Registrar alimento</Button>
+            <Button size="sm">Registrar alimento</Button>
           </Link>
         </div>
       )}
 
-      <GrupoIndicadores titulo={enPostura ? 'Producción de hoy' : 'Estado del lote'} columnas={5}>
+      {enPostura && (
+      <GrupoIndicadores titulo="Producción de hoy" columnas={5}>
         {enPostura && (<>
         <Indicador tono="amber" icono="huevo" etiqueta="Huevos puestos hoy" valor={hoy ? hoy.huevos_totales.toLocaleString('es-CO') : '—'} detalle={<>Comerciales: {hoy ? (hoy.huevos_totales - hoy.huevos_rotos - hoy.huevos_deformes).toLocaleString('es-CO') : '—'}</>} />
         <Indicador
@@ -508,16 +510,18 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
         </Indicador>
         <Indicador tono="blue" icono="bascula" etiqueta="ICA (últimos 30d)" valor={ica ?? '—'} detalle="kg alim / docena" />
         </>)}
-        <Indicador tono="gray" icono="muerte" etiqueta="Mortalidad acum." valor={mortAcum} detalle={<>{mortPct}% del lote inicial</>} />
+        <Indicador tono="gray" icono="muerte" etiqueta="Mortalidad acumulada" valor={mortAcum} detalle={<>{mortPct}% del lote inicial</>} />
       </GrupoIndicadores>
+      )}
 
-      {/* Ciclo de postura y densidad */}
-      <GrupoIndicadores titulo="Ciclo y galpón" columnas={5}>
+      {/* Ciclo de postura y densidad. En preparación también lleva la mortalidad,
+          así el lote se lee en un solo bloque y no queda una tarjeta suelta. */}
+      <GrupoIndicadores titulo={enPostura ? 'Ciclo y galpón' : 'Estado del lote'} columnas={5}>
         <Indicador tono="purple" icono="reloj" etiqueta={semanaPostura != null ? 'Semana de postura' : 'Postura'} valor={semanaPostura ?? (semanasFaltantesPostura != null ? `Faltan ${semanasFaltantesPostura}` : '—')} detalle={<>{inicioSemanaActual && finSemanaActual
                 ? `${inicioSemanaActual.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })} – ${finSemanaActual.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}`
                 : semanasFaltantesPostura != null ? `semana${semanasFaltantesPostura === 1 ? '' : 's'} para iniciar` : 'Sin fecha de inicio'}</>}>
           {fechaFinEstimada && (
-          <p className="text-xs text-purple-500 mt-0.5">
+          <p className="mt-0.5 text-xs text-gray-400">
           Fin ciclo est.: {fechaFinEstimada.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
           </p>
           )}
@@ -552,13 +556,16 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
                   ? `Faltan ${semanasFaltantesPostura} semana${semanasFaltantesPostura === 1 ? '' : 's'} para postura`
                   : 'Aún no inicia postura'}>
             {loteActual.fecha_inicio_postura && (
-            <p className="text-xs text-blue-500 mt-0.5">
+            <p className="mt-0.5 text-xs text-gray-400">
             Tentativa: {new Date(loteActual.fecha_inicio_postura + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
             </p>
             )}
           </Indicador>
         )}
         <Indicador tono="orange" icono="ubicacion" etiqueta="Densidad" valor={densidad ?? '—'} detalle="aves / m²" />
+        {!enPostura && (
+          <Indicador tono="gray" icono="muerte" etiqueta="Mortalidad acumulada" valor={mortAcum} detalle={<>{mortPct}% del lote inicial</>} />
+        )}
       </GrupoIndicadores>
 
       {/* Alimento: costo, bultos, gramos/gallina y kg totales (consumo activo) */}

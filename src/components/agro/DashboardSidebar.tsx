@@ -50,7 +50,7 @@ export default function DashboardSidebar({ user }: { user: User }) {
     .slice(0, 2) || (user.email?.[0].toUpperCase() ?? 'U')
 
   return (
-    <aside className="flex w-60 shrink-0 flex-col border-r border-gray-200 bg-white">
+    <aside className="flex w-60 shrink-0 flex-col bg-sidebar">
       {/* Marca */}
       <div className="flex items-center justify-between px-5 pt-6 pb-5">
         <Link href="/dashboard" className="flex items-center gap-2.5">
@@ -65,8 +65,8 @@ export default function DashboardSidebar({ user }: { user: User }) {
       </div>
 
       {fincaActual && (
-        <div className="mx-4 mb-3 rounded-lg border border-green-200 bg-green-50 px-3 py-2">
-          <p className="text-[0.625rem] font-semibold uppercase tracking-[0.12em] text-green-700">Finca</p>
+        <div className="superficie mx-3 mb-4 rounded-xl px-3 py-2.5">
+          <p className="text-[0.6875rem] font-medium text-gray-500">Finca</p>
           <p className="truncate text-sm font-medium text-gray-800">{fincaActual.nombre}</p>
         </div>
       )}
@@ -83,7 +83,7 @@ export default function DashboardSidebar({ user }: { user: User }) {
                 'group relative flex items-center gap-3 rounded-lg px-3 py-2 text-[0.875rem] font-medium transition-colors',
                 activo
                   ? 'bg-green-700 text-white shadow-[0_6px_16px_-8px_rgb(42_93_34/60%)]'
-                  : 'text-gray-600 hover:bg-green-50 hover:text-green-900'
+                  : 'text-gray-600 hover:bg-white hover:text-gray-900'
               )}
             >
               <Ic
@@ -97,8 +97,8 @@ export default function DashboardSidebar({ user }: { user: User }) {
       </nav>
 
       {/* Usuario */}
-      <div className="border-t border-gray-100 p-3">
-        <div className="flex items-center gap-3 rounded-lg px-2 py-2">
+      <div className="p-3">
+        <div className="superficie flex items-center gap-3 rounded-xl px-2.5 py-2">
           <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-gray-900 text-[0.6875rem] font-semibold text-white">
             {initials}
           </span>

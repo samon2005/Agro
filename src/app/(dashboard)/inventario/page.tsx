@@ -108,7 +108,7 @@ export default function InventarioPage() {
       <div className="p-8">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h2 className="text-3xl font-medium text-gray-900">Gestión de Inventario
+            <h2 className="font-heading text-3xl font-medium text-gray-900">Gestión de Inventario
             </h2>
             <p className="text-gray-500 mt-1">
               {fincaActual ? `Finca: ${fincaActual.nombre}` : 'Selecciona una finca'}

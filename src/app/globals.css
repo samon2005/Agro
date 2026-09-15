@@ -15,10 +15,10 @@
  */
 @theme {
   /* Neutros cálidos */
-  --color-gray-50: #f2f8ef;
-  --color-gray-100: #e6efe2;
-  --color-gray-200: #d9e3d4;
-  --color-gray-300: #c3d0be;
+  --color-gray-50: #f6f9f4;
+  --color-gray-100: #edf2ea;
+  --color-gray-200: #e3eade;
+  --color-gray-300: #cdd8c8;
   --color-gray-400: #93a394;
   --color-gray-500: #6b7a6e;
   --color-gray-600: #526054;
@@ -231,7 +231,7 @@
   --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
   --font-heading-family: var(--font-fraunces), Georgia, "Times New Roman", serif;
 
-  --background: #dfeed9;
+  --background: #f3f7f1;
   --foreground: #16231a;
   --card: #ffffff;
   --card-foreground: #16231a;
@@ -246,8 +246,8 @@
   --accent: #e9f0e6;
   --accent-foreground: #243127;
   --destructive: #92433a;
-  --border: #d9e3d4;
-  --input: #c3d0be;
+  --border: #e3eade;
+  --input: #cdd8c8;
   --ring: #62a24c;
   --chart-1: #2a5d22;
   --chart-2: #c98f1c;
@@ -255,7 +255,7 @@
   --chart-4: #cc5f2c;
   --chart-5: #815aa3;
   --radius: 0.75rem;
-  --sidebar: #ffffff;
+  --sidebar: #f3f7f1;
   --sidebar-foreground: #243127;
   --sidebar-primary: #2a5d22;
   --sidebar-primary-foreground: #f7faf3;
@@ -310,18 +310,15 @@
     font-feature-settings: "ss01", "cv11";
   }
 
-  /* Títulos en serif editorial, con el tracking apretado */
-  h1, h2 {
-    font-family: var(--font-heading-family);
+  /* Serif solo en los títulos de página (h1, o un h2 con la clase font-heading);
+     los títulos de sección van en la sans. */
+  h1, .font-heading {
     letter-spacing: -0.015em;
     font-variation-settings: "opsz" 72, "SOFT" 30;
   }
 
   h1 {
-    font-weight: 500;
-  }
-
-  h2 {
+    font-family: var(--font-heading-family);
     font-weight: 500;
   }
 
@@ -405,14 +402,24 @@
     animation: aparecer-aviso 280ms var(--ease-out-soft) both;
   }
 
-  /* Las tarjetas se sienten "de papel": borde fino, sombra apenas al pasar */
-  [data-slot="card"] {
-    transition: box-shadow 200ms var(--ease-out-soft), border-color 200ms var(--ease-out-soft), transform 200ms var(--ease-out-soft);
+  /* Superficies: el lienzo es verde casi blanco y las tarjetas blancas flotan
+     encima con una sombra de un pelo, no con un borde de color. */
+  [data-slot="card"],
+  [data-slot="indicador"],
+  .superficie {
+    background-color: #ffffff;
+    box-shadow: 0 0 0 1px rgb(22 35 26 / 5%), 0 1px 2px rgb(22 35 26 / 4%), 0 2px 6px -2px rgb(22 35 26 / 5%);
+    transition: box-shadow 200ms var(--ease-out-soft), transform 200ms var(--ease-out-soft);
+  }
+  a > [data-slot="card"]:hover,
+  button > [data-slot="card"]:hover,
+  [data-slot="card"][class*="cursor-pointer"]:hover,
+  [data-slot="indicador"]:hover {
+    box-shadow: 0 0 0 1px rgb(22 35 26 / 6%), 0 10px 24px -12px rgb(22 35 26 / 18%);
   }
   a > [data-slot="card"]:hover,
   button > [data-slot="card"]:hover {
     transform: translateY(-2px);
-    box-shadow: 0 8px 24px -12px rgb(22 35 26 / 22%);
   }
 
   /* Skeleton con brillo en vez de parpadeo */

@@ -4,7 +4,6 @@ import { Ic } from '@/components/ui/icon'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { Card, CardContent } from '@/components/ui/card'
 import { ESPECIES_FINCA, type EspecieFinca } from '@/lib/especies'
 
 type ResumenEspecie = {
@@ -12,10 +11,11 @@ type ResumenEspecie = {
   animalesActuales: number
 }
 
-const COLOR_BORDE: Record<EspecieFinca, string> = {
-  aves_ponedoras: 'border-amber-200 bg-amber-50',
-  cerdos: 'border-pink-200 bg-pink-50',
-  pollo_engorde: 'border-orange-200 bg-orange-50',
+/** El color de cada especie va solo en su chip de icono. */
+const TONO_ESPECIE: Record<EspecieFinca, string> = {
+  aves_ponedoras: 'bg-amber-100 text-amber-700',
+  cerdos: 'bg-pink-100 text-pink-700',
+  pollo_engorde: 'bg-orange-100 text-orange-700',
 }
 
 export default function ResumenEspecies({ fincaId, especies }: { fincaId: string; especies: EspecieFinca[] }) {
@@ -57,34 +57,36 @@ export default function ResumenEspecies({ fincaId, especies }: { fincaId: string
 
   return (
     <div className="mb-8">
-      <h3 className="text-sm font-semibold text-gray-600 mb-3">Resumen por especie</h3>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <h3 className="mb-3 text-sm font-semibold text-gray-800">Resumen por especie</h3>
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(15rem,1fr))] gap-3">
         {ESPECIES_FINCA.filter(e => especies.includes(e.value)).map(esp => {
           const r = resumen[esp.value]
           return (
-            <Link key={esp.value} href={esp.href}>
-              <Card className={`border transition-shadow hover:shadow-md ${COLOR_BORDE[esp.value]}`}>
-                <CardContent className="pt-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      {/* En el resumen la especie va por su nombre ("Aves ponedoras"), no
-                          por el nombre del espacio donde vive ("Galpones"). */}
-                      <p className="text-sm font-medium text-gray-700">{esp.labelNav ?? esp.label}</p>
-                      {loading ? (
-                        <p className="text-xs text-gray-400 mt-1">Cargando...</p>
-                      ) : (
-                        <>
-                          <p className="text-2xl font-bold text-gray-900 mt-1">{r?.animalesActuales ?? 0}</p>
-                          <p className="text-xs text-gray-500">
-                            {r?.lotesActivos ?? 0} lote{r?.lotesActivos === 1 ? '' : 's'} activo{r?.lotesActivos === 1 ? '' : 's'}
-                          </p>
-                        </>
-                      )}
-                    </div>
-                    <span className="flex size-11 items-center justify-center rounded-full bg-gray-100 text-gray-700"><Ic n={esp.icon} className="size-5" /></span>
-                  </div>
-                </CardContent>
-              </Card>
+            <Link key={esp.value} href={esp.href} className="group block">
+              <div
+                data-slot="indicador"
+                className="flex items-center gap-4 rounded-2xl p-5 group-hover:-translate-y-0.5"
+              >
+                <span className={`flex size-11 shrink-0 items-center justify-center rounded-xl ${TONO_ESPECIE[esp.value]}`}>
+                  <Ic n={esp.icon} className="size-5" strokeWidth={1.9} />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[0.8125rem] font-medium text-gray-600">{esp.labelNav ?? esp.label}</p>
+                  {loading ? (
+                    <p className="mt-1 text-xs text-gray-400">Cargando…</p>
+                  ) : (
+                    <p className="mt-0.5 flex items-baseline gap-2">
+                      <span className="text-2xl font-semibold tracking-tight text-gray-900 tabular-nums">
+                        {(r?.animalesActuales ?? 0).toLocaleString('es-CO')}
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        {r?.lotesActivos ?? 0} lote{r?.lotesActivos === 1 ? '' : 's'} activo{r?.lotesActivos === 1 ? '' : 's'}
+                      </span>
+                    </p>
+                  )}
+                </div>
+                <Ic n="flecha" className="size-4 text-gray-300 transition-transform group-hover:translate-x-0.5 group-hover:text-gray-500" />
+              </div>
             </Link>
           )
         })}

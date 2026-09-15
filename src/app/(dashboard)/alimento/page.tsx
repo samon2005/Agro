@@ -76,7 +76,7 @@ export default function AlimentoPage() {
   return (
     <div className="p-8">
       <div className="mb-6">
-        <h2 className="text-3xl font-medium text-gray-900">Alimento
+        <h2 className="font-heading text-3xl font-medium text-gray-900">Alimento
         </h2>
         <p className="text-gray-500 mt-1">Consumo, costos y balance nutricional por especie</p>
       </div>

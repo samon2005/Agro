@@ -7,7 +7,7 @@ import {
   Bone, Utensils, HeartPulse, Brain, PawPrint, CircleHelp, Repeat, Flame, Bell, Bot, Hospital,
   Skull, LockOpen, Plug, Smartphone, Microscope, Snowflake, Hand, Fan, Droplets, House, Ban,
   Mountain, Cloud, CloudSun, CalendarDays, Link, DollarSign, Plus, Search, Sun, Mail, Circle,
-  CircleDot, Heart, LayoutDashboard, Boxes, Users, LogOut, Drumstick, Info, CircleAlert,
+  CircleDot, Heart, LayoutDashboard, Boxes, Users, LogOut, Drumstick, Info, CircleAlert, ChevronRight,
   type LucideProps,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -30,6 +30,39 @@ function Pig({ className, strokeWidth = 1.75, ...props }: LucideProps) {
   )
 }
 
+/** El huevo de Lucide a tamaño pequeño se lee como una "O": este lleva la base
+ *  más ancha y un brillo, así se reconoce como huevo incluso a 14 px. */
+function Huevo({ className, strokeWidth = 1.75, ...props }: LucideProps) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round"
+      className={className} {...props}
+    >
+      <path d="M12 2.5c-3.9 0-7 6.1-7 11.2 0 4.3 3.1 7.8 7 7.8s7-3.5 7-7.8c0-5.1-3.1-11.2-7-11.2Z" />
+      <path d="M9 9.5c.5-1.5 1.3-2.8 2.2-3.5" />
+    </svg>
+  )
+}
+
+/** Gallina de perfil: la especie "aves ponedoras" en el menú y los resúmenes. */
+function Gallina({ className, strokeWidth = 1.75, ...props }: LucideProps) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round"
+      className={className} {...props}
+    >
+      <path d="M8.5 5.5c0-1.4 1.1-2.5 2.5-2.5.9 0 1.7.5 2.1 1.2" />
+      <path d="M7 7.5a3 3 0 0 1 3-3c1.7 0 3 1.3 3 3v2.2c2.9.3 5.2 1.8 6.6 4.1.3.5 0 1.1-.6 1.2-1.3.1-2.5-.2-3.5-.8" />
+      <path d="M7 7.5 4.5 8.6 7 9.6" />
+      <path d="M7 9.6c-.8 1.2-1.2 2.6-1.2 4.1 0 3.5 2.8 5.8 6.2 5.8s6.2-2.3 6.2-5.3" />
+      <path d="M10.5 19.5 10 22M13.5 19.5l.5 2.5" />
+      <path d="M9.6 7.2h.01" />
+    </svg>
+  )
+}
+
 /**
  * Catálogo de iconos de la app. Cada nombre es lo que el icono significa aquí,
  * no cómo se llama en Lucide, así se puede cambiar el dibujo sin tocar los usos.
@@ -39,7 +72,9 @@ export const ICONOS = {
   alerta: TriangleAlert,
   borrar: Trash2,
   ajustes: Settings2,
-  huevo: Egg,
+  huevo: Huevo,
+  gallina: Gallina,
+  flecha: ChevronRight,
   termometro: Thermometer,
   diario: ClipboardList,
   check: Check,

@@ -5,18 +5,18 @@ import { Ic, type NombreIcono } from '@/components/ui/icon'
 export type TonoIndicador = 'green' | 'amber' | 'orange' | 'red' | 'blue' | 'purple' | 'pink' | 'gray'
 
 /**
- * Un color por indicador, siempre como acento: la barra lateral, el chip del
- * icono y el subtítulo. La tarjeta se queda blanca para que el número mande.
+ * El color vive solo en el chip del icono y en el detalle: la tarjeta es blanca
+ * y el número es negro, para que varias juntas no compitan entre sí.
  */
-const TONOS: Record<TonoIndicador, { barra: string; chip: string; detalle: string }> = {
-  green:  { barra: 'bg-green-500',  chip: 'bg-green-100 text-green-700',   detalle: 'text-green-700' },
-  amber:  { barra: 'bg-amber-500',  chip: 'bg-amber-100 text-amber-700',   detalle: 'text-amber-700' },
-  orange: { barra: 'bg-orange-500', chip: 'bg-orange-100 text-orange-700', detalle: 'text-orange-700' },
-  red:    { barra: 'bg-red-500',    chip: 'bg-red-100 text-red-700',       detalle: 'text-red-700' },
-  blue:   { barra: 'bg-blue-500',   chip: 'bg-blue-100 text-blue-700',     detalle: 'text-blue-700' },
-  purple: { barra: 'bg-purple-500', chip: 'bg-purple-100 text-purple-700', detalle: 'text-purple-700' },
-  pink:   { barra: 'bg-pink-500',   chip: 'bg-pink-100 text-pink-700',     detalle: 'text-pink-700' },
-  gray:   { barra: 'bg-gray-400',   chip: 'bg-gray-100 text-gray-600',     detalle: 'text-gray-500' },
+const TONOS: Record<TonoIndicador, { chip: string }> = {
+  green:  { chip: 'bg-green-100 text-green-700' },
+  amber:  { chip: 'bg-amber-100 text-amber-700' },
+  orange: { chip: 'bg-orange-100 text-orange-700' },
+  red:    { chip: 'bg-red-100 text-red-700' },
+  blue:   { chip: 'bg-blue-100 text-blue-700' },
+  purple: { chip: 'bg-purple-100 text-purple-700' },
+  pink:   { chip: 'bg-pink-100 text-pink-700' },
+  gray:   { chip: 'bg-gray-100 text-gray-600' },
 }
 
 interface Props extends Omit<React.ComponentProps<'div'>, 'title'> {
@@ -35,54 +35,51 @@ export function Indicador({ etiqueta, valor, detalle, icono, tono = 'gray', comp
   return (
     <div
       data-slot="indicador"
-      className={cn(
-        'relative flex min-h-[6.25rem] flex-col justify-between overflow-hidden rounded-xl border border-gray-200 bg-white px-4 py-3.5 transition-[box-shadow,border-color,transform] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-[0_10px_24px_-14px_rgb(27_26_23/20%)]',
-        className
-      )}
+      className={cn('flex flex-col rounded-2xl p-5', className)}
       {...props}
     >
-      <span aria-hidden className={cn('absolute inset-y-0 left-0 w-1', t.barra)} />
-      <div className="flex items-start justify-between gap-2">
-        <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-gray-500">{etiqueta}</p>
+      <div className="flex items-center gap-2.5">
         {icono && (
-          <span className={cn('flex size-7 shrink-0 items-center justify-center rounded-lg', t.chip)}>
-            <Ic n={icono} className="size-[15px]" strokeWidth={2} />
+          <span className={cn('flex size-8 shrink-0 items-center justify-center rounded-lg', t.chip)}>
+            <Ic n={icono} className="size-4" strokeWidth={1.9} />
           </span>
         )}
+        <p className="text-[0.8125rem] leading-tight font-medium text-gray-600">{etiqueta}</p>
       </div>
-      <div className="mt-2">
-        <p className={cn('font-heading leading-none tracking-tight text-gray-900', compacto ? 'text-lg font-medium' : 'text-[1.75rem] font-medium')}>
+      {/* El número va siempre a la misma distancia del rótulo: así los de una fila
+          quedan alineados aunque una tarjeta tenga más líneas de detalle que otra. */}
+      <div className="pt-4">
+        <p className={cn(
+          'leading-none tracking-tight tabular-nums',
+          compacto ? 'text-lg' : 'text-[1.75rem]',
+          valor === '—' ? 'font-normal text-gray-300' : 'font-semibold text-gray-900'
+        )}>
           {valor}
         </p>
-        {detalle && <p className={cn('mt-1.5 text-xs leading-snug', t.detalle)}>{detalle}</p>}
+        {/* El detalle va en gris: el color queda para los estados (pasar un <span> con color).
+            Siempre ocupa su línea, así los números de una fila quedan a la misma altura. */}
+        <p className="mt-2 min-h-[1rem] text-xs leading-snug text-gray-500">{detalle}</p>
         {children}
       </div>
     </div>
   )
 }
 
-/** Un grupo de indicadores con su título pequeño encima, para que se lea por bloques. */
-export function GrupoIndicadores({ titulo, columnas = 4, className, children }: {
+/**
+ * Un bloque de indicadores con su rótulo. Las columnas se reparten solas: con
+ * una, tres o cuatro tarjetas la fila queda llena, sin huecos a la derecha.
+ */
+export function GrupoIndicadores({ titulo, className, children }: {
   titulo?: string
+  /** Se conserva por compatibilidad; el reparto ahora es automático */
   columnas?: 2 | 3 | 4 | 5
   className?: string
   children: React.ReactNode
 }) {
-  const cols = {
-    2: 'grid-cols-2',
-    3: 'grid-cols-2 md:grid-cols-3',
-    4: 'grid-cols-2 md:grid-cols-4',
-    5: 'grid-cols-2 md:grid-cols-3 xl:grid-cols-5',
-  }[columnas]
   return (
-    <section className={cn('space-y-2', className)}>
-      {titulo && (
-        <p className="flex items-center gap-2 text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-gray-400">
-          {titulo}
-          <span aria-hidden className="h-px flex-1 bg-gray-200" />
-        </p>
-      )}
-      <div className={cn('grid gap-3', cols)}>{children}</div>
+    <section className={cn('space-y-3', className)}>
+      {titulo && <h3 className="text-sm font-semibold text-gray-800">{titulo}</h3>}
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(13rem,1fr))] gap-3">{children}</div>
     </section>
   )
 }

@@ -73,7 +73,7 @@ export default function RegisterPage() {
             <span className="font-heading text-xl font-medium tracking-tight text-gray-900">AgroGestión</span>
           </div>
 
-          <h2 className="text-3xl font-medium text-gray-900">Crear cuenta</h2>
+          <h2 className="font-heading text-3xl font-medium text-gray-900">Crear cuenta</h2>
           <p className="mt-1.5 text-sm text-gray-500">Toma un minuto. Después creas tu finca.</p>
 
           <form onSubmit={handleRegister} className="mt-8 space-y-5">

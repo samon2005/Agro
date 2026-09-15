@@ -1,5 +1,6 @@
 'use client'
 
+import { Indicador } from '@/components/ui/indicador'
 import { Ic } from '@/components/ui/icon'
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -109,14 +110,14 @@ export default function ResumenFinanciero({ fincaId, especies }: Props) {
   return (
     <div className="mb-8">
       <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-        <h3 className="text-sm font-semibold text-gray-600">Finanzas de todas las especies</h3>
+        <h3 className="text-sm font-semibold text-gray-800">Finanzas de todas las especies</h3>
         <div className="flex items-center gap-2">
           <Select
             value={anioFiltro}
             onValueChange={v => { setAnioFiltro(v ?? 'todos'); setMesFiltro('todos') }}
             items={{ todos: 'Todos los años', ...Object.fromEntries(aniosDisponibles.map(a => [a, a])) }}
           >
-            <SelectTrigger className="w-32 h-8 text-xs"><SelectValue placeholder="Año" /></SelectTrigger>
+            <SelectTrigger className="w-36 h-8 bg-white text-xs"><SelectValue placeholder="Año" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="todos">Todos los años</SelectItem>
               {aniosDisponibles.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
@@ -127,7 +128,7 @@ export default function ResumenFinanciero({ fincaId, especies }: Props) {
             onValueChange={v => setMesFiltro(v ?? 'todos')}
             items={{ todos: 'Todos los meses', ...Object.fromEntries(mesesDisponibles.map(m => [m, new Date(m + '-01T00:00:00').toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })])) }}
           >
-            <SelectTrigger className="w-40 h-8 text-xs"><SelectValue placeholder="Mes" /></SelectTrigger>
+            <SelectTrigger className="w-40 h-8 bg-white text-xs"><SelectValue placeholder="Mes" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="todos">Todos los meses</SelectItem>
               {mesesDisponibles.map(m => (
@@ -146,37 +147,28 @@ export default function ResumenFinanciero({ fincaId, especies }: Props) {
         </div>
       ) : (
         <div className="space-y-3">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card className="border-emerald-200 bg-emerald-50">
-              <CardContent className="pt-6">
-                <p className="text-xs text-emerald-700 font-medium">Ingresos totales</p>
-                <p className="text-2xl font-bold text-emerald-800">{cop(totalIngresos)}</p>
-              </CardContent>
-            </Card>
-            <Card className="border-red-200 bg-red-50">
-              <CardContent className="pt-6">
-                <p className="text-xs text-red-700 font-medium">Costos totales</p>
-                <p className="text-2xl font-bold text-red-800">{cop(totalCostos)}</p>
-              </CardContent>
-            </Card>
-            <Card className={totalUtilidad >= 0 ? 'border-green-300 bg-green-50' : 'border-red-300 bg-red-50'}>
-              <CardContent className="pt-6">
-                <p className={`text-xs font-medium ${totalUtilidad >= 0 ? 'text-green-700' : 'text-red-700'}`}>Utilidad total</p>
-                <p className={`text-2xl font-bold ${totalUtilidad >= 0 ? 'text-green-800' : 'text-red-800'}`}>{cop(totalUtilidad)}</p>
-              </CardContent>
-            </Card>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <Indicador tono="green" icono="tendencia" etiqueta="Ingresos totales" valor={cop(totalIngresos)} />
+            <Indicador tono="orange" icono="recibo" etiqueta="Costos totales" valor={cop(totalCostos)} />
+            <Indicador
+              tono={totalUtilidad >= 0 ? 'green' : 'red'}
+              icono="dinero"
+              etiqueta="Utilidad total"
+              valor={<span className={totalUtilidad < 0 ? 'text-red-700' : undefined}>{cop(totalUtilidad)}</span>}
+              detalle={totalUtilidad < 0 ? 'Los costos superan los ingresos' : totalIngresos > 0 ? 'Ingresos menos costos' : undefined}
+            />
           </div>
 
           {porEspecie.length > 1 && (
             <Card>
-              <CardContent className="p-4 space-y-2">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Desglose por especie</p>
+              <CardContent className="space-y-1">
+                <p className="pb-1 text-sm font-semibold text-gray-800">Desglose por especie</p>
                 {porEspecie.map(e => (
-                  <div key={e.especie} className="flex items-center justify-between gap-3 py-1.5 border-b border-gray-50 last:border-0">
-                    <span className="text-sm font-medium text-gray-700"><Ic n={e.info.icon} /> {e.info.label}</span>
-                    <div className="flex items-center gap-4 text-xs">
-                      <span className="text-emerald-700">{cop(e.ingresos)}</span>
-                      <span className="text-red-700">− {cop(e.costos)}</span>
+                  <div key={e.especie} className="flex items-center justify-between gap-3 border-b border-gray-100 py-2.5 last:border-0">
+                    <span className="flex items-center gap-2 text-sm font-medium text-gray-700"><Ic n={e.info.icon} className="size-4 text-gray-400" /> {e.info.labelNav ?? e.info.label}</span>
+                    <div className="flex items-center gap-5 text-xs tabular-nums">
+                      <span className="text-gray-500">{cop(e.ingresos)}</span>
+                      <span className="text-gray-500">− {cop(e.costos)}</span>
                       <span className={`font-semibold text-sm ${e.utilidad >= 0 ? 'text-green-700' : 'text-red-700'}`}>
                         {cop(e.utilidad)}
                       </span>

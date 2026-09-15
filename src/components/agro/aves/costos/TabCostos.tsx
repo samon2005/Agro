@@ -1,5 +1,6 @@
 'use client'
 
+import { Indicador } from '@/components/ui/indicador'
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -99,7 +100,7 @@ export default function TabCostos({ loteActual }: Props) {
     <div className="space-y-4">
       <div>
         <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
-          <h2 className="text-lg font-semibold text-gray-800">Resumen Financiero</h2>
+          <h2 className="text-lg font-semibold text-gray-900">Resumen financiero</h2>
           <button
             type="button"
             onClick={() => setSoloUtilidad(v => !v)}
@@ -108,41 +109,32 @@ export default function TabCostos({ loteActual }: Props) {
             {soloUtilidad ? 'Solo utilidad' : 'Ver solo utilidad'}
           </button>
         </div>
-        <div className={soloUtilidad ? 'grid grid-cols-1' : 'grid grid-cols-3 gap-3'}>
+        <div className={soloUtilidad ? 'grid grid-cols-1' : 'grid grid-cols-1 gap-3 md:grid-cols-3'}>
           {!soloUtilidad && (
             <>
-              <Card className="border-emerald-200 bg-emerald-50">
-                <CardContent className="p-4">
-                  <p className="text-xs text-emerald-700 font-medium">Ingresos por ventas</p>
-                  <p className="text-xl font-bold text-emerald-800">{cop(ingresoTotal)}</p>
-                </CardContent>
-              </Card>
-              <Card className="border-red-200 bg-red-50">
-                <CardContent className="p-4">
-                  <p className="text-xs text-red-700 font-medium">Costos</p>
-                  <p className="text-xl font-bold text-red-800">{cop(costoTotalPeriodo)}</p>
-                </CardContent>
-              </Card>
+              <Indicador tono="green" icono="tendencia" etiqueta="Ingresos por ventas" valor={cop(ingresoTotal)} />
+              <Indicador tono="orange" icono="recibo" etiqueta="Costos" valor={cop(costoTotalPeriodo)} />
             </>
           )}
-          <Card className={utilidad >= 0 ? 'border-green-300 bg-green-50' : 'border-red-300 bg-red-50'}>
-            <CardContent className="p-4">
-              <p className={`text-xs font-medium ${utilidad >= 0 ? 'text-green-700' : 'text-red-700'}`}>Utilidad</p>
-              <p className={`text-xl font-bold ${utilidad >= 0 ? 'text-green-800' : 'text-red-800'}`}>{cop(utilidad)}</p>
-            </CardContent>
-          </Card>
+          <Indicador
+            tono={utilidad >= 0 ? 'green' : 'red'}
+            icono="dinero"
+            etiqueta="Utilidad"
+            valor={<span className={utilidad < 0 ? 'text-red-700' : undefined}>{cop(utilidad)}</span>}
+            detalle={utilidad < 0 ? 'Los costos superan los ingresos' : undefined}
+          />
         </div>
       </div>
 
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h2 className="text-lg font-semibold text-gray-800">Insumos y Costos Operativos</h2>
+        <h2 className="text-lg font-semibold text-gray-900">Insumos y costos operativos</h2>
         <div className="flex items-center gap-2">
           <Select
             value={anioFiltro}
             onValueChange={v => { setAnioFiltro(v ?? 'todos'); setMesFiltro('todos') }}
             items={{ todos: 'Todos los años', ...Object.fromEntries(aniosDisponibles.map(a => [a, a])) }}
           >
-            <SelectTrigger className="w-32"><SelectValue placeholder="Año" /></SelectTrigger>
+            <SelectTrigger className="w-36"><SelectValue placeholder="Año" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="todos">Todos los años</SelectItem>
               {aniosDisponibles.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
@@ -187,7 +179,7 @@ export default function TabCostos({ loteActual }: Props) {
         {totalPorCategoria.map(cat => (
           <Card
             key={cat.value}
-            className={cn('cursor-pointer hover:border-green-400 transition-colors', cat.total > 0 ? '' : 'opacity-50')}
+            className={cn('cursor-pointer', cat.total > 0 ? '' : '[&_p]:text-gray-400')}
             onClick={() => setCategoriaDialog(cat.value)}
           >
             <CardContent className="p-3">
@@ -196,12 +188,13 @@ export default function TabCostos({ loteActual }: Props) {
             </CardContent>
           </Card>
         ))}
-        <Card className="border-green-300 bg-green-50 col-span-2 md:col-span-4">
-          <CardContent className="p-3 flex items-center justify-between">
-            <p className="text-sm font-semibold text-green-800"><Ic n="dinero" /> Total Acumulado</p>
-            <p className="text-xl font-bold text-green-800">{cop(totalGeneral)}</p>
-          </CardContent>
-        </Card>
+        <div className="superficie col-span-2 flex items-center justify-between rounded-2xl px-5 py-4 md:col-span-4">
+          <p className="flex items-center gap-2.5 text-sm font-medium text-gray-700">
+            <span className="flex size-8 items-center justify-center rounded-lg bg-green-100 text-green-700"><Ic n="dinero" className="size-4" /></span>
+            Total acumulado
+          </p>
+          <p className="text-xl font-semibold tracking-tight text-gray-900 tabular-nums">{cop(totalGeneral)}</p>
+        </div>
       </div>
 
       {/* Tabla de costos */}

@@ -101,24 +101,23 @@ export default function CerdosPage() {
       </div>
 
       {/* Selector de lote */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-2">
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Lote activo</p>
+      <div className="superficie space-y-3 rounded-2xl p-4">
         <div className="flex gap-2 flex-wrap items-center">
           {loadingLotes ? (
-            <div className="h-9 w-36 bg-gray-200 rounded-full animate-pulse" />
+            <div data-slot="skeleton" className="h-9 w-36 rounded-xl" />
           ) : (
             <>
               {lotes.length === 0 && <span className="text-sm text-gray-500">No hay lotes activos.</span>}
               {lotes.map(lote => (
                 <button key={lote.id} onClick={() => setLoteActual(lote)}
-                  className={cn('px-4 py-1.5 rounded-full text-sm font-medium border transition-colors',
-                    loteActual?.id === lote.id ? 'bg-orange-600 text-white border-orange-600' : 'bg-white text-gray-700 border-gray-300 hover:border-orange-400 hover:text-orange-700')}>
+                  className={cn('inline-flex h-9 items-center gap-2 rounded-xl px-3.5 text-sm font-medium transition-colors',
+                    loteActual?.id === lote.id ? 'bg-orange-600 text-white shadow-[0_6px_16px_-10px_rgb(0_0_0/40%)]' : 'bg-gray-100 text-gray-700 hover:bg-gray-200/70')}>
                   <Ic n="cerdo" /> {lote.nombre}
                 </button>
               ))}
               <button onClick={() => setModalNuevo(true)}
-                className="px-4 py-1.5 rounded-full text-sm font-medium border border-dashed border-orange-400 text-orange-700 hover:bg-orange-50 transition-colors">
-                + Nuevo Lote
+                className="inline-flex h-9 items-center gap-1.5 rounded-xl px-3 text-sm font-medium text-orange-700 transition-colors hover:bg-orange-50">
+                <Ic n="mas" className="size-4" /> Nuevo lote
               </button>
             </>
           )}
@@ -165,18 +164,18 @@ export default function CerdosPage() {
       )}
 
       {loteActual && (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="flex border-b border-gray-100 overflow-x-auto">
+        <div className="space-y-5">
+          <div className="superficie flex gap-1 overflow-x-auto rounded-2xl p-1.5 [scrollbar-width:none]">
             {tabsDelLote(loteActual.sistema).map(tab => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                className={cn('inline-flex flex-shrink-0 items-center gap-2 px-4 py-3 text-[0.8125rem] font-medium border-b-2 -mb-px transition-colors whitespace-nowrap',
-                  activeTab === tab.id ? 'border-orange-600 text-orange-900' : 'border-transparent text-gray-500 hover:text-gray-800')}>
+                className={cn('inline-flex flex-shrink-0 items-center gap-2 whitespace-nowrap rounded-xl px-3.5 py-2 text-[0.8125rem] font-medium transition-colors',
+                  activeTab === tab.id ? 'bg-orange-50 text-orange-900' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800')}>
                 <Ic n={tab.icon} className={cn('size-4', activeTab === tab.id ? 'text-orange-600' : 'text-gray-400')} />
                 {tab.label}
               </button>
             ))}
           </div>
-          <div className="p-5">
+          <div>
             {activeTab === 'diario' && <TabDiarioCerdos loteActual={loteActual} onLoteUpdated={refreshLote} />}
             {activeTab === 'crecimiento' && <TabCrecimiento loteActual={loteActual} onLoteUpdated={refreshLote} />}
             {activeTab === 'reproduccion' && loteActual.sistema === 'cria' && (

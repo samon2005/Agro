@@ -7,7 +7,7 @@ export default function ProduccionPage() {
     <div className="p-8">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h2 className="text-3xl font-medium text-gray-900">Registros de Producción
+          <h2 className="font-heading text-3xl font-medium text-gray-900">Registros de Producción
           </h2>
           <p className="text-gray-500 mt-1">Seguimiento diario de producción por animal o lote</p>
         </div>

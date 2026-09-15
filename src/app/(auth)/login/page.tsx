@@ -66,7 +66,7 @@ export default function LoginPage() {
             <span className="font-heading text-xl font-medium tracking-tight text-gray-900">AgroGestión</span>
           </div>
 
-          <h2 className="text-3xl font-medium text-gray-900">Iniciar sesión</h2>
+          <h2 className="font-heading text-3xl font-medium text-gray-900">Iniciar sesión</h2>
           <p className="mt-1.5 text-sm text-gray-500">Entra con el correo de tu cuenta.</p>
 
           <form onSubmit={handleLogin} className="mt-8 space-y-5">
