@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { cn } from '@/lib/utils'
 import type { EspecieFinca } from '@/lib/especies'
 import { Ic } from '@/components/ui/icon'
+import { aplicarConsumoAlimentoAves } from '@/lib/inventario'
 
 type Item = {
   id: string
@@ -41,6 +42,8 @@ export default function InventarioPage() {
     if (!fincaActual) return
     setLoading(true)
     const supabase = createClient()
+    // Antes de mostrar el stock, se descuenta el alimento que ya se comieron los galpones
+    await aplicarConsumoAlimentoAves(supabase, fincaActual.id)
     const { data } = await supabase
       .from('inventario')
       .select('*, inventario_categorias(nombre, color)')

@@ -18,6 +18,11 @@ type Finca = {
   temperatura_promedio_ext: number | null
   latitud: number | null
   longitud: number | null
+  precio_huevo_b?: number | null
+  precio_huevo_a?: number | null
+  precio_huevo_aa?: number | null
+  precio_huevo_aaa?: number | null
+  precio_huevo_jumbo?: number | null
 }
 
 type FincaContextType = {

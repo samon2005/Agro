@@ -82,6 +82,14 @@ export default function NotificacionesPanel() {
               mensaje: `La postura de "${lote.nombre}" inicia en ${semanas === 0 ? 'menos de 1 semana' : `${semanas} semana${semanas === 1 ? '' : 's'}`}`,
               href: '/aves-ponedoras',
             })
+          } else if (diasFaltan < 0) {
+            // Ya pasó la fecha tentativa y el galpón sigue sin arrancar la postura
+            const atraso = Math.abs(diasFaltan)
+            notifs.push({
+              tipo: 'postura',
+              mensaje: `La postura de "${lote.nombre}" va atrasada ${atraso >= 7 ? `${Math.floor(atraso / 7)} semana${Math.floor(atraso / 7) === 1 ? '' : 's'}` : `${atraso} día${atraso === 1 ? '' : 's'}`}`,
+              href: `/aves-ponedoras?lote=${lote.id}`,
+            })
           }
         }
       }

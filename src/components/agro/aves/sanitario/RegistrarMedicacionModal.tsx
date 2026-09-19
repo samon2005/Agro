@@ -28,6 +28,8 @@ interface Props {
   medicacionExistente?: Medicacion | null
   onCreated: () => void
   onCrearEvento?: () => void
+  /** El galpón aún no pone: el período de retiro no aplica y no se pregunta */
+  enPreparacion?: boolean
 }
 
 const SIN_EVENTO = '__sin_evento__'
@@ -71,12 +73,30 @@ function splitDosis(dosis: string): [string, string] {
   return match ? [match[1], match[2]] : ['', dosis]
 }
 
-export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaId, eventoClinicoId, medicacionExistente, onCreated, onCrearEvento }: Props) {
+export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaId, eventoClinicoId, medicacionExistente, onCreated, onCrearEvento, enPreparacion }: Props) {
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState(() => defaultForm(medicacionExistente))
   const [eventos, setEventos] = useState<EventoClinico[]>([])
   const [eventoVinculado, setEventoVinculado] = useState<EventoClinico | null>(null)
+  const [confirmandoEliminar, setConfirmandoEliminar] = useState(false)
+  const [eliminando, setEliminando] = useState(false)
+
+  useEffect(() => { if (open) setConfirmandoEliminar(false) }, [open])
+
+  async function eliminarTratamiento() {
+    if (!medicacionExistente) return
+    if (!confirmandoEliminar) { setConfirmandoEliminar(true); return }
+    setEliminando(true)
+    // Los recordatorios del tratamiento se van con él
+    await supabase.from('recordatorios_medicacion_aves').delete().eq('medicacion_id', medicacionExistente.id)
+    const { error } = await supabase.from('medicaciones_aves').delete().eq('id', medicacionExistente.id)
+    setEliminando(false)
+    if (error) { toast.error('Error al eliminar el tratamiento'); return }
+    toast.success('Tratamiento eliminado')
+    onCreated()
+    onClose()
+  }
 
   useEffect(() => { if (open) setForm(defaultForm(medicacionExistente)) }, [open, medicacionExistente])
 
@@ -158,7 +178,8 @@ export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaI
           principio_activo: form.principio_activo || null,
           via_administracion: form.via_administracion || null,
           dosis,
-          periodo_retiro_dias: form.periodo_retiro_dias !== '' ? Number(form.periodo_retiro_dias) : null,
+          // En preparación las pollas no ponen: no hay huevo que retirar
+          periodo_retiro_dias: enPreparacion ? null : form.periodo_retiro_dias !== '' ? Number(form.periodo_retiro_dias) : null,
           motivo: motivoFinal,
           costo: form.costo ? Number(form.costo) : null,
           proveedor: form.proveedor || null,
@@ -295,10 +316,12 @@ export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaI
                     <Input placeholder="Unidad (mL/ave...)" value={form.dosis_unidad} onChange={e => set('dosis_unidad', e.target.value)} />
                   </div>
                 </div>
-                <div className="space-y-1">
-                  <Label>Período de retiro (días)</Label>
-                  <Input type="number" min="0" placeholder="0" value={form.periodo_retiro_dias} onChange={e => set('periodo_retiro_dias', e.target.value)} />
-                </div>
+                {!enPreparacion && (
+                  <div className="space-y-1">
+                    <Label>Período de retiro (días)</Label>
+                    <Input type="number" min="0" placeholder="0" value={form.periodo_retiro_dias} onChange={e => set('periodo_retiro_dias', e.target.value)} />
+                  </div>
+                )}
                 <div className="space-y-1">
                   <Label>Frecuencia de aplicación (cada cuántos días)</Label>
                   <Input type="number" min="1" placeholder="Ej: 1 (diario)" value={form.frecuencia_dias} onChange={e => set('frecuencia_dias', e.target.value)} />
@@ -316,12 +339,12 @@ export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaI
                 <Ic n="campana" /> Se crearán recordatorios en la app cada {form.frecuencia_dias} día(s) hasta el fin del tratamiento para no olvidar seguir aplicándolo.
               </div>
             )}
-            {sinRetiro && (
+            {!enPreparacion && sinRetiro && (
               <div className="col-span-2 p-2 bg-green-50 border border-green-200 rounded text-sm text-green-800">
                 <Ic n="check" /> Sin período de retiro — los huevos se pueden comercializar normalmente
               </div>
             )}
-            {retiro && !sinRetiro && (
+            {!enPreparacion && retiro && !sinRetiro && (
               <div className="col-span-2 p-2 bg-amber-50 border border-amber-300 rounded text-sm text-amber-800">
                 <Ic n="alerta" /> Huevos no comercializables hasta: <strong>{retiro}</strong>
               </div>
@@ -357,11 +380,29 @@ export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaI
               <Input placeholder="Notas adicionales..." value={form.observaciones} onChange={e => set('observaciones', e.target.value)} />
             </div>
           </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button type="submit" disabled={loading} className="bg-green-700 hover:bg-green-800 text-white">
-              {loading ? 'Guardando...' : medicacionExistente ? 'Guardar cambios' : 'Registrar'}
-            </Button>
+          {enPreparacion && !sinFarmaco && (
+            <p className="rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-800">
+              El galpón está en preparación: las pollas aún no ponen, así que no hay período de retiro que registrar.
+            </p>
+          )}
+          <DialogFooter className="sm:justify-between">
+            {medicacionExistente ? (
+              <Button
+                type="button"
+                variant={confirmandoEliminar ? 'destructive' : 'ghost'}
+                className={confirmandoEliminar ? undefined : 'text-red-700 hover:bg-red-50 hover:text-red-800'}
+                disabled={eliminando}
+                onClick={eliminarTratamiento}
+              >
+                <Ic n="borrar" /> {confirmandoEliminar ? '¿Seguro? Eliminar' : 'Eliminar tratamiento'}
+              </Button>
+            ) : <span />}
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
+              <Button type="submit" disabled={loading} className="bg-green-700 hover:bg-green-800 text-white">
+                {loading ? 'Guardando...' : medicacionExistente ? 'Guardar cambios' : 'Registrar'}
+              </Button>
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>

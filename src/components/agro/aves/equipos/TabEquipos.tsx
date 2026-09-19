@@ -198,7 +198,7 @@ export default function TabEquipos({ loteActual }: Props) {
                       className={confirmandoEliminar === equipo.id ? 'h-8 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-8 px-2 text-xs text-red-600'}
                       onClick={() => eliminarEquipo(equipo)}
                     >
-                      {confirmandoEliminar === equipo.id ? '¿Confirmar?' : ''}
+                      {confirmandoEliminar === equipo.id ? '¿Confirmar?' : <Ic n="borrar" />}
                     </Button>
                   </div>
                 </CardContent>

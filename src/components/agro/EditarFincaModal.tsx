@@ -143,9 +143,11 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated, onDe
   async function eliminarFinca() {
     if (confirmarNombre.trim() !== finca.nombre) { toast.error('El nombre no coincide'); return }
     setEliminando(true)
-    const { error } = await supabase.from('fincas').delete().eq('id', finca.id)
+    const { data, error } = await supabase.from('fincas').delete().eq('id', finca.id).select('id')
     setEliminando(false)
     if (error) { toast.error('Error al eliminar la finca'); return }
+    // Sin permiso la base no falla: simplemente no borra ninguna fila
+    if (!data || data.length === 0) { toast.error('Solo el propietario de la finca puede eliminarla'); return }
     toast.success(`Finca "${finca.nombre}" eliminada`)
     onDeleted?.()
     onUpdated()

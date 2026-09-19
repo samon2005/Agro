@@ -245,7 +245,7 @@ export default function TabCostosGenerico({ loteId, fincaId, config }: Props) {
                               className={cn('h-7 px-2 text-xs', confirmandoEliminar === c.id ? 'text-white bg-red-600 hover:bg-red-700' : 'text-red-600')}
                               onClick={() => eliminar(c)}
                             >
-                              {confirmandoEliminar === c.id ? '¿Confirmar?' : ''}
+                              {confirmandoEliminar === c.id ? '¿Confirmar?' : <Ic n="borrar" />}
                             </Button>
                           </div>
                         </TableCell>

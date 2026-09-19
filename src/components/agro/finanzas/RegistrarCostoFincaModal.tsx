@@ -9,23 +9,32 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { CurrencyInput } from '@/components/ui/currency-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { CATEGORIAS_COSTO, CATEGORIAS_COSTO_ITEMS } from '@/lib/costos'
-import type { Database } from '@/types/database'
+import { categoriasCosto, categoriasCostoItems } from '@/lib/costos'
+import { CONFIG_ESPECIES, dbGenerico, type CostoGenerico } from '@/lib/especiesConfig'
+import type { EspecieFinca } from '@/lib/especies'
 import { hoyLocal } from '@/lib/fechas'
 
-type Costo = Database['public']['Tables']['costos_lote_aves']['Row']
+export interface LoteFinanzas {
+  id: string
+  nombre: string
+  especie: EspecieFinca
+}
 
 interface Props {
   open: boolean
   onClose: () => void
-  loteId: string
   fincaId: string
-  costoExistente?: Costo | null
+  lotes: LoteFinanzas[]
+  /** Lote que viene elegido desde el filtro de la página */
+  loteInicial?: string | null
+  /** Al editar: el costo y la especie a la que pertenece */
+  costoExistente?: (CostoGenerico & { especie: EspecieFinca }) | null
   onCreated: () => void
 }
 
-function defaultForm(costo?: Costo | null) {
+function defaultForm(lotes: LoteFinanzas[], loteInicial?: string | null, costo?: CostoGenerico | null) {
   return {
+    lote_id: costo?.lote_id ?? loteInicial ?? lotes[0]?.id ?? '',
     fecha: costo?.fecha ?? hoyLocal(),
     categoria: costo?.categoria ?? '',
     descripcion: costo?.descripcion ?? '',
@@ -35,24 +44,34 @@ function defaultForm(costo?: Costo | null) {
   }
 }
 
-export default function RegistrarCostoModal({ open, onClose, loteId, fincaId, costoExistente, onCreated }: Props) {
+/** Costo de la finca: siempre se carga a un galpón o corral, de cualquier especie. */
+export default function RegistrarCostoFincaModal({ open, onClose, fincaId, lotes, loteInicial, costoExistente, onCreated }: Props) {
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
-  const [form, setForm] = useState(() => defaultForm(costoExistente))
+  const [form, setForm] = useState(() => defaultForm(lotes, loteInicial, costoExistente))
 
-  useEffect(() => { if (open) setForm(defaultForm(costoExistente)) }, [open, costoExistente])
+  useEffect(() => {
+    if (open) setForm(defaultForm(lotes, loteInicial, costoExistente))
+  }, [open, lotes, loteInicial, costoExistente])
 
   function set(field: string, value: string | null) {
     setForm(prev => ({ ...prev, [field]: value ?? '' }))
   }
 
+  const lote = lotes.find(l => l.id === form.lote_id) ?? null
+  const config = CONFIG_ESPECIES[lote?.especie ?? costoExistente?.especie ?? 'aves_ponedoras']
+  const categorias = categoriasCosto(config.categoriaCria)
+  const nombreLote = (l: LoteFinanzas) => `${l.nombre} · ${CONFIG_ESPECIES[l.especie].label}`
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (!lote) { toast.error('Elige a qué galpón o corral va el costo'); return }
     if (!form.categoria) { toast.error('Selecciona una categoría'); return }
     if (!form.descripcion.trim()) { toast.error('La descripción es requerida'); return }
     if (!form.monto || Number(form.monto) <= 0) { toast.error('Ingresa el monto'); return }
 
     setLoading(true)
+    const db = dbGenerico(supabase)
     const payload = {
       fecha: form.fecha,
       categoria: form.categoria,
@@ -60,12 +79,20 @@ export default function RegistrarCostoModal({ open, onClose, loteId, fincaId, co
       monto: Number(form.monto),
       proveedor: form.proveedor || null,
       observaciones: form.observaciones || null,
+      lote_id: lote.id,
     }
-    const { error } = costoExistente
-      ? await supabase.from('costos_lote_aves').update(payload).eq('id', costoExistente.id)
-      : await supabase.from('costos_lote_aves').insert({ ...payload, lote_id: loteId, finca_id: fincaId })
+    let error
+    if (costoExistente && costoExistente.especie === lote.especie) {
+      ({ error } = await db.from(config.tablas.costos).update(payload).eq('id', costoExistente.id))
+    } else {
+      // Nuevo, o se movió a un lote de otra especie: vive en otra tabla
+      ({ error } = await db.from(config.tablas.costos).insert({ ...payload, finca_id: fincaId }))
+      if (!error && costoExistente) {
+        await db.from(CONFIG_ESPECIES[costoExistente.especie].tablas.costos).delete().eq('id', costoExistente.id)
+      }
+    }
     setLoading(false)
-    if (error) { toast.error(costoExistente ? 'Error al actualizar costo' : 'Error al registrar costo'); return }
+    if (error) { toast.error(costoExistente ? 'Error al actualizar el costo' : 'Error al registrar el costo'); return }
     toast.success(costoExistente ? 'Costo actualizado' : 'Costo registrado')
     onCreated()
     onClose()
@@ -75,19 +102,32 @@ export default function RegistrarCostoModal({ open, onClose, loteId, fincaId, co
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>{costoExistente ? 'Editar Costo' : 'Registrar Costo Operativo'}</DialogTitle>
+          <DialogTitle>{costoExistente ? 'Editar costo' : 'Registrar costo'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
+            <div className="col-span-2 space-y-1">
+              <Label>Galpón o corral *</Label>
+              <Select
+                value={form.lote_id}
+                onValueChange={v => set('lote_id', v)}
+                items={Object.fromEntries(lotes.map(l => [l.id, nombreLote(l)]))}
+              >
+                <SelectTrigger className="w-full"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                <SelectContent alignItemWithTrigger={false}>
+                  {lotes.map(l => <SelectItem key={l.id} value={l.id}>{nombreLote(l)}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-1">
               <Label>Fecha</Label>
               <Input type="date" value={form.fecha} onChange={e => set('fecha', e.target.value)} />
             </div>
             <div className="space-y-1">
               <Label>Categoría *</Label>
-              <Select value={form.categoria} onValueChange={v => set('categoria', v)} items={CATEGORIAS_COSTO_ITEMS}>
+              <Select value={form.categoria} onValueChange={v => set('categoria', v)} items={categoriasCostoItems(config.categoriaCria)}>
                 <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
-                <SelectContent>{CATEGORIAS_COSTO.map(c => <SelectItem key={c.value} value={c.value}>{c.emoji} {c.label}</SelectItem>)}</SelectContent>
+                <SelectContent>{categorias.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="col-span-2 space-y-1">
@@ -109,7 +149,7 @@ export default function RegistrarCostoModal({ open, onClose, loteId, fincaId, co
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button type="submit" disabled={loading} className="bg-green-700 hover:bg-green-800 text-white">
+            <Button type="submit" disabled={loading}>
               {loading ? 'Guardando...' : costoExistente ? 'Guardar cambios' : 'Registrar'}
             </Button>
           </DialogFooter>

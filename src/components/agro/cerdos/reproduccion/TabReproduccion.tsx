@@ -263,7 +263,7 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
                                 className={confirmandoEliminar === `reproductoras_cerdos-${h.id}` ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
                                 onClick={() => eliminar('reproductoras_cerdos', h.id)}
                               >
-                                {confirmandoEliminar === `reproductoras_cerdos-${h.id}` ? '¿Confirmar?' : ''}
+                                {confirmandoEliminar === `reproductoras_cerdos-${h.id}` ? '¿Confirmar?' : <Ic n="borrar" />}
                               </Button>
                             </div>
                           </TableCell>
@@ -332,7 +332,7 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
                                 className={confirmandoEliminar === `servicios_cerdos-${s.id}` ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
                                 onClick={() => eliminar('servicios_cerdos', s.id)}
                               >
-                                {confirmandoEliminar === `servicios_cerdos-${s.id}` ? '¿Confirmar?' : ''}
+                                {confirmandoEliminar === `servicios_cerdos-${s.id}` ? '¿Confirmar?' : <Ic n="borrar" />}
                               </Button>
                             </div>
                           </TableCell>
@@ -401,7 +401,7 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
                                 className={confirmandoEliminar === `partos_cerdos-${p.id}` ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
                                 onClick={() => eliminar('partos_cerdos', p.id)}
                               >
-                                {confirmandoEliminar === `partos_cerdos-${p.id}` ? '¿Confirmar?' : ''}
+                                {confirmandoEliminar === `partos_cerdos-${p.id}` ? '¿Confirmar?' : <Ic n="borrar" />}
                               </Button>
                             </div>
                           </TableCell>
@@ -448,7 +448,7 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
                                 className={confirmandoEliminar === `destetes_cerdos-${d.id}` ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
                                 onClick={() => eliminar('destetes_cerdos', d.id)}
                               >
-                                {confirmandoEliminar === `destetes_cerdos-${d.id}` ? '¿Confirmar?' : ''}
+                                {confirmandoEliminar === `destetes_cerdos-${d.id}` ? '¿Confirmar?' : <Ic n="borrar" />}
                               </Button>
                             </div>
                           </TableCell>

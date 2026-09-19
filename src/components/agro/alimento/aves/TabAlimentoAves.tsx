@@ -18,6 +18,10 @@ import HorariosAlimentacion from './HorariosAlimentacion'
 import RegistrarEntradaAlimentoModal from './RegistrarEntradaAlimentoModal'
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
+import { aplicarConsumoAlimentoAves } from '@/lib/inventario'
+import { Indicador } from '@/components/ui/indicador'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { useRouter } from 'next/navigation'
 import { Ic } from '@/components/ui/icon'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
@@ -26,7 +30,11 @@ type TipoAlimento = Database['public']['Tables']['tipos_alimento_aves']['Row']
 type Requerimientos = Database['public']['Tables']['requerimientos_nutricionales_aves']['Row']
 type Entrada = Database['public']['Tables']['entradas_alimento_aves']['Row']
 
-interface Props { lotes: LoteAves[] }
+interface Props {
+  lotes: LoteAves[]
+  /** Galpón con el que abre la pestaña (llega de ?lote= al venir desde el galpón) */
+  loteInicialId?: string | null
+}
 
 type SubTab = 'alimento' | 'inventario' | 'balance'
 
@@ -56,12 +64,15 @@ const NUTRIENTES = [
   { key: 'fosforo', label: 'Fósforo', pctKey: 'fosforo_pct' as const, mantKey: 'mant_fosforo_g' as const, prodKey: 'prod_fosforo_g' as const },
 ]
 
-export default function TabAlimentoAves({ lotes }: Props) {
+export default function TabAlimentoAves({ lotes, loteInicialId }: Props) {
   const supabase = createClient()
   const rol = useRol()
   const puedeVerCostos = rol !== 'trabajador'
   const [subTab, setSubTab] = useState<SubTab>('alimento')
-  const [loteId, setLoteId] = useState(lotes[0]?.id ?? '')
+  const router = useRouter()
+  const [loteId, setLoteId] = useState(
+    loteInicialId && lotes.some(l => l.id === loteInicialId) ? loteInicialId : (lotes[0]?.id ?? '')
+  )
   const [hoy, setHoy] = useState<ProduccionDiaria | null>(null)
   const [alimentoActivo, setAlimentoActivo] = useState<{ alimento_activo_id: string | null; consumo_activo_kg: number | null } | null>(null)
   const [consumos, setConsumos] = useState<ProduccionDiaria[]>([])
@@ -75,6 +86,12 @@ export default function TabAlimentoAves({ lotes }: Props) {
   const [consumoEditar, setConsumoEditar] = useState<ProduccionDiaria | null>(null)
   const [entradas, setEntradas] = useState<Entrada[]>([])
   const [sinHorarios, setSinHorarios] = useState(false)
+  // Lo repartido en horarios, al momento: el aviso de "falta repartir" lo usa sin recargar
+  const [repartidoKg, setRepartidoKg] = useState<number | null>(null)
+  // Stock actual (en bultos) de cada alimento, que baja solo cada día según el consumo
+  const [stock, setStock] = useState<Record<string, { cantidad: number; vence: string | null }>>({})
+  // Tras el primer consumo de un galpón nuevo, se ofrece volver a él
+  const [ofrecerVolver, setOfrecerVolver] = useState(false)
   const [modalEntrada, setModalEntrada] = useState(false)
   const [entradaEditar, setEntradaEditar] = useState<Entrada | null>(null)
   const [confirmandoEliminar, setConfirmandoEliminar] = useState<string | null>(null)
@@ -84,6 +101,7 @@ export default function TabAlimentoAves({ lotes }: Props) {
   const fetchAll = useCallback(async () => {
     if (!lote) { setLoading(false); return }
     setLoading(true)
+    await aplicarConsumoAlimentoAves(supabase, lote.finca_id)
     const [prod, consumosRes, tiposRes, reqRes, loteRes, entradasRes, horariosRes] = await Promise.all([
       supabase.from('produccion_diaria_aves').select('*').eq('lote_id', lote.id).order('fecha', { ascending: false }).limit(1).maybeSingle(),
       supabase.from('produccion_diaria_aves').select('*').eq('lote_id', lote.id).gt('alimento_kg', 0).order('fecha', { ascending: false }).limit(30),
@@ -93,6 +111,9 @@ export default function TabAlimentoAves({ lotes }: Props) {
       supabase.from('entradas_alimento_aves').select('*').eq('finca_id', lote.finca_id).order('fecha', { ascending: false }).limit(50),
       supabase.from('horarios_alimentacion_aves').select('id', { count: 'exact', head: true }).eq('lote_id', lote.id).eq('activo', true),
     ])
+    const { data: inventarioRes } = await supabase
+      .from('inventario').select('nombre, cantidad_actual, fecha_vencimiento').eq('finca_id', lote.finca_id)
+    setStock(Object.fromEntries((inventarioRes ?? []).map(i => [i.nombre, { cantidad: Number(i.cantidad_actual), vence: i.fecha_vencimiento }])))
     setHoy(prod.data ?? null)
     setConsumos(consumosRes.data ?? [])
     setTipos(tiposRes.data ?? [])
@@ -140,7 +161,15 @@ export default function TabAlimentoAves({ lotes }: Props) {
   }
 
   async function quitarConsumo(registro: ProduccionDiaria) {
-    const { error } = await supabase.from('produccion_diaria_aves').update({ alimento_kg: 0, tipo_alimento_id: null }).eq('id', registro.id)
+    // Si ese día no tiene nada más (huevos, muertes, notas), la fila solo existía por
+    // el consumo: se borra entera y desaparece del historial. Si tiene más datos,
+    // se conserva el día y solo se le quita el consumo.
+    const soloConsumo = registro.huevos_totales === 0 && registro.muertes === 0 && !registro.observaciones
+    const { count: eventosDelDia } = await supabase
+      .from('eventos_clinicos_aves').select('id', { count: 'exact', head: true }).eq('produccion_id', registro.id)
+    const { error } = soloConsumo && !eventosDelDia
+      ? await supabase.from('produccion_diaria_aves').delete().eq('id', registro.id)
+      : await supabase.from('produccion_diaria_aves').update({ alimento_kg: 0, tipo_alimento_id: null }).eq('id', registro.id)
     if (error) { toast.error('Error al quitar el consumo'); return }
 
     if (lote) {
@@ -161,6 +190,8 @@ export default function TabAlimentoAves({ lotes }: Props) {
     toast.success('Consumo eliminado')
     fetchAll()
   }
+
+  const manejarResumenHorarios = useCallback((total: number) => setRepartidoKg(total), [])
 
   if (lotes.length === 0) {
     return (
@@ -286,14 +317,14 @@ export default function TabAlimentoAves({ lotes }: Props) {
                               title={t.activo ? 'Desactivar' : 'Reactivar'}
                               onClick={() => toggleActivo(t)}
                             >
-                              {t.activo ? '' : '↩️'}
+                              {t.activo ? <Ic n="prohibido" /> : <Ic n="ciclo" />}
                             </Button>
                             <Button
                               size="sm" variant="ghost"
                               className={confirmandoEliminar === t.id ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
                               onClick={() => eliminarTipo(t)}
                             >
-                              {confirmandoEliminar === t.id ? '¿Confirmar?' : ''}
+                              {confirmandoEliminar === t.id ? '¿Confirmar?' : <Ic n="borrar" />}
                             </Button>
                           </div>
                         </TableCell>
@@ -325,20 +356,27 @@ export default function TabAlimentoAves({ lotes }: Props) {
         </div>
       )}
 
-      {subTab === 'alimento' && alimentoActivo?.consumo_activo_kg != null && sinHorarios && (
+      {subTab === 'alimento' && alimentoActivo?.consumo_activo_kg != null
+        && (repartidoKg != null ? repartidoKg + 0.05 < Number(alimentoActivo.consumo_activo_kg) : sinHorarios) && (
         <div className="px-4 py-3 rounded-lg border border-amber-300 bg-amber-50">
           <p className="text-sm font-semibold text-amber-800">
             <Ic n="alerta" /> Falta repartir el consumo en horarios de alimentación
           </p>
           <p className="text-xs text-amber-700 mt-0.5">
-            El galpón consume {alimentoActivo.consumo_activo_kg} kg/día. Agrega abajo los horarios
-            con la porción de cada uno hasta cubrir ese total.
+            El galpón consume {alimentoActivo.consumo_activo_kg} kg/día
+            {repartidoKg != null && repartidoKg > 0 ? ` y hay ${repartidoKg.toFixed(1)} kg repartidos` : ''}.
+            Agrega abajo los horarios con la porción de cada uno hasta cubrir ese total.
           </p>
         </div>
       )}
 
       {subTab === 'alimento' && lote && alimentoActivo?.consumo_activo_kg != null && (
-        <HorariosAlimentacion loteId={lote.id} fincaId={lote.finca_id} consumoRegistradoKg={alimentoActivo?.consumo_activo_kg} />
+        <HorariosAlimentacion
+          loteId={lote.id}
+          fincaId={lote.finca_id}
+          consumoRegistradoKg={alimentoActivo?.consumo_activo_kg}
+          onResumen={manejarResumenHorarios}
+        />
       )}
 
       {subTab === 'alimento' && (
@@ -360,6 +398,7 @@ export default function TabAlimentoAves({ lotes }: Props) {
                         <TableHead>Fecha</TableHead>
                         <TableHead>Alimento</TableHead>
                         <TableHead className="text-right">Kg consumidos</TableHead>
+                        <TableHead className="text-right">Por gallina</TableHead>
                         <TableHead></TableHead>
                       </TableRow>
                     </TableHeader>
@@ -369,6 +408,12 @@ export default function TabAlimentoAves({ lotes }: Props) {
                           <TableCell className="text-sm">{fmt(c.fecha)}</TableCell>
                           <TableCell className="text-sm text-gray-600">{tipos.find(t => t.id === c.tipo_alimento_id)?.nombre ?? '—'}</TableCell>
                           <TableCell className="text-right text-sm">{Number(c.alimento_kg).toFixed(1)}</TableCell>
+                          {/* Alimento diario ÷ gallinas vivas actuales */}
+                          <TableCell className="text-right text-sm text-gray-600">
+                            {lote && lote.aves_actuales > 0
+                              ? `${((Number(c.alimento_kg) * 1000) / lote.aves_actuales).toFixed(1)} g/ave`
+                              : '—'}
+                          </TableCell>
                           <TableCell>
                             <div className="flex items-center justify-end gap-1">
                               <Button
@@ -401,21 +446,37 @@ export default function TabAlimentoAves({ lotes }: Props) {
             </div>
           )}
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(13rem,1fr))] gap-3">
             {tiposActivos.map(t => {
-              const bultos = entradas.filter(e => e.tipo_alimento_id === t.id)
-                .reduce((acc, e) => acc + Number(e.cantidad_bultos), 0)
+              const enBodega = stock[t.nombre]?.cantidad ?? 0
+              const vence = stock[t.nombre]?.vence ?? null
+              // Cuántos días alcanza, con lo que consumen hoy los galpones que usan este alimento
+              const kgDia = lotes
+                .filter(l => l.alimento_activo_id === t.id && l.consumo_activo_kg)
+                .reduce((acc, l) => acc + Number(l.consumo_activo_kg), 0)
+              const dias = kgDia > 0 ? Math.floor((enBodega * (t.peso_bulto_kg ?? 40)) / kgDia) : null
               return (
-                <Card key={t.id} className="border-amber-200 bg-amber-50">
-                  <CardContent className="p-4">
-                    <p className="text-xs text-amber-700 font-medium truncate">{t.nombre}</p>
-                    <p className="text-2xl font-bold text-amber-800">{bultos.toLocaleString('es-CO')}</p>
-                    <p className="text-xs text-amber-600 mt-0.5">bultos ingresados</p>
-                  </CardContent>
-                </Card>
+                <Indicador
+                  key={t.id}
+                  tono={dias != null && dias <= 7 ? 'red' : 'amber'}
+                  icono="alimento"
+                  etiqueta={t.nombre}
+                  valor={<>{enBodega.toLocaleString('es-CO', { maximumFractionDigits: 1 })} <span className="text-base font-medium text-gray-500">bultos</span></>}
+                  detalle={
+                    <>
+                      {dias != null
+                        ? <span className={dias <= 7 ? 'font-medium text-red-700' : undefined}>Alcanza para {dias} día{dias === 1 ? '' : 's'} ({kgDia.toFixed(1)} kg/día)</span>
+                        : 'Ningún galpón lo está consumiendo'}
+                      {vence && <span className="block">Vence el {fmt(vence)}</span>}
+                    </>
+                  }
+                />
               )
             })}
           </div>
+          <p className="-mt-1 text-xs text-gray-400">
+            El inventario baja solo cada día según el consumo registrado de cada galpón, y sube con cada entrada.
+          </p>
 
           <Card>
             <CardHeader className="pb-2">
@@ -438,6 +499,7 @@ export default function TabAlimentoAves({ lotes }: Props) {
                         {puedeVerCostos && <TableHead className="text-right">Precio por bulto</TableHead>}
                         {puedeVerCostos && <TableHead className="text-right">Costo</TableHead>}
                         <TableHead>Proveedor</TableHead>
+                        <TableHead>Vence</TableHead>
                         <TableHead></TableHead>
                       </TableRow>
                     </TableHeader>
@@ -464,6 +526,7 @@ export default function TabAlimentoAves({ lotes }: Props) {
                               </TableCell>
                             )}
                             <TableCell className="text-sm text-gray-500">{e.proveedor ?? '—'}</TableCell>
+                            <TableCell className="text-sm text-gray-500">{e.fecha_vencimiento ? fmt(e.fecha_vencimiento) : '—'}</TableCell>
                             <TableCell>
                               <div className="flex items-center justify-end gap-1">
                                 <Button
@@ -477,7 +540,7 @@ export default function TabAlimentoAves({ lotes }: Props) {
                                   className={confirmandoEliminar === e.id ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
                                   onClick={() => eliminarEntrada(e)}
                                 >
-                                  {confirmandoEliminar === e.id ? '¿Confirmar?' : ''}
+                                  {confirmandoEliminar === e.id ? '¿Confirmar?' : <Ic n="borrar" />}
                                 </Button>
                               </div>
                             </TableCell>
@@ -501,37 +564,15 @@ export default function TabAlimentoAves({ lotes }: Props) {
             </div>
           )}
 
-          {/* Tipo de alimento y costos activos */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Card className="border-lime-200 bg-lime-50">
-              <CardContent className="p-4">
-                <p className="text-xs text-lime-700 font-medium">Tipo de alimento (activo)</p>
-                <p className="text-lg font-bold text-lime-900 truncate">{tipoActual?.nombre ?? 'Sin especificar'}</p>
-                <p className="text-xs text-lime-600 mt-0.5">{tipoActual ? `Bulto de ${pesoBulto} kg` : 'Registra el consumo'}</p>
-              </CardContent>
-            </Card>
-            {puedeVerCostos && (
-              <Card className="border-lime-200 bg-lime-50">
-                <CardContent className="p-4">
-                  <p className="text-xs text-lime-700 font-medium">Precio del bulto</p>
-                  <p className="text-lg font-bold text-lime-900">{tipoActual?.precio_bulto ? cop(tipoActual.precio_bulto) : '—'}</p>
-                </CardContent>
-              </Card>
-            )}
-            <Card className="border-lime-200 bg-lime-50">
-              <CardContent className="p-4">
-                <p className="text-xs text-lime-700 font-medium">Bultos (consumo activo)</p>
-                <p className="text-lg font-bold text-lime-900">{alimentoKgHoy > 0 ? bultosHoy.toFixed(2) : '—'}</p>
-              </CardContent>
-            </Card>
-            {puedeVerCostos && (
-              <Card className="border-lime-200 bg-lime-50">
-                <CardContent className="p-4">
-                  <p className="text-xs text-lime-700 font-medium">Costo de alimento (activo)</p>
-                  <p className="text-lg font-bold text-lime-900">{costoHoy ? cop(costoHoy) : '—'}</p>
-                </CardContent>
-              </Card>
-            )}
+          {/* Aquí solo importa qué alimento está comiendo el galpón */}
+          <div className="superficie flex items-center gap-3 rounded-2xl px-5 py-4">
+            <span className="flex size-9 items-center justify-center rounded-lg bg-green-100 text-green-700">
+              <Ic n="alimento" className="size-[18px]" />
+            </span>
+            <div>
+              <p className="text-xs font-medium text-gray-500">Alimento activo</p>
+              <p className="text-base font-semibold text-gray-900">{tipoActual?.nombre ?? 'Sin alimento registrado'}</p>
+            </div>
           </div>
 
           {/* Balance nutricional */}
@@ -645,10 +686,32 @@ export default function TabAlimentoAves({ lotes }: Props) {
             avesActuales={lote.aves_actuales}
             posturaFraccion={posturaFraccion}
             consumoActualKg={alimentoActivo?.consumo_activo_kg}
-            onCreated={fetchAll}
+            onCreated={() => {
+              // Primer consumo del galpón: ya puede registrar días, se ofrece volver a él
+              if (!consumoEditar && alimentoActivo?.consumo_activo_kg == null) setOfrecerVolver(true)
+              fetchAll()
+            }}
           />
         </>
       )}
+
+      <Dialog open={ofrecerVolver} onOpenChange={setOfrecerVolver}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>El galpón ya tiene alimento</DialogTitle>
+            <p className="text-sm text-gray-500">
+              {lote?.nombre} ya tiene alimento y consumo registrados. Ya puedes volver al galpón a
+              configurarlo y registrar sus días.
+            </p>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOfrecerVolver(false)}>Seguir en Alimento</Button>
+            <Button onClick={() => { setOfrecerVolver(false); router.push(`/aves-ponedoras?lote=${lote?.id}`) }}>
+              <Ic n="gallina" /> Volver a configurar el galpón
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

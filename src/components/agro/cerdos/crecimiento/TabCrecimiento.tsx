@@ -225,7 +225,7 @@ export default function TabCrecimiento({ loteActual, onLoteUpdated }: Props) {
                                   className={confirmandoEliminar === p.id ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
                                   onClick={() => eliminarPeso(p)}
                                 >
-                                  {confirmandoEliminar === p.id ? '¿Confirmar?' : ''}
+                                  {confirmandoEliminar === p.id ? '¿Confirmar?' : <Ic n="borrar" />}
                                 </Button>
                               </div>
                             </TableCell>

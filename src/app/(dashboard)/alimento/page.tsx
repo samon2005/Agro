@@ -26,6 +26,12 @@ export default function AlimentoPage() {
   const [lotesCerdos, setLotesCerdos] = useState<LoteSimple[]>([])
   const [lotesPollo, setLotesPollo] = useState<LoteSimple[]>([])
   const [loadingLotes, setLoadingLotes] = useState(true)
+  // Al llegar desde un galpón ("Registrar alimento"), la pestaña abre con ese galpón
+  const [loteInicial, setLoteInicial] = useState<string | null>(null)
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('lote')
+    if (id) { setLoteInicial(id); setEspecieActiva('aves_ponedoras') }
+  }, [])
 
   useEffect(() => {
     if (especies.length > 0 && !especieActiva) setEspecieActiva(especies[0])
@@ -100,7 +106,7 @@ export default function AlimentoPage() {
         loadingLotes ? (
           <div className="space-y-3">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-lg" />)}</div>
         ) : (
-          <TabAlimentoAves lotes={lotesAves} />
+          <TabAlimentoAves key={loteInicial ?? 'todos'} lotes={lotesAves} loteInicialId={loteInicial} />
         )
       )}
 

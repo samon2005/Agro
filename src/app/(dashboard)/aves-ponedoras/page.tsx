@@ -14,12 +14,11 @@ import EditarFincaModal from '@/components/agro/EditarFincaModal'
 import TabProduccion from '@/components/agro/aves/produccion/TabProduccion'
 import TabAmbiental from '@/components/agro/aves/ambiental/TabAmbiental'
 import TabSanitario from '@/components/agro/aves/sanitario/TabSanitario'
-import TabCostos from '@/components/agro/aves/costos/TabCostos'
-import TabVentas from '@/components/agro/aves/ventas/TabVentas'
 import TabEquipos from '@/components/agro/aves/equipos/TabEquipos'
 import { calcularFechaLiberacion } from '@/lib/sanitario'
 import type { Database } from '@/types/database'
 import { Ic, type NombreIcono } from '@/components/ui/icon'
+import { aplicarConsumoAlimentoAves } from '@/lib/inventario'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 type Medicacion = Database['public']['Tables']['medicaciones_aves']['Row']
@@ -27,14 +26,12 @@ type Equipo = Database['public']['Tables']['equipos_aves']['Row']
 type Ambiental = Database['public']['Tables']['parametros_ambientales_aves']['Row']
 type Produccion = Database['public']['Tables']['produccion_diaria_aves']['Row']
 
-type Tab = 'produccion' | 'ambiental' | 'sanitario' | 'ventas' | 'costos' | 'equipos'
+type Tab = 'produccion' | 'ambiental' | 'sanitario' | 'equipos'
 
 const TABS: { id: Tab; label: string; icon: NombreIcono }[] = [
   { id: 'produccion', label: 'Producción', icon: 'tendencia' },
   { id: 'ambiental', label: 'Ambiental', icon: 'termometro' },
   { id: 'sanitario', label: 'Sanitario', icon: 'vacuna' },
-  { id: 'ventas', label: 'Ventas', icon: 'recibo' },
-  { id: 'costos', label: 'Finanzas', icon: 'dinero' },
   { id: 'equipos', label: 'Equipos', icon: 'ajustes' },
 ]
 
@@ -62,6 +59,7 @@ export default function AvesPonedorasPage() {
   const fetchLotes = useCallback(async () => {
     if (!fincaActual) return
     setLoadingLotes(true)
+    await aplicarConsumoAlimentoAves(supabase, fincaActual.id)
     const { data } = await supabase
       .from('lotes_aves')
       .select('*')
@@ -71,7 +69,9 @@ export default function AvesPonedorasPage() {
     setLotes(data ?? [])
     if (data && data.length > 0) {
       if (!loteActual) {
-        setLoteActual(data[0])
+        // Al volver desde Alimento (?lote=), se abre el galpón del que se venía
+        const pedido = new URLSearchParams(window.location.search).get('lote')
+        setLoteActual(data.find(l => l.id === pedido) ?? data[0])
       } else {
         const refrescado = data.find(l => l.id === loteActual.id)
         setLoteActual(refrescado ?? data[0])
@@ -166,7 +166,7 @@ export default function AvesPonedorasPage() {
                 a.tipo === 'danger' ? 'bg-red-50 border-red-300 text-red-800' : 'bg-amber-50 border-amber-300 text-amber-800'
               }`}
             >
-              {a.tipo === 'danger' ? '' : ''} {a.mensaje}
+              <Ic n={a.tipo === 'danger' ? 'sirena' : 'alerta'} /> {a.mensaje}
             </div>
           ))}
         </div>
@@ -249,13 +249,6 @@ export default function AvesPonedorasPage() {
               )}
               {activeTab === 'ambiental' && <TabAmbiental loteActual={loteActual} finca={fincaActual} />}
               {activeTab === 'sanitario' && <TabSanitario loteActual={loteActual} onChange={bumpAlertas} />}
-              {activeTab === 'ventas' && (rol === 'trabajador' ? <AccesoRestringido /> : (
-                <TabVentas
-                  loteActual={loteActual}
-                  onLoteUpdated={updated => { fetchLotes(); setLoteActual(updated) }}
-                />
-              ))}
-              {activeTab === 'costos' && (rol === 'trabajador' ? <AccesoRestringido /> : <TabCostos loteActual={loteActual} />)}
               {activeTab === 'equipos' && <TabEquipos loteActual={loteActual} />}
             </div>
           </div>

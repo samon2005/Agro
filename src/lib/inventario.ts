@@ -89,3 +89,13 @@ export function ajustarHuevos(
     delta,
   })
 }
+
+/**
+ * Descuenta del inventario de alimento los días de consumo que falten de la
+ * finca (días pendientes × kg/día ÷ kg por bulto). Lo hace la base de datos en
+ * una sola transacción, así dos pestañas abiertas no descuentan el mismo día.
+ */
+export async function aplicarConsumoAlimentoAves(supabase: SupabaseClient<Database>, fincaId: string): Promise<void> {
+  if (!fincaId) return
+  await (supabase as unknown as SupabaseClient).rpc('aplicar_consumo_alimento_aves', { p_finca: fincaId })
+}

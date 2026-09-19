@@ -171,7 +171,7 @@ export default function TabDiarioCerdos({ loteActual, onLoteUpdated }: Props) {
                               className={confirmandoEliminar === r.id ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
                               onClick={() => eliminarRegistro(r)}
                             >
-                              {confirmandoEliminar === r.id ? '¿Confirmar?' : ''}
+                              {confirmandoEliminar === r.id ? '¿Confirmar?' : <Ic n="borrar" />}
                             </Button>
                           </div>
                         </TableCell>

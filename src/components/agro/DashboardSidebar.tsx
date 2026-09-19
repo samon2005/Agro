@@ -28,6 +28,7 @@ export default function DashboardSidebar({ user }: { user: User }) {
   const especiesFinca = (fincaActual?.tipo_produccion ?? []) as EspecieFinca[]
   const navItems: Item[] = [
     ...BASE_NAV_ITEMS,
+    ...(rol !== 'trabajador' ? [{ href: '/finanzas', label: 'Finanzas', icon: 'dinero' as const }] : []),
     ...(especiesFinca.length > 0 ? [{ href: '/alimento', label: 'Alimento', icon: 'alimento' as const }] : []),
     ...ESPECIES_FINCA
       .filter(esp => especiesFinca.includes(esp.value))

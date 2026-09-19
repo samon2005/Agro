@@ -54,13 +54,19 @@ export default function RevisionCalidadHuevo({ loteId, fincaId, fechaInicioPostu
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState(defaultForm)
   const [confirmandoEliminar, setConfirmandoEliminar] = useState<string | null>(null)
+  // Semana que se está mirando: por defecto la que está en curso
+  const [semanaSel, setSemanaSel] = useState<number | null>(null)
+  const [verTodas, setVerTodas] = useState(false)
+  const [sumaSemanaPasada, setSumaSemanaPasada] = useState<{ b: number; a: number; aa: number; aaa: number; jumbo: number } | null>(null)
 
   const origen = fechaInicioPostura ?? fechaInicioLote
   const origenDate = new Date(origen + 'T00:00:00')
   const hoyDate = new Date()
   // Sin Math.max: si el origen quedó en el futuro (p.ej. postura aún no
   // inicia), esto igual encuentra la semana calendario que contiene a "hoy".
-  const numSemana = Math.floor((hoyDate.getTime() - origenDate.getTime()) / (7 * MS_DIA))
+  const numSemanaActual = Math.floor((hoyDate.getTime() - origenDate.getTime()) / (7 * MS_DIA))
+  const numSemana = semanaSel ?? numSemanaActual
+  const esSemanaActual = numSemana === numSemanaActual
   const inicioSemana = new Date(origenDate.getTime() + numSemana * 7 * MS_DIA)
   const finSemana = new Date(inicioSemana.getTime() + 6 * MS_DIA)
   const inicioSemanaStr = aFechaLocal(inicioSemana)
@@ -69,7 +75,7 @@ export default function RevisionCalidadHuevo({ loteId, fincaId, fechaInicioPostu
   // Se deriva directo de los registros diarios ya cargados por el padre,
   // así se mantiene al día apenas se registra/edita/quita un día — antes
   // se traía aparte con su propio fetch que nunca se refrescaba.
-  const semanaActual = registros
+  const semanaEnCurso = registros
     .filter(r => r.fecha >= inicioSemanaStr && r.fecha <= finSemanaStr)
     .reduce((acum, r) => ({
       b: acum.b + r.huevos_b,
@@ -79,9 +85,28 @@ export default function RevisionCalidadHuevo({ loteId, fincaId, fechaInicioPostu
       jumbo: acum.jumbo + r.huevos_jumbo,
     }), { b: 0, a: 0, aa: 0, aaa: 0, jumbo: 0 })
 
+  // Semanas pasadas: los registros cargados solo cubren los últimos días, así que
+  // la suma de una semana vieja se trae aparte de la base
+  useEffect(() => {
+    if (esSemanaActual) { setSumaSemanaPasada(null); return }
+    supabase.from('produccion_diaria_aves')
+      .select('huevos_b, huevos_a, huevos_aa, huevos_aaa, huevos_jumbo')
+      .eq('lote_id', loteId).gte('fecha', inicioSemanaStr).lte('fecha', finSemanaStr)
+      .then(({ data }) => setSumaSemanaPasada((data ?? []).reduce((acum, r) => ({
+        b: acum.b + r.huevos_b, a: acum.a + r.huevos_a, aa: acum.aa + r.huevos_aa,
+        aaa: acum.aaa + r.huevos_aaa, jumbo: acum.jumbo + r.huevos_jumbo,
+      }), { b: 0, a: 0, aa: 0, aaa: 0, jumbo: 0 })))
+  }, [esSemanaActual, inicioSemanaStr, finSemanaStr, loteId, supabase])
+
+  const semanaActual = esSemanaActual ? semanaEnCurso : (sumaSemanaPasada ?? { b: 0, a: 0, aa: 0, aaa: 0, jumbo: 0 })
+
+  // Todas las semanas desde que arrancó el conteo, la más reciente primero
+  const semanas = Array.from({ length: Math.max(1, numSemanaActual + 1) }, (_, i) => Math.max(0, numSemanaActual) - i)
+    .filter(n => n >= 0 || numSemanaActual < 0)
+
   const fetchRevisiones = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase.from('revisiones_calidad_huevo_aves').select('*').eq('lote_id', loteId).order('fecha', { ascending: false }).limit(12)
+    const { data } = await supabase.from('revisiones_calidad_huevo_aves').select('*').eq('lote_id', loteId).order('fecha', { ascending: false }).limit(500)
     setRevisiones(data ?? [])
     setLoading(false)
   }, [loteId, supabase])
@@ -138,6 +163,10 @@ export default function RevisionCalidadHuevo({ loteId, fincaId, fechaInicioPostu
     fetchRevisiones()
   }
 
+  const revisionesVisibles = verTodas
+    ? revisiones
+    : revisiones.filter(r => r.fecha >= inicioSemanaStr && r.fecha <= finSemanaStr)
+
   function formatDate(d: string) {
     return new Date(d + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
   }
@@ -154,11 +183,40 @@ export default function RevisionCalidadHuevo({ loteId, fincaId, fechaInicioPostu
         </Button>
       </CardHeader>
       <CardContent className="space-y-3">
+        {/* Histórico: se puede ir semana por semana */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Label className="text-xs text-gray-500">Semana</Label>
+          <select
+            className="h-8 rounded-lg border border-gray-300 bg-white px-2 text-sm"
+            value={numSemana}
+            onChange={e => { setSemanaSel(Number(e.target.value)); setVerTodas(false) }}
+          >
+            {semanas.map(n => {
+              const ini = new Date(origenDate.getTime() + n * 7 * MS_DIA)
+              const fin = new Date(ini.getTime() + 6 * MS_DIA)
+              return (
+                <option key={n} value={n}>
+                  Semana {n + 1} · {formatDateCorta(ini)} – {formatDateCorta(fin)}{n === numSemanaActual ? ' (en curso)' : ''}
+                </option>
+              )
+            })}
+          </select>
+          {!esSemanaActual && (
+            <button type="button" onClick={() => setSemanaSel(null)} className="text-xs font-medium text-green-700 hover:underline">
+              Volver a la semana en curso
+            </button>
+          )}
+        </div>
+
         <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
           <p className="text-xs font-semibold text-amber-700 mb-1">
-            <Ic n="calendario" /> Semana en curso (automático): {formatDateCorta(inicioSemana)} – {formatDateCorta(finSemana)}
+            <Ic n="calendario" /> {esSemanaActual ? 'Semana en curso (automático)' : `Semana ${numSemana + 1}`}: {formatDateCorta(inicioSemana)} – {formatDateCorta(finSemana)}
           </p>
-          <p className="text-xs text-amber-600 mb-2">Se calcula solo con lo que ya registraste día a día — va aumentando a medida que pasan los días</p>
+          <p className="text-xs text-amber-600 mb-2">
+            {esSemanaActual
+              ? 'Se calcula solo con lo que ya registraste día a día — va aumentando a medida que pasan los días'
+              : 'Lo que se registró día a día en esa semana'}
+          </p>
           <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-center">
             {CATEGORIAS.map(c => (
               <div key={c.key} className="bg-white rounded-lg border border-amber-100 py-1.5">
@@ -175,6 +233,15 @@ export default function RevisionCalidadHuevo({ loteId, fincaId, fechaInicioPostu
 
         {loading ? (
           <p className="text-sm text-gray-400">Cargando...</p>
+        ) : revisionesVisibles.length === 0 ? (
+          <p className="text-sm text-gray-400">
+            {revisiones.length === 0
+              ? 'Sin revisiones registradas. La máquina cuenta-huevos clasifica por peso: B, A, AA, AAA y JUMBO.'
+              : 'No hay revisiones registradas en esta semana.'}
+            {revisiones.length > 0 && !verTodas && (
+              <button type="button" onClick={() => setVerTodas(true)} className="ml-2 font-medium text-green-700 hover:underline">Ver todas</button>
+            )}
+          </p>
         ) : revisiones.length === 0 ? (
           <p className="text-sm text-gray-400">Sin revisiones registradas. La máquina cuenta-huevos clasifica por peso: B, A, AA, AAA y JUMBO.</p>
         ) : (
@@ -193,7 +260,7 @@ export default function RevisionCalidadHuevo({ loteId, fincaId, fechaInicioPostu
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {revisiones.map(r => (
+                {revisionesVisibles.map(r => (
                   <TableRow key={r.id}>
                     <TableCell className="font-medium text-sm">{formatDate(r.fecha)}</TableCell>
                     <TableCell className="text-right">{r.cantidad_b.toLocaleString('es-CO')}</TableCell>
@@ -210,7 +277,7 @@ export default function RevisionCalidadHuevo({ loteId, fincaId, fechaInicioPostu
                         className={confirmandoEliminar === r.id ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
                         onClick={() => eliminarRevision(r)}
                       >
-                        {confirmandoEliminar === r.id ? '¿Confirmar?' : ''}
+                        {confirmandoEliminar === r.id ? '¿Confirmar?' : <Ic n="borrar" />}
                       </Button>
                     </TableCell>
                   </TableRow>

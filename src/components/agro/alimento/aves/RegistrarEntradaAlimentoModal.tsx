@@ -25,12 +25,20 @@ interface Props {
   onCreated: () => void
 }
 
+/** El precio arranca con el del catálogo del alimento; solo se escribe a mano si se cambia. */
+function precioDelCatalogo(tipos: TipoAlimento[], tipoId: string): string {
+  const t = tipos.find(x => x.id === tipoId)
+  return t?.precio_bulto != null ? String(t.precio_bulto) : ''
+}
+
 function defaultForm(e?: Entrada | null, tipos: TipoAlimento[] = []) {
+  const tipoId = e?.tipo_alimento_id ?? (tipos.length === 1 ? tipos[0].id : '')
   return {
-    tipo_alimento_id: e?.tipo_alimento_id ?? (tipos.length === 1 ? tipos[0].id : ''),
+    tipo_alimento_id: tipoId,
     fecha: e?.fecha ?? hoyLocal(),
     cantidad_bultos: e ? String(e.cantidad_bultos) : '',
-    precio_bulto: e?.precio_bulto != null ? String(e.precio_bulto) : '',
+    precio_bulto: e?.precio_bulto != null ? String(e.precio_bulto) : precioDelCatalogo(tipos, tipoId),
+    fecha_vencimiento: e?.fecha_vencimiento ?? '',
     proveedor: e?.proveedor ?? '',
     observaciones: e?.observaciones ?? '',
   }
@@ -40,9 +48,11 @@ export default function RegistrarEntradaAlimentoModal({ open, onClose, loteId, f
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState(() => defaultForm(entradaExistente, tiposAlimento))
+  // El precio viene del catálogo y queda bloqueado; "Cambiar" lo deja editar
+  const [editandoPrecio, setEditandoPrecio] = useState(false)
 
   useEffect(() => {
-    if (open) setForm(defaultForm(entradaExistente, tiposAlimento))
+    if (open) { setForm(defaultForm(entradaExistente, tiposAlimento)); setEditandoPrecio(false) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, entradaExistente])
 
@@ -68,6 +78,7 @@ export default function RegistrarEntradaAlimentoModal({ open, onClose, loteId, f
       fecha: form.fecha,
       cantidad_bultos: bultos,
       precio_bulto: form.precio_bulto ? Number(form.precio_bulto) : null,
+      fecha_vencimiento: form.fecha_vencimiento || null,
       proveedor: form.proveedor || null,
       observaciones: form.observaciones || null,
     }
@@ -123,14 +134,21 @@ export default function RegistrarEntradaAlimentoModal({ open, onClose, loteId, f
 
     const { data: item } = await supabase
       .from('inventario')
-      .select('id, cantidad_actual')
+      .select('id, cantidad_actual, fecha_vencimiento')
       .eq('finca_id', fincaId)
       .eq('nombre', tipo.nombre)
       .maybeSingle()
 
+    // En el inventario queda el vencimiento más próximo que todavía no pasó:
+    // es el que hay que vigilar.
+    const hoy = hoyLocal()
+    const vence = form.fecha_vencimiento || null
+    const vigente = item?.fecha_vencimiento && item.fecha_vencimiento >= hoy ? item.fecha_vencimiento : null
+    const venceFinal = vence && vigente ? (vence < vigente ? vence : vigente) : (vence ?? vigente)
+
     if (item) {
       await supabase.from('inventario')
-        .update({ cantidad_actual: Number(item.cantidad_actual) + bultos })
+        .update({ cantidad_actual: Number(item.cantidad_actual) + bultos, fecha_vencimiento: venceFinal })
         .eq('id', item.id)
     } else {
       await supabase.from('inventario').insert({
@@ -142,6 +160,7 @@ export default function RegistrarEntradaAlimentoModal({ open, onClose, loteId, f
         cantidad_minima: 0,
         precio_unitario: precio || null,
         proveedor: form.proveedor || null,
+        fecha_vencimiento: venceFinal,
       })
     }
   }
@@ -158,7 +177,14 @@ export default function RegistrarEntradaAlimentoModal({ open, onClose, loteId, f
             <Label>Tipo de alimento *</Label>
             <Select
               value={form.tipo_alimento_id}
-              onValueChange={v => set('tipo_alimento_id', v)}
+              onValueChange={v => {
+                // Al cambiar de alimento, el precio sigue al del catálogo (salvo que se esté editando)
+                setForm(prev => ({
+                  ...prev,
+                  tipo_alimento_id: v ?? '',
+                  precio_bulto: editandoPrecio ? prev.precio_bulto : precioDelCatalogo(tiposAlimento, v ?? ''),
+                }))
+              }}
               items={Object.fromEntries(tiposAlimento.map(t => [t.id, t.nombre]))}
             >
               <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
@@ -179,13 +205,40 @@ export default function RegistrarEntradaAlimentoModal({ open, onClose, loteId, f
               <Input type="date" value={form.fecha} onChange={e => set('fecha', e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label>Precio por bulto</Label>
-              <CurrencyInput placeholder={tipo?.precio_bulto ? String(tipo.precio_bulto) : '0'} value={form.precio_bulto} onValueChange={v => set('precio_bulto', v)} />
-              <p className="text-xs text-gray-400">Si lo dejas vacío se usa el del catálogo</p>
+              <div className="flex items-center justify-between">
+                <Label>Precio por bulto</Label>
+                {!editandoPrecio ? (
+                  <button type="button" onClick={() => setEditandoPrecio(true)} className="text-xs font-medium text-green-700 hover:underline">
+                    Cambiar
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => { setEditandoPrecio(false); set('precio_bulto', precioDelCatalogo(tiposAlimento, form.tipo_alimento_id)) }}
+                    className="text-xs text-gray-500 hover:underline"
+                  >
+                    Usar el del catálogo
+                  </button>
+                )}
+              </div>
+              <CurrencyInput
+                placeholder="0"
+                value={form.precio_bulto}
+                onValueChange={v => set('precio_bulto', v)}
+                disabled={!editandoPrecio}
+              />
+              <p className="text-xs text-gray-400">
+                {editandoPrecio ? 'Precio de esta compra' : tipo?.precio_bulto ? 'Precio del catálogo del alimento' : 'El alimento no tiene precio: usa "Cambiar"'}
+              </p>
             </div>
             <div className="space-y-1">
               <Label>Proveedor</Label>
               <Input placeholder="¿Dónde se compró?" value={form.proveedor} onChange={e => set('proveedor', e.target.value)} />
+            </div>
+            <div className="col-span-2 space-y-1">
+              <Label>Vencimiento del lote <span className="font-normal text-gray-400">(opcional)</span></Label>
+              <Input type="date" value={form.fecha_vencimiento} onChange={e => set('fecha_vencimiento', e.target.value)} />
+              <p className="text-xs text-gray-400">La fecha que trae el bulto. Queda en el inventario para avisar antes de que se venza.</p>
             </div>
             <div className="col-span-2 space-y-1">
               <Label>Observaciones</Label>

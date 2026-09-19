@@ -21,6 +21,8 @@ import type { Database } from '@/types/database'
 import { aFechaLocal } from '@/lib/fechas'
 import { ajustarHuevos } from '@/lib/inventario'
 import { Ic } from '@/components/ui/icon'
+import { useFinca } from '@/components/agro/FincaProvider'
+import { preciosDeFinca, hayPrecios } from '@/lib/huevos'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 type ProduccionDiaria = Database['public']['Tables']['produccion_diaria_aves']['Row']
@@ -53,6 +55,7 @@ const TIPO_EVENTO_LABEL: Record<string, string> = {
 }
 
 export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted }: Props) {
+  const { fincaActual } = useFinca()
   const supabase = createClient()
   const [registros, setRegistros] = useState<ProduccionDiaria[]>([])
   const [loading, setLoading] = useState(true)
@@ -65,6 +68,8 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
   const [hayAlimentoRegistrado, setHayAlimentoRegistrado] = useState(true)
   const [guardandoSinNovedades, setGuardandoSinNovedades] = useState(false)
   const [modalRecoleccionObligatoria, setModalRecoleccionObligatoria] = useState(false)
+  // Huevos de toda la vida del lote, para el HAA (huevos por ave alojada)
+  const [huevosAcumulados, setHuevosAcumulados] = useState(0)
 
   const fetchRegistros = useCallback(async () => {
     setLoading(true)
@@ -75,6 +80,9 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
       .order('fecha', { ascending: false })
       .limit(60)
     setRegistros(data ?? [])
+    const { data: todos } = await supabase
+      .from('produccion_diaria_aves').select('huevos_totales').eq('lote_id', loteActual.id)
+    setHuevosAcumulados((todos ?? []).reduce((s, r) => s + (r.huevos_totales ?? 0), 0))
     setLoading(false)
   }, [loteActual.id, supabase])
 
@@ -126,6 +134,21 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
     if (r.huevos_totales > 0) {
       await ajustarHuevos(supabase, loteActual.finca_id, loteActual.nombre, -r.huevos_totales)
     }
+    // Si ese día se había registrado un consumo, el vigente vuelve a ser el anterior
+    if (Number(r.alimento_kg) > 0) {
+      const { data: anterior } = await supabase
+        .from('produccion_diaria_aves')
+        .select('tipo_alimento_id, alimento_kg')
+        .eq('lote_id', loteActual.id)
+        .gt('alimento_kg', 0)
+        .order('fecha', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      await supabase.from('lotes_aves').update({
+        alimento_activo_id: anterior?.tipo_alimento_id ?? loteActual.alimento_activo_id,
+        consumo_activo_kg: anterior ? Number(anterior.alimento_kg) : null,
+      }).eq('id', loteActual.id)
+    }
 
     toast.success(muertasEventos > 0 || eventosDelDia?.length
       ? 'Día eliminado junto con su evento clínico'
@@ -148,7 +171,11 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
 
   const totalHuevos30 = ultimos30.reduce((s, r) => s + r.huevos_totales, 0)
   const totalAlimento30 = ultimos30.reduce((s, r) => s + Number(r.alimento_kg), 0)
-  const ica = totalHuevos30 > 0 ? (totalAlimento30 / (totalHuevos30 / 12)).toFixed(2) : null
+  // HAA (huevos por ave alojada): todos los huevos del lote ÷ las aves que entraron al galpón
+  const haa = loteActual.aves_iniciales > 0 && huevosAcumulados > 0
+    ? (huevosAcumulados / loteActual.aves_iniciales).toFixed(1)
+    : null
+  void totalAlimento30
 
   // La mortalidad acumulada cuenta las muertes del día y las de los eventos clínicos:
   // ambas descuentan aves del galpón, así que ambas suman aquí.
@@ -168,6 +195,15 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
   /** Mientras el galpón esté en preparación no se muestra nada de huevos. */
   const enPostura = loteActual.estado !== 'preparacion'
 
+  // Si la fecha tentativa de postura ya pasó y el galpón sigue en preparación, está
+  // atrasado: no es "semana de postura", porque la postura todavía no ha empezado.
+  const diasAtraso = !enPostura && loteActual.fecha_inicio_postura && loteActual.fecha_inicio_postura < hoyStr
+    ? Math.floor((hoyDate.getTime() - new Date(loteActual.fecha_inicio_postura + 'T00:00:00').getTime()) / MS_DIA)
+    : 0
+  const textoAtraso = diasAtraso >= 7
+    ? `${Math.floor(diasAtraso / 7)} semana${Math.floor(diasAtraso / 7) === 1 ? '' : 's'}`
+    : `${diasAtraso} día${diasAtraso === 1 ? '' : 's'}`
+
   // Un galpón nuevo no puede registrar días hasta tener alimento y consumo definidos.
   const tieneAlimento = loteActual.alimento_activo_id != null
   const tieneConsumo = loteActual.consumo_activo_kg != null
@@ -183,22 +219,23 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
     fechaFinEstimada = new Date(inicio.getTime() + loteActual.semanas_ciclo_postura * 7 * MS_DIA)
   }
 
-  // ── Precio por tamaño de huevo ──
-  const preciosTamano = [
-    loteActual.precio_huevo_b, loteActual.precio_huevo_a, loteActual.precio_huevo_aa,
-    loteActual.precio_huevo_aaa, loteActual.precio_huevo_jumbo,
-  ].filter((p): p is number => p != null && p > 0)
+  // ── Precio por tamaño de huevo: rige el de la finca; si aún no hay, el viejo del galpón ──
+  const deFinca = preciosDeFinca(fincaActual)
+  const precios = hayPrecios(deFinca)
+    ? deFinca
+    : { b: loteActual.precio_huevo_b, a: loteActual.precio_huevo_a, aa: loteActual.precio_huevo_aa, aaa: loteActual.precio_huevo_aaa, jumbo: loteActual.precio_huevo_jumbo }
+  const preciosTamano = [precios.b, precios.a, precios.aa, precios.aaa, precios.jumbo].filter((p): p is number => p != null && p > 0)
   const precioPromedio = preciosTamano.length > 0
     ? preciosTamano.reduce((s, p) => s + p, 0) / preciosTamano.length
     : (loteActual.precio_huevo ?? 0)
 
   function valorHuevosDia(r: ProduccionDiaria | undefined) {
     if (!r) return 0
-    return r.huevos_b * (loteActual.precio_huevo_b ?? 0)
-      + r.huevos_a * (loteActual.precio_huevo_a ?? 0)
-      + r.huevos_aa * (loteActual.precio_huevo_aa ?? 0)
-      + r.huevos_aaa * (loteActual.precio_huevo_aaa ?? 0)
-      + r.huevos_jumbo * (loteActual.precio_huevo_jumbo ?? 0)
+    return r.huevos_b * (precios.b ?? 0)
+      + r.huevos_a * (precios.a ?? 0)
+      + r.huevos_aa * (precios.aa ?? 0)
+      + r.huevos_aaa * (precios.aaa ?? 0)
+      + r.huevos_jumbo * (precios.jumbo ?? 0)
   }
   const ingresoHoy = valorHuevosDia(hoy)
 
@@ -348,6 +385,20 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
   // Los eventos de origen "mortalidad" son el reflejo de las muertes del día, que ya
   // salen en su propia fila: si se mostraran otra vez quedarían duplicadas. Solo se
   // listan los clínicos, y cada uno va en su propia fila, aparte de las muertes.
+  // Días en que el consumo cambió respecto al anterior: en el historial llevan una marca
+  const cambiosConsumo = new Map<string, number | null>()
+  {
+    const asc = [...registros].sort((a, b) => a.fecha.localeCompare(b.fecha))
+    let previo: number | null = null
+    for (const r of asc) {
+      const propio = Number(r.alimento_kg) || 0
+      if (propio > 0) {
+        if (previo === null || Math.abs(propio - previo) > 0.001) cambiosConsumo.set(r.fecha, previo)
+        previo = propio
+      }
+    }
+  }
+
   const eventosVisibles = eventosClinicos.filter(ev => ev.origen !== 'mortalidad')
   const eventosPorFecha = new Map<string, EventoClinico[]>()
   for (const ev of eventosVisibles) {
@@ -476,7 +527,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
               <p className="mt-0.5 text-xs text-gray-600">{faltaParaRegistrar}</p>
             </div>
           </div>
-          <Link href="/alimento">
+          <Link href={`/alimento?lote=${loteActual.id}`}>
             <Button size="sm">Registrar alimento</Button>
           </Link>
         </div>
@@ -491,14 +542,22 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
           icono="meta"
           etiqueta="Meta de huevos/día"
           valor={metaHuevosDiaria ? metaHuevosDiaria.toLocaleString('es-CO') : '—'}
-          detalle={cumplimientoMeta ? `${cumplimientoMeta}% cumplido hoy` : metaHuevosDiaria ? 'Sin registro de hoy' : 'Configura la meta en "Configurar galpón"'}
+          detalle={cumplimientoMeta ? `${cumplimientoMeta}% cumplido hoy` : metaHuevosDiaria ? 'Sin registro de hoy' : (
+            <button type="button" onClick={() => setConfigOpen(true)} className="font-medium text-green-700 hover:underline">
+              Definir la meta de huevos/día →
+            </button>
+          )}
         />
         <Indicador
           tono={posturaHoy && Number(posturaHoy) < metaPostura ? 'red' : 'green'}
           icono="huevo"
           etiqueta="% Postura hoy"
           valor={posturaHoy ? `${posturaHoy}%` : '—'}
-          detalle={<>Meta lote: {metaPostura}%</>}
+          detalle={loteActual.meta_postura_pct != null ? <>Meta lote: {metaPostura}%</> : (
+            <button type="button" onClick={() => setConfigOpen(true)} className="font-medium text-green-700 hover:underline">
+              Definir la meta de % postura →
+            </button>
+          )}
         >
           {diffPuntosHoy != null && (
             <p className={`mt-1 text-xs font-medium ${diffPuntosHoy < 0 ? 'text-red-600' : 'text-green-600'}`}>
@@ -508,7 +567,13 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
             </p>
           )}
         </Indicador>
-        <Indicador tono="blue" icono="bascula" etiqueta="ICA (últimos 30d)" valor={ica ?? '—'} detalle="kg alim / docena" />
+        <Indicador
+          tono="blue"
+          icono="huevo"
+          etiqueta="HAA · huevos por ave alojada"
+          valor={haa ?? '—'}
+          detalle={`${huevosAcumulados.toLocaleString('es-CO')} huevos ÷ ${loteActual.aves_iniciales.toLocaleString('es-CO')} aves alojadas`}
+        />
         </>)}
         <Indicador tono="gray" icono="muerte" etiqueta="Mortalidad acumulada" valor={mortAcum} detalle={<>{mortPct}% del lote inicial</>} />
       </GrupoIndicadores>
@@ -517,7 +582,16 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
       {/* Ciclo de postura y densidad. En preparación también lleva la mortalidad,
           así el lote se lee en un solo bloque y no queda una tarjeta suelta. */}
       <GrupoIndicadores titulo={enPostura ? 'Ciclo y galpón' : 'Estado del lote'} columnas={5}>
-        <Indicador tono="purple" icono="reloj" etiqueta={semanaPostura != null ? 'Semana de postura' : 'Postura'} valor={semanaPostura ?? (semanasFaltantesPostura != null ? `Faltan ${semanasFaltantesPostura}` : '—')} detalle={<>{inicioSemanaActual && finSemanaActual
+        {diasAtraso > 0 ? (
+          <Indicador
+            tono="red"
+            icono="reloj"
+            etiqueta="Postura"
+            valor={<span className="text-red-700">Atrasada {textoAtraso}</span>}
+            detalle={<>Estaba prevista para el {new Date(loteActual.fecha_inicio_postura + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'long' })}. Marca el inicio cuando empiece o cambia la fecha en &quot;Configurar galpón&quot;.</>}
+          />
+        ) : (
+        <Indicador tono="purple" icono="reloj" etiqueta={semanaPostura != null && enPostura ? 'Semana de postura' : 'Postura'} valor={semanaPostura ?? (semanasFaltantesPostura != null ? `Faltan ${semanasFaltantesPostura}` : '—')} detalle={<>{inicioSemanaActual && finSemanaActual
                 ? `${inicioSemanaActual.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })} – ${finSemanaActual.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}`
                 : semanasFaltantesPostura != null ? `semana${semanasFaltantesPostura === 1 ? '' : 's'} para iniciar` : 'Sin fecha de inicio'}</>}>
           {fechaFinEstimada && (
@@ -526,6 +600,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
           </p>
           )}
         </Indicador>
+        )}
         {enPostura && (<>
         <Indicador tono="green" icono="dinero" etiqueta="Ingreso por venta (hoy)" valor={ingresoHoy > 0 ? cop(ingresoHoy) : '—'} detalle={precioPromedio > 0 ? 'Según precio por tamaño configurado' : 'Configura el precio del huevo en Ventas'} />
         <Indicador
@@ -552,7 +627,9 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
         />
         </>)}
         {!enPostura && (
-          <Indicador tono="blue" icono="calendario" etiqueta="Semana de preparación" valor={semanasEnGalpon + 1} detalle={semanasFaltantesPostura != null
+          <Indicador tono="blue" icono="calendario" etiqueta="Semana de preparación" valor={semanasEnGalpon + 1} detalle={diasAtraso > 0
+                  ? <span className="font-medium text-red-700">Postura atrasada {textoAtraso}</span>
+                  : semanasFaltantesPostura != null
                   ? `Faltan ${semanasFaltantesPostura} semana${semanasFaltantesPostura === 1 ? '' : 's'} para postura`
                   : 'Aún no inicia postura'}>
             {loteActual.fecha_inicio_postura && (
@@ -569,12 +646,44 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
       </GrupoIndicadores>
 
       {/* Alimento: costo, bultos, gramos/gallina y kg totales (consumo activo) */}
-      <GrupoIndicadores titulo="Alimento" columnas={4}>
-        <Indicador tono="amber" icono="dinero" etiqueta="Costo de alimento (activo)" valor={costoAlimentoHoy > 0 ? cop(costoAlimentoHoy) : '—'} detalle={consumoActivoKg > 0 ? `${consumoActivoKg.toFixed(1)} kg consumidos` : 'Sin consumo registrado'} />
-        <Indicador tono="amber" icono="caja" etiqueta="Bultos (consumo activo)" valor={bultosHoy > 0 ? bultosHoy.toFixed(2) : '—'} detalle={<>Bulto de {pesoBulto} kg</>} />
-        <Indicador tono="amber" icono="alimento" etiqueta="Alimento por gallina" valor={gramosGallinaHoy != null ? gramosGallinaHoy.toFixed(0) : '—'} detalle="gramos / gallina / día" />
-        <Indicador tono="amber" icono="bascula" etiqueta="Alimento total del galpón" valor={kgTotalHoy != null ? kgTotalHoy.toFixed(1) : '—'} detalle="kg / día" />
-      </GrupoIndicadores>
+      {/* Un solo cuadro con todo el alimento del día: qué come el galpón y cuánto */}
+      <section className="space-y-3">
+        <h3 className="text-sm font-semibold text-gray-800">Alimento</h3>
+        <div className="superficie rounded-2xl p-5">
+          <div className="flex items-center gap-3">
+            <span className="flex size-9 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
+              <Ic n="alimento" className="size-[18px]" />
+            </span>
+            <div>
+              <p className="text-xs font-medium text-gray-500">Alimento en uso</p>
+              <p className="text-base font-semibold text-gray-900">{tipoAlimentoActivo?.nombre ?? 'Sin alimento registrado'}</p>
+            </div>
+          </div>
+          <div className="mt-5 grid grid-cols-1 gap-4 border-t border-gray-100 pt-4 sm:grid-cols-3">
+            <div>
+              <p className="text-xs font-medium text-gray-500">Kg consumidos</p>
+              <p className={`mt-1 text-2xl tracking-tight tabular-nums ${kgTotalHoy != null ? 'font-semibold text-gray-900' : 'text-gray-300'}`}>
+                {kgTotalHoy != null ? kgTotalHoy.toFixed(1) : '—'}
+              </p>
+              <p className="mt-1 text-xs text-gray-500">kg por día, todo el galpón</p>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-500">Bultos</p>
+              <p className={`mt-1 text-2xl tracking-tight tabular-nums ${bultosHoy > 0 ? 'font-semibold text-gray-900' : 'text-gray-300'}`}>
+                {bultosHoy > 0 ? bultosHoy.toFixed(2) : '—'}
+              </p>
+              <p className="mt-1 text-xs text-gray-500">por día, bulto de {pesoBulto} kg</p>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-500">Alimento por gallina</p>
+              <p className={`mt-1 text-2xl tracking-tight tabular-nums ${gramosGallinaHoy != null ? 'font-semibold text-gray-900' : 'text-gray-300'}`}>
+                {gramosGallinaHoy != null ? gramosGallinaHoy.toFixed(0) : '—'}
+              </p>
+              <p className="mt-1 text-xs text-gray-500">gramos por gallina viva al día</p>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {enPostura && (
         <>
@@ -679,6 +788,13 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
                           {(consumoEfectivoPorFecha.get(r.fecha) ?? 0) > 0
                             ? (consumoEfectivoPorFecha.get(r.fecha) ?? 0).toFixed(1)
                             : '—'}
+                          {cambiosConsumo.has(r.fecha) && (
+                            <span className="ml-2 inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[0.6875rem] font-semibold text-amber-800">
+                              {cambiosConsumo.get(r.fecha) == null
+                                ? 'Consumo inicial'
+                                : `Cambió de ${Number(cambiosConsumo.get(r.fecha)).toFixed(1)}`}
+                            </span>
+                          )}
                         </TableCell>
                         <TableCell className="text-right">
                           {r.muertes > 0 ? <Badge variant="destructive" className="text-xs">{r.muertes}</Badge> : '—'}
@@ -706,7 +822,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
                               className={confirmandoEliminar === r.id ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
                               onClick={() => eliminarRegistro(r)}
                             >
-                              {confirmandoEliminar === r.id ? '¿Confirmar?' : ''}
+                              {confirmandoEliminar === r.id ? '¿Confirmar?' : <Ic n="borrar" />}
                             </Button>
                           </div>
                         </TableCell>

@@ -150,7 +150,7 @@ export default function TabVentasGenerico({ loteId, fincaId, config, animalesAct
                             className={confirmandoEliminar === v.id ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
                             onClick={() => eliminar(v)}
                           >
-                            {confirmandoEliminar === v.id ? '¿Confirmar?' : ''}
+                            {confirmandoEliminar === v.id ? '¿Confirmar?' : <Ic n="borrar" />}
                           </Button>
                         </div>
                       </TableCell>

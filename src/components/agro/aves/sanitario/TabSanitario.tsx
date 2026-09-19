@@ -281,7 +281,7 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
                               className={confirmandoEliminar === `vacunaciones_aves-${v.id}` ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
                               onClick={() => eliminar('vacunaciones_aves', v.id)}
                             >
-                              {confirmandoEliminar === `vacunaciones_aves-${v.id}` ? '¿Confirmar?' : ''}
+                              {confirmandoEliminar === `vacunaciones_aves-${v.id}` ? '¿Confirmar?' : <Ic n="borrar" />}
                             </Button>
                           </div>
                         </TableCell>
@@ -352,7 +352,7 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
                                 className={confirmandoEliminar === `medicaciones_aves-${m.id}` ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
                                 onClick={() => eliminar('medicaciones_aves', m.id)}
                               >
-                                {confirmandoEliminar === `medicaciones_aves-${m.id}` ? '¿Confirmar?' : ''}
+                                {confirmandoEliminar === `medicaciones_aves-${m.id}` ? '¿Confirmar?' : <Ic n="borrar" />}
                               </Button>
                             </div>
                           </TableCell>
@@ -383,6 +383,10 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
                   <TableBody>
                     {eventos.map(ev => {
                       const tieneTratamiento = eventosConTratamiento.has(ev.id)
+                      // Tratado: todos sus tratamientos ya tienen fecha de fin y esa fecha ya pasó
+                      const tratamientosDelEvento = medicaciones.filter(m => m.evento_clinico_id === ev.id)
+                      const tratado = tieneTratamiento && tratamientosDelEvento.every(m => m.fecha_fin && m.fecha_fin < hoyStr)
+                      const sinTratamiento = !tieneTratamiento && ev.requiere_medicamento
                       return (
                         <TableRow key={ev.id}>
                           <TableCell className="text-sm">{fmt(ev.fecha)}</TableCell>
@@ -396,9 +400,22 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
                               onClick={() => tieneTratamiento && setSeguimientoEventoId(ev.id)}
                               className={cn('inline-block', tieneTratamiento && 'cursor-pointer')}
                             >
-                              <Badge className={tieneTratamiento ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : 'bg-gray-100 text-gray-600'}>
-                                {tieneTratamiento ? 'En tratamiento' : ev.requiere_medicamento ? 'Sin tratamiento' : 'No aplica'}
-                              </Badge>
+                              {tratado ? (
+                                <Badge className="border-green-200 bg-green-100 text-green-800 hover:bg-green-200">
+                                  <Ic n="listo" /> Tratado
+                                </Badge>
+                              ) : tieneTratamiento ? (
+                                <Badge className="border-blue-200 bg-blue-100 text-blue-700 hover:bg-blue-200">
+                                  <Ic n="medicamento" /> En tratamiento
+                                </Badge>
+                              ) : sinTratamiento ? (
+                                // Llamativo a propósito: un evento sin tratar no puede pasar desapercibido
+                                <Badge className="h-6 border-red-600 bg-red-600 px-2.5 text-white shadow-[0_0_0_3px_rgb(168_54_44/15%)]">
+                                  <span className="size-1.5 animate-pulse rounded-full bg-white" /> Sin tratamiento
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-gray-100 text-gray-600">No aplica</Badge>
+                              )}
                             </button>
                           </TableCell>
                           <TableCell>
@@ -417,7 +434,7 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
                                 className={confirmandoEliminar === `eventos_clinicos_aves-${ev.id}` ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
                                 onClick={() => eliminar('eventos_clinicos_aves', ev.id)}
                               >
-                                {confirmandoEliminar === `eventos_clinicos_aves-${ev.id}` ? '¿Confirmar?' : ''}
+                                {confirmandoEliminar === `eventos_clinicos_aves-${ev.id}` ? '¿Confirmar?' : <Ic n="borrar" />}
                               </Button>
                             </div>
                           </TableCell>
@@ -507,7 +524,7 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
                               className={confirmandoEliminar === `desinfecciones_aves-${d.id}` ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
                               onClick={() => eliminar('desinfecciones_aves', d.id)}
                             >
-                              {confirmandoEliminar === `desinfecciones_aves-${d.id}` ? '¿Confirmar?' : ''}
+                              {confirmandoEliminar === `desinfecciones_aves-${d.id}` ? '¿Confirmar?' : <Ic n="borrar" />}
                             </Button>
                           </div>
                         </TableCell>
@@ -531,6 +548,7 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
         onCreated={fetchAll}
       />
       <RegistrarMedicacionModal
+        enPreparacion={loteActual.estado === 'preparacion'}
         open={modalMed}
         onClose={() => { setModalMed(false); setEventoClinicoIdActivo(null); setMedEditar(null) }}
         loteId={loteActual.id}
@@ -599,7 +617,7 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
                             className={confirmandoEliminar === `medicaciones_aves-${m.id}` ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
                             onClick={() => eliminar('medicaciones_aves', m.id)}
                           >
-                            {confirmandoEliminar === `medicaciones_aves-${m.id}` ? '¿Confirmar?' : ''}
+                            {confirmandoEliminar === `medicaciones_aves-${m.id}` ? '¿Confirmar?' : <Ic n="borrar" />}
                           </Button>
                         </div>
                       </div>

@@ -21,9 +21,11 @@ interface Props {
    * hace de límite para lo que se puede repartir entre los horarios.
    */
   consumoRegistradoKg?: number | null
+  /** Avisa al padre cuántos kg quedaron repartidos, para que sus avisos se actualicen al momento */
+  onResumen?: (totalRepartidoKg: number, cantidadHorarios: number) => void
 }
 
-export default function HorariosAlimentacion({ loteId, fincaId, consumoRegistradoKg }: Props) {
+export default function HorariosAlimentacion({ loteId, fincaId, consumoRegistradoKg, onResumen }: Props) {
   const supabase = createClient()
   const [horarios, setHorarios] = useState<Horario[]>([])
   const [completadosHoy, setCompletadosHoy] = useState<Set<string>>(new Set())
@@ -51,6 +53,11 @@ export default function HorariosAlimentacion({ loteId, fincaId, consumoRegistrad
   useEffect(() => { fetchHorarios() }, [fetchHorarios])
 
   const totalProgramadoKg = horarios.reduce((s, h) => s + (h.cantidad_kg ?? 0), 0)
+
+  // Cada vez que cambian los horarios, el aviso de "falta repartir" del padre se entera
+  useEffect(() => {
+    if (!loading) onResumen?.(totalProgramadoKg, horarios.length)
+  }, [loading, totalProgramadoKg, horarios.length, onResumen])
   const parcialKg = horarios.filter(h => completadosHoy.has(h.id)).reduce((s, h) => s + (h.cantidad_kg ?? 0), 0)
   const sinRepartir = Math.max(0, limiteKg - totalProgramadoKg)
 
