@@ -16,7 +16,7 @@ import RegistrarPartoModal from './RegistrarPartoModal'
 import RegistrarDesteteModal from './RegistrarDesteteModal'
 import type { Database } from '@/types/database'
 import {
-  ESTADOS_REPRODUCTORA, DIAS_GESTACION, DIAS_LACTANCIA_MAX,
+  ESTADOS_REPRODUCTORA, DIAS_GESTACION, DIAS_LACTANCIA_MIN, DIAS_LACTANCIA_MAX,
   diaDeGestacion, diasDesde, edadTexto, fechaRepeticionCelo,
 } from '@/lib/cerdos'
 import { hoyLocal } from '@/lib/fechas'
@@ -117,6 +117,11 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
   const partosConDestete = new Set(destetes.map(d => d.parto_id).filter(Boolean))
   const camadasLactando = partos.filter(p => !partosConDestete.has(p.id))
   const destetesVencidos = camadasLactando.filter(p => diasDesde(p.fecha_parto) > DIAS_LACTANCIA_MAX)
+  // En la ventana de destete: ya se pueden destetar, todavía sin atraso
+  const destetesListos = camadasLactando.filter(p => {
+    const d = diasDesde(p.fecha_parto)
+    return d >= DIAS_LACTANCIA_MIN && d <= DIAS_LACTANCIA_MAX
+  })
 
   async function eliminar(tabla: 'reproductoras_cerdos' | 'servicios_cerdos' | 'partos_cerdos' | 'destetes_cerdos', id: string) {
     const key = `${tabla}-${id}`
@@ -181,7 +186,7 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
       </div>
 
       {/* Avisos de manejo: lo que hay que hacer esta semana */}
-      {(porConfirmar.length > 0 || partosProximos.length > 0 || destetesVencidos.length > 0) && (
+      {(porConfirmar.length > 0 || partosProximos.length > 0 || destetesVencidos.length > 0 || destetesListos.length > 0) && (
         <div className="space-y-2">
           {porConfirmar.length > 0 && (
             <div className="p-3 bg-blue-50 border border-blue-300 rounded-lg text-sm text-blue-800">
@@ -194,6 +199,14 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
               <Ic n="tetero" /> <strong>Partos esta semana:</strong> {partosProximos.map(s =>
                 `${hembraPorId.get(s.reproductora_id)?.codigo ?? '—'} (${fmt(s.fecha_probable_parto!)})`
               ).join(', ')}
+            </div>
+          )}
+          {destetesListos.length > 0 && (
+            <div className="p-3 bg-green-50 border border-green-300 rounded-lg text-sm text-green-800">
+              <Ic n="tetero" /> <strong>{destetesListos.length}</strong> {destetesListos.length === 1 ? 'camada está' : 'camadas están'} en edad de destete
+              ({DIAS_LACTANCIA_MIN} a {DIAS_LACTANCIA_MAX} días): {destetesListos.map(p =>
+                `${hembraPorId.get(p.reproductora_id)?.codigo ?? '—'} · día ${diasDesde(p.fecha_parto)}`
+              ).join(', ')}. Al destetar se registra el peso de salida.
             </div>
           )}
           {destetesVencidos.length > 0 && (
@@ -412,7 +425,11 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
                           <TableCell className="text-xs">
                             {destetado
                               ? <span className="text-green-700"><Ic n="listo" /> Destetada</span>
-                              : <span className={dias > DIAS_LACTANCIA_MAX ? 'text-amber-700 font-medium' : 'text-gray-500'}>Día {dias}</span>}
+                              : dias > DIAS_LACTANCIA_MAX
+                                ? <span className="font-medium text-red-700">Día {dias} · destete atrasado</span>
+                                : dias >= DIAS_LACTANCIA_MIN
+                                  ? <span className="font-medium text-green-700">Día {dias} · lista para destetar</span>
+                                  : <span className="text-gray-500">Día {dias} de {DIAS_LACTANCIA_MIN}</span>}
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center justify-end gap-1">

@@ -17,6 +17,7 @@ import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
 import { Ic } from '@/components/ui/icon'
 import { useFinca } from '@/components/agro/FincaProvider'
+import ClasificarPorPesoModal from './ClasificarPorPesoModal'
 import { etapasEngordeDeFinca } from '@/lib/cerdos'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
@@ -53,6 +54,7 @@ export default function TabCrecimiento({ loteActual, onLoteUpdated }: Props) {
   const [pesoEditar, setPesoEditar] = useState<PesoLote | null>(null)
   const [confirmandoEliminar, setConfirmandoEliminar] = useState<string | null>(null)
   const [subTab, setSubTab] = useState<'pesos' | 'mortalidad' | 'etapas' | 'movimientos'>('pesos')
+  const [modalClasificar, setModalClasificar] = useState(false)
 
   // Etapa form
   const [formEtapa, setFormEtapa] = useState({ fecha: hoyLocal(), etapa_nueva: '', peso_promedio: '', corral_destino: '', observaciones: '' })
@@ -156,9 +158,17 @@ export default function TabCrecimiento({ loteActual, onLoteUpdated }: Props) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-gray-800">Producción y Crecimiento</h2>
-        {subTab === 'pesos' && (
-          <Button onClick={() => { setPesoEditar(null); setModalPeso(true) }} className="bg-orange-600 hover:bg-orange-700 text-white text-sm">+ Registrar pesaje</Button>
-        )}
+        <div className="flex items-center gap-2">
+          {/* Separar por tamaño solo tiene sentido si quedan animales que repartir */}
+          {loteActual.sistema !== 'cria' && loteActual.animales_actuales > 1 && (
+            <Button variant="outline" className="text-sm" onClick={() => setModalClasificar(true)}>
+              <Ic n="bascula" /> Clasificar por peso
+            </Button>
+          )}
+          {subTab === 'pesos' && (
+            <Button onClick={() => { setPesoEditar(null); setModalPeso(true) }} className="bg-orange-600 hover:bg-orange-700 text-white text-sm">+ Registrar pesaje</Button>
+          )}
+        </div>
       </div>
 
       {/* KPIs */}
@@ -412,6 +422,13 @@ export default function TabCrecimiento({ loteActual, onLoteUpdated }: Props) {
         pesoExistente={pesoEditar}
         onCreated={fetchAll}
       />
+      <ClasificarPorPesoModal
+        open={modalClasificar}
+        onClose={() => setModalClasificar(false)}
+        lote={loteActual}
+        onCreated={() => { fetchAll(); onLoteUpdated() }}
+      />
+
     </div>
   )
 }
