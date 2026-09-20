@@ -36,6 +36,7 @@ function defaultForm(s?: Servicio | null) {
     nacidos_vivos: '',
     nacidos_muertos: '0',
     momificados: '0',
+    muertos_postparto: '0',
     peso_camada_kg: '',
     observaciones: '',
   }
@@ -45,8 +46,14 @@ export default function RegistrarPartoModal({ open, onClose, lote, hembras, serv
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState(() => defaultForm(servicioPreseleccionado))
+  // Un peso por lechón nacido vivo: la lista crece y se recorta con la cantidad
+  const [pesos, setPesos] = useState<string[]>([])
 
-  useEffect(() => { if (open) setForm(defaultForm(servicioPreseleccionado)) }, [open, servicioPreseleccionado])
+  useEffect(() => {
+    if (!open) return
+    setForm(defaultForm(servicioPreseleccionado))
+    setPesos([])
+  }, [open, servicioPreseleccionado])
 
   function set(field: string, value: string | null) {
     setForm(prev => ({ ...prev, [field]: value ?? '' }))
@@ -55,9 +62,25 @@ export default function RegistrarPartoModal({ open, onClose, lote, hembras, serv
   const vivos = Number(form.nacidos_vivos) || 0
   const muertos = Number(form.nacidos_muertos) || 0
   const momias = Number(form.momificados) || 0
+  const muertosPostparto = Number(form.muertos_postparto) || 0
   const totales = vivos + muertos + momias
-  const pesoPromedio = form.peso_camada_kg && vivos > 0
-    ? (Number(form.peso_camada_kg) / vivos).toFixed(2)
+
+  // La lista de pesos sigue a los nacidos vivos
+  useEffect(() => {
+    setPesos(prev => {
+      if (vivos === prev.length) return prev
+      if (vivos < prev.length) return prev.slice(0, vivos)
+      return [...prev, ...Array(Math.min(vivos, 40) - prev.length).fill('')]
+    })
+  }, [vivos])
+
+  const pesosLlenos = pesos.filter(x => x !== '' && Number(x) > 0).map(Number)
+  // Si se pesó lechón por lechón, la camada es la suma; si no, vale lo que se escriba
+  const pesoCamada = pesosLlenos.length > 0
+    ? pesosLlenos.reduce((s, x) => s + x, 0)
+    : (form.peso_camada_kg ? Number(form.peso_camada_kg) : null)
+  const pesoPromedio = pesoCamada != null && vivos > 0
+    ? (pesoCamada / vivos).toFixed(2)
     : null
 
   // Servicios abiertos de la hembra elegida, para vincular el parto con el que corresponde
@@ -79,7 +102,9 @@ export default function RegistrarPartoModal({ open, onClose, lote, hembras, serv
       nacidos_vivos: vivos,
       nacidos_muertos: muertos,
       momificados: momias,
-      peso_camada_kg: form.peso_camada_kg ? Number(form.peso_camada_kg) : null,
+      muertos_postparto: muertosPostparto,
+      pesos_nacimiento_kg: pesosLlenos.length > 0 ? pesosLlenos : null,
+      peso_camada_kg: pesoCamada,
       observaciones: form.observaciones || null,
     })
 
@@ -170,17 +195,47 @@ export default function RegistrarPartoModal({ open, onClose, lote, hembras, serv
                 <Input type="number" min="0" className="bg-white" value={form.nacidos_muertos} onChange={e => set('nacidos_muertos', e.target.value)} />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Momificados</Label>
+                <Label className="text-xs">Momias</Label>
                 <Input type="number" min="0" className="bg-white" value={form.momificados} onChange={e => set('momificados', e.target.value)} />
+                <p className="text-[0.6875rem] text-gray-500">Nacidos muertos momificados</p>
               </div>
               <div className="col-span-3 space-y-1">
-                <Label className="text-xs">Peso total de la camada (kg)</Label>
-                <Input type="number" min="0" step="0.01" className="bg-white" placeholder="Ej: 18.5" value={form.peso_camada_kg} onChange={e => set('peso_camada_kg', e.target.value)} />
+                <Label className="text-xs">Muertos en el posparto</Label>
+                <Input type="number" min="0" className="bg-white" value={form.muertos_postparto} onChange={e => set('muertos_postparto', e.target.value)} />
+                <p className="text-[0.6875rem] text-gray-500">Lechones que nacieron vivos y murieron después del parto</p>
               </div>
+              {pesos.length > 0 ? (
+                <div className="col-span-3 space-y-1">
+                  <Label className="text-xs">Peso de cada lechón al nacer (kg)</Label>
+                  <div className="grid grid-cols-4 gap-2 md:grid-cols-6">
+                    {pesos.map((peso, i) => (
+                      <Input
+                        key={i}
+                        type="number" min="0" step="0.01" className="bg-white" placeholder={`#${i + 1}`}
+                        value={peso}
+                        onChange={e => setPesos(prev => prev.map((x, j) => j === i ? e.target.value : x))}
+                      />
+                    ))}
+                  </div>
+                  <p className="text-[0.6875rem] text-gray-500">
+                    {pesosLlenos.length > 0
+                      ? `${pesosLlenos.length} de ${pesos.length} pesados · la camada suma sola`
+                      : 'Puedes dejarlos en blanco y escribir solo el peso total abajo'}
+                  </p>
+                </div>
+              ) : null}
+              {pesosLlenos.length === 0 && (
+                <div className="col-span-3 space-y-1">
+                  <Label className="text-xs">Peso total de la camada (kg)</Label>
+                  <Input type="number" min="0" step="0.01" className="bg-white" placeholder="Ej: 18.5" value={form.peso_camada_kg} onChange={e => set('peso_camada_kg', e.target.value)} />
+                </div>
+              )}
             </div>
             <p className="text-xs text-pink-700">
               Nacidos totales: <strong>{totales}</strong>
-              {pesoPromedio && ` · peso promedio por lechón: ${pesoPromedio} kg`}
+              {pesoCamada != null && ` · camada de ${pesoCamada.toFixed(2)} kg`}
+              {pesoPromedio && ` · promedio por lechón ${pesoPromedio} kg`}
+              {muertosPostparto > 0 && ` · quedan ${Math.max(0, vivos - muertosPostparto)} vivos`}
             </p>
             {pesoPromedio && Number(pesoPromedio) < 1 && (
               <p className="text-xs text-amber-700">

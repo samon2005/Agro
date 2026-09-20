@@ -16,6 +16,8 @@ import RegistrarPesoModal from './RegistrarPesoModal'
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
 import { Ic } from '@/components/ui/icon'
+import { useFinca } from '@/components/agro/FincaProvider'
+import { etapasEngordeDeFinca } from '@/lib/cerdos'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
 type PesoLote = Database['public']['Tables']['pesos_lote_cerdos']['Row']
@@ -39,6 +41,8 @@ const TIPOS_MOV = [
 ]
 
 export default function TabCrecimiento({ loteActual, onLoteUpdated }: Props) {
+  const { fincaActual } = useFinca()
+  const etapasEngorde = etapasEngordeDeFinca(fincaActual?.etapas_cerdos)
   const supabase = createClient()
   const [pesos, setPesos] = useState<PesoLote[]>([])
   const [mortalidad, setMortalidad] = useState<Mortalidad[]>([])
@@ -289,9 +293,10 @@ export default function TabCrecimiento({ loteActual, onLoteUpdated }: Props) {
                     <Select value={formEtapa.etapa_nueva} onValueChange={v => setFormEtapa(p => ({ ...p, etapa_nueva: v ?? '' }))}>
                       <SelectTrigger><SelectValue placeholder="Seleccionar etapa..." /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="levante"><Ic n="cerdo" /> Levante</SelectItem>
-                        <SelectItem value="ceba"><Ic n="cerdo" /> Ceba / Engorde</SelectItem>
-                        <SelectItem value="finalizacion"><Ic n="listo" /> Finalización</SelectItem>
+                        {/* Solo las etapas que maneja la finca, más el cierre del lote */}
+                        {etapasEngorde.filter(e => e.value !== loteActual.etapa_actual).map(e => (
+                          <SelectItem key={e.value} value={e.value}><Ic n="cerdo" /> {e.label}</SelectItem>
+                        ))}
                         <SelectItem value="vendido"><Ic n="dinero" /> Vendido</SelectItem>
                       </SelectContent>
                     </Select>

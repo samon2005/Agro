@@ -90,7 +90,7 @@ export default function InventarioPage() {
   const stockBajo = itemsVista.filter(i => i.cantidad_actual <= i.cantidad_minima && i.cantidad_minima > 0)
   const porVencer = itemsVista.filter(i => {
     if (!i.fecha_vencimiento) return false
-    const diff = (new Date(i.fecha_vencimiento).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+    const diff = (new Date(i.fecha_vencimiento + 'T00:00:00').getTime() - Date.now()) / (1000 * 60 * 60 * 24)
     return diff <= 30 && diff >= 0
   })
 
@@ -213,7 +213,7 @@ export default function InventarioPage() {
                   {itemsVista.map(item => {
                     const bajo = item.cantidad_actual <= item.cantidad_minima && item.cantidad_minima > 0
                     const venceProximo = item.fecha_vencimiento && (() => {
-                      const diff = (new Date(item.fecha_vencimiento!).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+                      const diff = (new Date(item.fecha_vencimiento! + 'T00:00:00').getTime() - Date.now()) / (1000 * 60 * 60 * 24)
                       return diff <= 30 && diff >= 0
                     })()
 
@@ -238,7 +238,7 @@ export default function InventarioPage() {
                           {item.precio_unitario ? `$${item.precio_unitario.toLocaleString('es-CO')}` : '—'}
                         </TableCell>
                         <TableCell className={`text-sm ${venceProximo ? 'text-orange-600 font-medium' : 'text-gray-600'}`}>
-                          {item.fecha_vencimiento ? new Date(item.fecha_vencimiento).toLocaleDateString('es-CO') : '—'}
+                          {item.fecha_vencimiento ? new Date(item.fecha_vencimiento + 'T00:00:00').toLocaleDateString('es-CO') : '—'}
                         </TableCell>
                         <TableCell>
                           {bajo ? (

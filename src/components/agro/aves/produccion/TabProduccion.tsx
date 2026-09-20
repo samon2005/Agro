@@ -362,7 +362,8 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
   }
 
   // ── Agrupación semanal del historial (separador cada 7 días) ──
-  const origenSemanas = loteActual.fecha_inicio_postura ?? loteActual.fecha_inicio
+  // En preparación la fecha de postura es solo tentativa: las semanas cuentan desde la entrada
+  const origenSemanas = (enPostura ? loteActual.fecha_inicio_postura : null) ?? loteActual.fecha_inicio
   const origenSemanasDate = new Date(origenSemanas + 'T00:00:00')
   function semanaDeFecha(fecha: string) {
     const d = new Date(fecha + 'T00:00:00')
@@ -415,7 +416,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
   /** Qué semana es la del separador: de preparación mientras no haya postura, de postura después. */
   function etiquetaDeSemana(fechaInicioSemana: Date): string {
     const fechaStr = aFechaLocal(fechaInicioSemana)
-    const est = estadoPostura(loteActual.fecha_inicio_postura, fechaStr)
+    const est = estadoPostura(enPostura ? loteActual.fecha_inicio_postura : null, fechaStr)
     if (est.iniciada) return `Semana ${est.semana} de postura`
     const semanasDesdeEntrada = Math.floor(
       (fechaInicioSemana.getTime() - new Date(loteActual.fecha_inicio + 'T00:00:00').getTime()) / (7 * MS_DIA)
@@ -602,7 +603,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
         </Indicador>
         )}
         {enPostura && (<>
-        <Indicador tono="green" icono="dinero" etiqueta="Ingreso por venta (hoy)" valor={ingresoHoy > 0 ? cop(ingresoHoy) : '—'} detalle={precioPromedio > 0 ? 'Según precio por tamaño configurado' : 'Configura el precio del huevo en Ventas'} />
+        <Indicador tono="green" icono="dinero" etiqueta="Ingreso por venta (hoy)" valor={ingresoHoy > 0 ? cop(ingresoHoy) : '—'} detalle={precioPromedio > 0 ? 'Según precio por tamaño configurado' : 'Define el precio del huevo en Ventas de la finca'} />
         <Indicador
           tono={perdidaHoy > 0 ? 'red' : 'gray'}
           icono="tendencia"
@@ -612,7 +613,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
             : `${Math.round(perdidaHoy).toLocaleString('es-CO')}`}
           detalle={precioPromedio > 0
             ? `${Math.round(perdidaHoy).toLocaleString('es-CO')} huevos bajo la meta`
-            : 'huevos bajo la meta · pon el precio en Ventas para verlo en pesos'}
+            : 'huevos bajo la meta · pon el precio en Ventas de la finca para verlo en pesos'}
         />
         <Indicador
           tono={huevosPerdidos30 > 0 ? 'red' : 'gray'}
@@ -623,7 +624,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
             : `${Math.round(huevosPerdidos30).toLocaleString('es-CO')}`}
           detalle={precioPromedio > 0
             ? `${Math.round(huevosPerdidos30).toLocaleString('es-CO')} huevos bajo la meta`
-            : 'huevos bajo la meta · pon el precio en Ventas para verlo en pesos'}
+            : 'huevos bajo la meta · pon el precio en Ventas de la finca para verlo en pesos'}
         />
         </>)}
         {!enPostura && (

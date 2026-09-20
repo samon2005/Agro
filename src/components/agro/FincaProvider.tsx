@@ -12,6 +12,7 @@ type Finca = {
   area_valor: number | null
   area_unidad: string | null
   tipo_produccion: string[] | null
+  etapas_cerdos: string[] | null
   altitud_msnm: number | null
   velocidad_viento_kmh: number | null
   clima_predominante: string | null

@@ -28,6 +28,8 @@ type Servicio = Database['public']['Tables']['servicios_cerdos']['Row']
 type Parto = Database['public']['Tables']['partos_cerdos']['Row']
 type Destete = Database['public']['Tables']['destetes_cerdos']['Row']
 
+type Aplicacion = Database['public']['Tables']['inseminaciones_cerdos']['Row']
+
 type SubTab = 'hembras' | 'servicios' | 'partos' | 'destetes'
 
 interface Props {
@@ -40,6 +42,7 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
   const [subTab, setSubTab] = useState<SubTab>('hembras')
   const [hembras, setHembras] = useState<Reproductora[]>([])
   const [servicios, setServicios] = useState<Servicio[]>([])
+  const [aplicaciones, setAplicaciones] = useState<Aplicacion[]>([])
   const [partos, setPartos] = useState<Parto[]>([])
   const [destetes, setDestetes] = useState<Destete[]>([])
   const [loading, setLoading] = useState(true)
@@ -61,6 +64,12 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
       supabase.from('partos_cerdos').select('*').eq('lote_id', loteActual.id).order('fecha_parto', { ascending: false }),
       supabase.from('destetes_cerdos').select('*').eq('lote_id', loteActual.id).order('fecha_destete', { ascending: false }),
     ])
+    // Las aplicaciones de cada servicio: van aparte porque son varias por servicio
+    const ids = (s.data ?? []).map(x => x.id)
+    const ap = ids.length > 0
+      ? await supabase.from('inseminaciones_cerdos').select('*').in('servicio_id', ids).order('fecha')
+      : { data: [] }
+    setAplicaciones(ap.data ?? [])
     setHembras(h.data ?? [])
     setServicios(s.data ?? [])
     setPartos(p.data ?? [])
@@ -75,6 +84,12 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
   }
 
   const hembraPorId = new Map(hembras.map(h => [h.id, h]))
+  const aplicacionesPorServicio = new Map<string, Aplicacion[]>()
+  for (const ap of aplicaciones) {
+    const lista = aplicacionesPorServicio.get(ap.servicio_id) ?? []
+    lista.push(ap)
+    aplicacionesPorServicio.set(ap.servicio_id, lista)
+  }
   const activas = hembras.filter(h => h.estado !== 'descartada')
   const gestantes = activas.filter(h => h.estado === 'gestante')
   const lactantes = activas.filter(h => h.estado === 'lactante')
@@ -285,7 +300,8 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
                       <TableHead>Fecha</TableHead>
                       <TableHead>Hembra</TableHead>
                       <TableHead>Tipo</TableHead>
-                      <TableHead>Verraco / dosis</TableHead>
+                      <TableHead>Semen</TableHead>
+                      <TableHead>Aplicaciones</TableHead>
                       <TableHead>Parto probable</TableHead>
                       <TableHead>Estado</TableHead>
                       <TableHead></TableHead>
@@ -301,7 +317,17 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
                           <TableCell className="text-sm font-medium">{h?.codigo ?? '—'}</TableCell>
                           <TableCell className="text-sm text-gray-600">{s.tipo === 'monta_natural' ? 'Monta' : 'Inseminación'}</TableCell>
                           <TableCell className="text-sm text-gray-500">
-                            {s.verraco ?? '—'}{s.numero_dosis ? ` · ${s.numero_dosis} dosis` : ''}
+                            {s.codigo_semen ?? s.verraco ?? '—'}
+                            {s.codigo_semen && s.verraco && <span className="block text-[0.6875rem] text-gray-400">{s.verraco}</span>}
+                          </TableCell>
+                          <TableCell className="text-xs text-gray-500">
+                            {(aplicacionesPorServicio.get(s.id) ?? []).length === 0
+                              ? (s.numero_dosis ? `${s.numero_dosis} dosis` : '—')
+                              : (aplicacionesPorServicio.get(s.id) ?? []).map(ap => (
+                                  <span key={ap.id} className="block">
+                                    {fmt(ap.fecha)}{ap.hora ? ` · ${ap.hora.slice(0, 5)}` : ''}
+                                  </span>
+                                ))}
                           </TableCell>
                           <TableCell className="text-sm">
                             {s.fecha_probable_parto ? fmt(s.fecha_probable_parto) : '—'}
@@ -356,6 +382,7 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
                       <TableHead className="text-right">Vivos</TableHead>
                       <TableHead className="text-right">Muertos</TableHead>
                       <TableHead className="text-right">Momias</TableHead>
+                      <TableHead className="text-right">Posparto</TableHead>
                       <TableHead className="text-right">Peso camada</TableHead>
                       <TableHead>Lactancia</TableHead>
                       <TableHead></TableHead>
@@ -373,6 +400,7 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
                           <TableCell className="text-right text-sm font-semibold text-green-700">{p.nacidos_vivos}</TableCell>
                           <TableCell className="text-right text-sm text-red-600">{p.nacidos_muertos || '—'}</TableCell>
                           <TableCell className="text-right text-sm text-gray-500">{p.momificados || '—'}</TableCell>
+                          <TableCell className="text-right text-sm text-red-600">{p.muertos_postparto || '—'}</TableCell>
                           <TableCell className="text-right text-sm">
                             {p.peso_camada_kg != null ? `${Number(p.peso_camada_kg).toFixed(1)} kg` : '—'}
                             {p.peso_camada_kg != null && p.nacidos_vivos > 0 && (

@@ -68,3 +68,35 @@ export const CAUSAS_MUERTE_CERDOS = [
   'Colibacilosis', 'Neumonía', 'Peste porcina clásica', 'Aplastamiento', 'Accidente',
   'Estrés calórico', 'Hernia', 'Bajo peso al nacer',
 ]
+
+/**
+ * Etapas del cerdo. Cada finca marca las que maneja: unas hacen el ciclo completo
+ * y otras solo una parte, como criar y vender el lechón al destete.
+ */
+export const ETAPAS_CERDOS = [
+  { value: 'cria', label: 'Cría', detalle: 'Gestación y parto' },
+  { value: 'lactancia', label: 'Lactancia', detalle: 'Hasta el destete' },
+  { value: 'precebo', label: 'Precebo', detalle: '7–40 kg' },
+  { value: 'levante', label: 'Levante', detalle: '40–60 kg' },
+  { value: 'ceba', label: 'Ceba', detalle: '60 kg en adelante' },
+] as const
+
+export type EtapaCerdos = typeof ETAPAS_CERDOS[number]['value']
+
+/** Las etapas marcadas en la finca; si nunca se marcaron, se asume el ciclo completo. */
+export function etapasDeFinca(etapas: string[] | null | undefined): EtapaCerdos[] {
+  const validas = ETAPAS_CERDOS.map(e => e.value) as readonly string[]
+  const propias = (etapas ?? []).filter((e): e is EtapaCerdos => validas.includes(e))
+  return propias.length > 0 ? propias : (validas as EtapaCerdos[]).slice()
+}
+
+/** La finca cría cuando maneja la gestación o la lactancia. */
+export function fincaCria(etapas: string[] | null | undefined): boolean {
+  const propias = etapasDeFinca(etapas)
+  return propias.includes('cria') || propias.includes('lactancia')
+}
+
+/** Etapas de engorde que puede tener un lote, según lo que maneje la finca. */
+export function etapasEngordeDeFinca(etapas: string[] | null | undefined) {
+  return ETAPAS_CERDOS.filter(e => e.value !== 'cria' && e.value !== 'lactancia' && etapasDeFinca(etapas).includes(e.value))
+}

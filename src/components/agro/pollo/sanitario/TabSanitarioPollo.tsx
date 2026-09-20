@@ -153,7 +153,7 @@ export default function TabSanitarioPollo({ loteActual }: Props) {
   const today = hoyLocal()
   const enRetiro = medicaciones.filter(m => {
     if (!m.fecha_fin || !m.periodo_retiro_dias) return false
-    const lib = new Date(m.fecha_fin); lib.setDate(lib.getDate() + m.periodo_retiro_dias)
+    const lib = new Date(m.fecha_fin + 'T00:00:00'); lib.setDate(lib.getDate() + m.periodo_retiro_dias)
     return aFechaLocal(lib) >= today
   })
 
@@ -221,7 +221,7 @@ export default function TabSanitarioPollo({ loteActual }: Props) {
             <div className="space-y-1"><Label className="text-xs">Retiro (días)</Label><Input type="number" min="0" value={fMed.periodo_retiro_dias} onChange={e => setFMed(p => ({ ...p, periodo_retiro_dias: e.target.value }))} /></div>
             {fMed.fecha_fin && fMed.periodo_retiro_dias && (
               <div className="col-span-2 md:col-span-3 text-xs text-amber-700 bg-amber-50 px-3 py-2 rounded-lg border border-amber-200">
-                <Ic n="alerta" /> Liberación: {(() => { const d = new Date(fMed.fecha_fin); d.setDate(d.getDate() + Number(fMed.periodo_retiro_dias)); return d.toLocaleDateString('es-CO') })()}
+                <Ic n="alerta" /> Liberación: {(() => { const d = new Date(fMed.fecha_fin + 'T00:00:00'); d.setDate(d.getDate() + Number(fMed.periodo_retiro_dias)); return d.toLocaleDateString('es-CO') })()}
               </div>
             )}
             <div className="col-span-2 space-y-1"><Label className="text-xs">Medicamento *</Label><Input placeholder="Nombre comercial" value={fMed.medicamento} onChange={e => setFMed(p => ({ ...p, medicamento: e.target.value }))} /></div>
@@ -306,7 +306,7 @@ export default function TabSanitarioPollo({ loteActual }: Props) {
               <TableBody>{medicaciones.map(m => {
                 let liberacion: string | null = null
                 if (m.fecha_fin && m.periodo_retiro_dias) {
-                  const d = new Date(m.fecha_fin); d.setDate(d.getDate() + m.periodo_retiro_dias)
+                  const d = new Date(m.fecha_fin + 'T00:00:00'); d.setDate(d.getDate() + m.periodo_retiro_dias)
                   liberacion = aFechaLocal(d)
                 }
                 const enRetiro = liberacion && liberacion >= today

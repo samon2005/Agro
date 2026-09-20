@@ -12,6 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import type { Database } from '@/types/database'
 import { hoyLocal, aFechaLocal, desdeFechaLocal } from '@/lib/fechas'
 import { Ic } from '@/components/ui/icon'
+import { useFinca } from '@/components/agro/FincaProvider'
+import { etapasEngordeDeFinca, fincaCria } from '@/lib/cerdos'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
 type TipoAlimento = Database['public']['Tables']['tipos_alimento_cerdos']['Row']
@@ -25,12 +27,6 @@ interface Props {
 
 const LINEAS = ['Landrace', 'Yorkshire (Large White)', 'Duroc', 'Pietrain', 'Hampshire', 'PIC', 'Topigs', 'Otra']
 
-const ETAPAS_CEBA = [
-  { value: 'precebo', label: 'Precebo (lechones)' },
-  { value: 'levante', label: 'Levante' },
-  { value: 'ceba', label: 'Ceba / Engorde' },
-]
-
 const NUEVO_ALIMENTO = '__nuevo__'
 
 /** Consumo de referencia por etapa, en kg por animal y día. */
@@ -40,6 +36,11 @@ const CONSUMO_SUGERIDO: Record<string, number> = {
 
 export default function CrearLoteCerdosModal({ open, onClose, fincaId, onCreated }: Props) {
   const supabase = createClient()
+  const { fincaActual } = useFinca()
+  // La finca marca qué etapas maneja: solo se ofrecen esas
+  const etapasEngorde = etapasEngordeDeFinca(fincaActual?.etapas_cerdos)
+  const manejaCria = fincaCria(fincaActual?.etapas_cerdos)
+  const soloCria = manejaCria && etapasEngorde.length === 0
   const [loading, setLoading] = useState(false)
   const [tipos, setTipos] = useState<TipoAlimento[]>([])
   const [form, setForm] = useState({
@@ -62,6 +63,19 @@ export default function CrearLoteCerdosModal({ open, onClose, fincaId, onCreated
     alimento_peso_bulto: '40',
     consumo_kg_dia: '',
   })
+
+  // Si la finca solo cría, el lote arranca como cría; si no cría, como engorde
+  useEffect(() => {
+    if (!open) return
+    setForm(prev => ({
+      ...prev,
+      sistema: soloCria ? 'cria' : !manejaCria ? 'ceba' : prev.sistema,
+      etapa_actual: etapasEngorde.some(e => e.value === prev.etapa_actual)
+        ? prev.etapa_actual
+        : etapasEngorde[0]?.value ?? prev.etapa_actual,
+    }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, soloCria, manejaCria])
 
   useEffect(() => {
     if (!open) return
@@ -160,7 +174,8 @@ export default function CrearLoteCerdosModal({ open, onClose, fincaId, onCreated
           {/* Sistema: cambia de qué se trata el lote y qué herramientas trae */}
           <div className="space-y-1">
             <Label>Sistema del lote *</Label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className={etapasEngorde.length > 0 && manejaCria ? 'grid grid-cols-2 gap-2' : 'grid grid-cols-1 gap-2'}>
+              {etapasEngorde.length > 0 && (
               <button
                 type="button"
                 onClick={() => set('sistema', 'ceba')}
@@ -169,6 +184,8 @@ export default function CrearLoteCerdosModal({ open, onClose, fincaId, onCreated
                 <p className="text-sm font-semibold text-gray-800"><Ic n="cerdo" /> Ceba / Engorde</p>
                 <p className="text-[11px] text-gray-500 mt-0.5">Se compra el lechón, se levanta y se vende por kilo.</p>
               </button>
+              )}
+              {manejaCria && (
               <button
                 type="button"
                 onClick={() => set('sistema', 'cria')}
@@ -177,6 +194,7 @@ export default function CrearLoteCerdosModal({ open, onClose, fincaId, onCreated
                 <p className="text-sm font-semibold text-gray-800"><Ic n="cerdo" /> Cría / Reproducción</p>
                 <p className="text-[11px] text-gray-500 mt-0.5">Hembras propias: servicios, gestación, partos y destetes.</p>
               </button>
+              )}
             </div>
             {esCria && (
               <p className="text-xs text-pink-700 bg-pink-50 border border-pink-200 rounded p-2 mt-1">
@@ -206,9 +224,13 @@ export default function CrearLoteCerdosModal({ open, onClose, fincaId, onCreated
             {!esCria && (
               <div className="space-y-1">
                 <Label>Etapa de ingreso</Label>
-                <Select value={form.etapa_actual} onValueChange={v => set('etapa_actual', v)}>
+                <Select
+                  value={form.etapa_actual}
+                  onValueChange={v => set('etapa_actual', v)}
+                  items={Object.fromEntries(etapasEngorde.map(e => [e.value, e.label]))}
+                >
                   <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{ETAPAS_CEBA.map(e => <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>)}</SelectContent>
+                  <SelectContent>{etapasEngorde.map(e => <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
             )}

@@ -146,6 +146,8 @@ export default function VentasFinca({ fincaId, lotes }: Props) {
   async function eliminarVenta(v: Venta) {
     if (confirmandoEliminar !== v.id) { setConfirmandoEliminar(v.id); return }
     setConfirmandoEliminar(null)
+    // Si la venta salió de un encargo, el encargo vuelve a quedar pendiente
+    await supabase.from('encargos_huevos_aves').update({ estado: 'pendiente', venta_id: null }).eq('venta_id', v.id)
     const { error } = await supabase.from('ventas_huevos_aves').delete().eq('id', v.id)
     if (error) { toast.error('Error al eliminar la venta'); return }
     // El huevo de una venta borrada vuelve a la bodega de su galpón
@@ -167,6 +169,12 @@ export default function VentasFinca({ fincaId, lotes }: Props) {
   /** Al entregarse, el encargo se vuelve venta con los precios de la finca y sale de bodega. */
   async function entregarEncargo(e: Encargo) {
     if (!preciosListos) { toast.error('Primero define los precios del huevo de la finca'); setEditandoPrecios(true); return }
+    // Se encarga sin tener el huevo, pero para entregarlo tiene que estar en bodega
+    const enBodega = stockPorLote[e.lote_id] ?? 0
+    if (huevosDe(e) > enBodega) {
+      toast.error(`${nombrePorLote.get(e.lote_id) ?? 'El galpón'} tiene ${enBodega.toLocaleString('es-CO')} huevos en bodega y el encargo es de ${huevosDe(e).toLocaleString('es-CO')}. Registra la producción de esos días antes de entregarlo.`, { duration: 8000 })
+      return
+    }
     const { data: venta, error } = await supabase.from('ventas_huevos_aves').insert({
       lote_id: e.lote_id,
       finca_id: fincaId,

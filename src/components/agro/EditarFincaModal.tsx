@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ESPECIES_FINCA, type EspecieFinca } from '@/lib/especies'
+import { ETAPAS_CERDOS, etapasDeFinca, type EtapaCerdos } from '@/lib/cerdos'
 import { Ic } from '@/components/ui/icon'
 
 type Finca = {
@@ -19,6 +20,7 @@ type Finca = {
   clima_predominante: string | null
   temperatura_promedio_ext: number | null
   tipo_produccion: string[] | null
+  etapas_cerdos?: string[] | null
   latitud: number | null
   longitud: number | null
   area_valor?: number | null
@@ -61,6 +63,7 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated, onDe
     longitud: '',
   })
   const [especies, setEspecies] = useState<EspecieFinca[]>([])
+  const [etapasCerdos, setEtapasCerdos] = useState<EtapaCerdos[]>([])
   const [buscandoUbicacion, setBuscandoUbicacion] = useState(false)
   const [conteos, setConteos] = useState<Record<string, number>>({})
   const [areaValor, setAreaValor] = useState('')
@@ -81,6 +84,7 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated, onDe
       longitud: finca.longitud != null ? String(finca.longitud) : '',
     })
     setEspecies((finca.tipo_produccion ?? []) as EspecieFinca[])
+    setEtapasCerdos(etapasDeFinca(finca.etapas_cerdos))
     setAreaValor(finca.area_valor != null ? String(finca.area_valor) : '')
     const unidadActual = finca.area_unidad ?? 'ha'
     setAreaUnidad(unidadActual === 'ha' || unidadActual === 'm2' ? unidadActual : (unidadActual ? UNIDAD_OTRA : 'ha'))
@@ -157,6 +161,9 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated, onDe
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (especies.length === 0) { toast.error('Selecciona al menos una especie con la que trabaja la finca'); return }
+    if (especies.includes('cerdos') && etapasCerdos.length === 0) {
+      toast.error('Marca al menos una etapa de cerdos que maneje la finca'); return
+    }
     setLoading(true)
 
     const areaNum = areaValor ? Number(areaValor) : null
@@ -172,6 +179,7 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated, onDe
         clima_predominante: form.clima_predominante || null,
         temperatura_promedio_ext: form.temperatura_promedio_ext ? Number(form.temperatura_promedio_ext) : null,
         tipo_produccion: especies,
+        etapas_cerdos: especies.includes('cerdos') ? etapasCerdos : null,
         latitud: form.latitud ? Number(form.latitud) : null,
         longitud: form.longitud ? Number(form.longitud) : null,
         area_valor: areaNum,
@@ -295,6 +303,33 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated, onDe
               })}
             </div>
           </div>
+          {especies.includes('cerdos') && (
+            <div className="space-y-1.5">
+              <Label>Etapas de cerdos que maneja la finca *</Label>
+              <p className="text-xs text-gray-500">
+                No todas las granjas hacen el ciclo completo. Marca las suyas y el módulo de
+                cerdos solo mostrará esas.
+              </p>
+              <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
+                {ETAPAS_CERDOS.map(etapa => {
+                  const marcada = etapasCerdos.includes(etapa.value)
+                  return (
+                    <button
+                      key={etapa.value}
+                      type="button"
+                      onClick={() => setEtapasCerdos(prev => marcada ? prev.filter(e => e !== etapa.value) : [...prev, etapa.value])}
+                      className={`rounded-lg border px-2 py-2.5 text-xs font-medium transition-colors ${
+                        marcada ? 'border-green-600 bg-green-50 text-green-800' : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                      }`}
+                    >
+                      {etapa.label}
+                      <span className="mt-0.5 block text-[10px] font-normal text-gray-400">{etapa.detalle}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
           <div className="border border-red-200 bg-red-50 rounded-lg p-3 space-y-2">
             <p className="text-sm font-semibold text-red-800"><Ic n="alerta" /> Zona de peligro</p>
             <p className="text-xs text-red-600">

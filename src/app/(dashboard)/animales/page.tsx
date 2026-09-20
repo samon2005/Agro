@@ -143,7 +143,7 @@ export default function AnimalesPage() {
                       </TableCell>
                       <TableCell>{a.peso_actual ? `${a.peso_actual} kg` : '—'}</TableCell>
                       <TableCell className="text-sm text-gray-600">
-                        {a.fecha_nacimiento ? new Date(a.fecha_nacimiento).toLocaleDateString('es-CO') : '—'}
+                        {a.fecha_nacimiento ? new Date(a.fecha_nacimiento + 'T00:00:00').toLocaleDateString('es-CO') : '—'}
                       </TableCell>
                       <TableCell>
                         <Badge className={
