@@ -14,6 +14,7 @@ import { avisoCostoVinculado } from '@/lib/eliminarConAviso'
 import CrearTipoAlimentoGenericoModal, { type TipoAlimentoGenerico } from './CrearTipoAlimentoGenericoModal'
 import EditarRequerimientosGenericoModal, { type RequerimientoGenerico } from './EditarRequerimientosGenericoModal'
 import RegistrarConsumoGenericoModal from './RegistrarConsumoGenericoModal'
+import InventarioAlimentoGenerico from './InventarioAlimentoGenerico'
 import HorariosAlimentacionGenerico from './HorariosAlimentacionGenerico'
 import { dbGenerico, type ConfigEspecie } from '@/lib/especiesConfig'
 import { hoyLocal } from '@/lib/fechas'
@@ -30,7 +31,7 @@ interface Props {
   config: ConfigEspecie
 }
 
-type SubTab = 'alimento' | 'balance'
+type SubTab = 'alimento' | 'inventario' | 'balance'
 
 interface RegistroConsumo {
   id: string
@@ -179,6 +180,7 @@ export default function TabAlimentoGenerico({ lotes, config }: Props) {
 
   const subTabItems: { id: SubTab; label: string }[] = [
     { id: 'alimento', label: 'Alimento' },
+    { id: 'inventario', label: 'Inventario' },
     { id: 'balance', label: 'Balance' },
   ]
 
@@ -289,6 +291,18 @@ export default function TabAlimentoGenerico({ lotes, config }: Props) {
 
           {lote && <HorariosAlimentacionGenerico loteId={lote.id} fincaId={lote.finca_id} config={config} onConsumoCambiado={fetchAll} />}
         </>
+      )}
+
+      {subTab === 'inventario' && (
+        <InventarioAlimentoGenerico
+          loteId={lote.id}
+          fincaId={lote.finca_id}
+          config={config}
+          tiposAlimento={tiposActivos}
+          alimentoActivoId={alimentoActivo?.alimento_activo_id ?? null}
+          consumoDiarioKg={Number(alimentoActivo?.consumo_activo_kg ?? 0)}
+          puedeVerCostos={puedeVerCostos}
+        />
       )}
 
       {subTab === 'balance' && (

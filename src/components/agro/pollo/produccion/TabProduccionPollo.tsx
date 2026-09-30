@@ -1,6 +1,9 @@
 'use client'
 
 import { Indicador } from '@/components/ui/indicador'
+import { DIAS_CICLO_POR_SEXO, SEXO_LABEL, diasDeVida, fechaSalidaPrevista, pesoEsperadoG } from '@/lib/pollo'
+import { gdpEntre, estadoPesaje, diasHasta } from '@/lib/crecimiento'
+import ProgramarPesajeModal from '@/components/agro/cerdos/crecimiento/ProgramarPesajeModal'
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
@@ -32,6 +35,7 @@ export default function TabProduccionPollo({ loteActual, onLoteUpdated }: Props)
   const [loading, setLoading] = useState(true)
   const [showDiario, setShowDiario] = useState(false)
   const [showPeso, setShowPeso] = useState(false)
+  const [modalProgramar, setModalProgramar] = useState(false)
   const [saving, setSaving] = useState(false)
 
   const [formDiario, setFormDiario] = useState({
@@ -117,6 +121,35 @@ export default function TabProduccionPollo({ loteActual, onLoteUpdated }: Props)
   const fcr = gananciaTotal && loteActual.pollos_actuales > 0 && Number(gananciaTotal) > 0
     ? (totalAlimento / (Number(gananciaTotal) * loteActual.pollos_actuales)).toFixed(3) : null
 
+  // Días de vida, salida prevista y cómo va contra el peso de referencia
+  const dia = diasDeVida(loteActual.fecha_ingreso)
+  const diasCiclo = loteActual.dias_ciclo ?? DIAS_CICLO_POR_SEXO[(loteActual.sexo as 'machos' | 'hembras' | 'mixto') ?? 'mixto']
+  const salida = fechaSalidaPrevista(loteActual.fecha_ingreso, diasCiclo)
+  const esperadoG = pesoEsperadoG(ultimoPeso?.dia_vida ?? dia)
+  const realG = ultimoPeso ? ultimoPeso.peso_promedio * 1000 : null
+  const difPct = esperadoG && realG ? ((realG - esperadoG) / esperadoG) * 100 : null
+  // Ganancia diaria de peso: lo que engorda cada pollo por día
+  const gdpUltimo = pesos.length >= 2
+    ? gdpEntre(
+        { fecha: pesos[1].fecha, peso_promedio: Number(pesos[1].peso_promedio) },
+        { fecha: pesos[0].fecha, peso_promedio: Number(pesos[0].peso_promedio) },
+      )
+    : null
+  const gdpCiclo = ultimoPeso && loteActual.peso_promedio_inicial != null && ultimoPeso.dia_vida
+    ? (ultimoPeso.peso_promedio - Number(loteActual.peso_promedio_inicial) / 1000) / ultimoPeso.dia_vida
+    : null
+  const situacionPesaje = estadoPesaje(loteActual.proximo_pesaje)
+
+  // El arranque manda: lo que pasa la primera semana marca todo el ciclo
+  const primeraSemana = produccion.filter(r => diasDeVida(loteActual.fecha_ingreso, r.fecha) <= 7)
+  const muertesPrimerDia = produccion
+    .filter(r => diasDeVida(loteActual.fecha_ingreso, r.fecha) === 0)
+    .reduce((s, r) => s + r.muertes, 0)
+  const muertesPrimeraSemana = primeraSemana.reduce((s, r) => s + r.muertes, 0)
+  const mortPrimeraSemanaPct = loteActual.pollos_iniciales > 0
+    ? (muertesPrimeraSemana / loteActual.pollos_iniciales) * 100
+    : 0
+
   // Uniformidad del último pesaje
   let uniformidad: string | null = null
   if (ultimoPeso?.peso_minimo && ultimoPeso?.peso_maximo) {
@@ -131,6 +164,9 @@ export default function TabProduccionPollo({ loteActual, onLoteUpdated }: Props)
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-lg font-semibold text-gray-800">Producción y Crecimiento</h2>
         <div className="flex gap-2">
+          <Button onClick={() => setModalProgramar(true)} variant="outline" className="text-sm">
+            <Ic n="calendario" /> Programar pesajes
+          </Button>
           <Button onClick={() => { setShowPeso(v => !v); setShowDiario(false) }} variant="outline" className="text-sm border-yellow-400 text-yellow-700 hover:bg-yellow-50">
             {showPeso ? 'Cerrar' : 'Registrar pesaje'}
           </Button>
@@ -140,12 +176,52 @@ export default function TabProduccionPollo({ loteActual, onLoteUpdated }: Props)
         </div>
       </div>
 
+      {/* El primer día es crítico: ahí se muere el pollo que no arrancó */}
+      {dia <= 10 && (
+        <div className={`rounded-xl px-4 py-3 text-sm ring-1 ${
+          mortPrimeraSemanaPct > 3 ? 'bg-red-50 text-red-800 ring-red-200' : 'bg-amber-50 text-amber-800 ring-amber-200'
+        }`}>
+          <p className="font-semibold"><Ic n="pollo" /> Arranque del lote · día {dia}</p>
+          <p className="mt-0.5 text-xs">
+            {muertesPrimerDia > 0
+              ? `${muertesPrimerDia} muertos el día de llegada. `
+              : 'Sin muertes registradas el día de llegada. '}
+            {muertesPrimeraSemana > 0
+              ? `${muertesPrimeraSemana} en la primera semana (${mortPrimeraSemanaPct.toFixed(1)}% del lote)`
+              : 'Registra cada día las muertes y los eventos clínicos: la primera semana marca todo el ciclo.'}
+            {mortPrimeraSemanaPct > 3 && ' — por encima del 3% ya es una mortalidad alta de arranque.'}
+          </p>
+        </div>
+      )}
+
+      {(situacionPesaje === 'vencido' || situacionPesaje === 'hoy') && (
+        <div className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800 ring-1 ring-amber-200">
+          <Ic n="bascula" /> <strong>Toca pesar el lote.</strong>{' '}
+          {situacionPesaje === 'hoy'
+            ? 'El pesaje está programado para hoy.'
+            : `El pesaje estaba programado para hace ${Math.abs(diasHasta(loteActual.proximo_pesaje!))} día(s).`}
+        </div>
+      )}
+
       {/* KPI cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Indicador tono="amber" icono="bascula" etiqueta="Último peso prom." valor={ultimoPeso ? `${ultimoPeso.peso_promedio.toFixed(3)} kg` : '—'}>
           {gananciaTotal && <p className="text-xs text-yellow-600">+{gananciaTotal} kg desde ingreso</p>}
         </Indicador>
+        <Indicador
+          tono={difPct != null && difPct < -5 ? 'red' : 'green'} icono="tendencia" etiqueta="Ganancia diaria"
+          valor={gdpUltimo != null ? `${(gdpUltimo * 1000).toFixed(0)} g` : gdpCiclo != null ? `${(gdpCiclo * 1000).toFixed(0)} g` : '—'}
+          detalle={
+            esperadoG && realG
+              ? `${(realG / 1000).toFixed(3)} kg contra ${(esperadoG / 1000).toFixed(3)} kg de referencia (${difPct! >= 0 ? '+' : ''}${difPct!.toFixed(0)}%)`
+              : 'Registra pesajes para compararlo'
+          }
+        />
         <Indicador tono="blue" icono="grafica" etiqueta="FCR acumulado" valor={fcr ?? '—'} detalle="kg alim / kg ganancia" />
+        <Indicador
+          tono="amber" icono="calendario" etiqueta="Día de vida" valor={dia}
+          detalle={salida ? `Sale hacia el ${fmt(salida)} · día ${diasCiclo}${loteActual.sexo ? ` · ${SEXO_LABEL[loteActual.sexo] ?? loteActual.sexo}` : ''}` : 'Sin ciclo definido'}
+        />
         <Indicador tono="green" icono="pollo" etiqueta="Pollos actuales" valor={loteActual.pollos_actuales.toLocaleString('es-CO')}>
           {uniformidad && <p className={`text-xs ${uniformidad.startsWith('') ? 'text-green-600' : 'text-amber-600'}`}>{uniformidad}</p>}
         </Indicador>
@@ -280,6 +356,15 @@ export default function TabProduccionPollo({ loteActual, onLoteUpdated }: Props)
           )}
         </CardContent>
       </Card>
+      <ProgramarPesajeModal
+        open={modalProgramar}
+        onClose={() => setModalProgramar(false)}
+        lote={loteActual}
+        tabla="lotes_pollo"
+        ultimoPesaje={ultimoPeso?.fecha ?? null}
+        onGuardado={() => { fetchData(); onLoteUpdated?.() }}
+      />
+
     </div>
   )
 }

@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils'
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
 import { Ic } from '@/components/ui/icon'
+import PlanVacunacion from '@/components/agro/comun/PlanVacunacion'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
 type Vacunacion = Database['public']['Tables']['vacunaciones_cerdos']['Row']
@@ -178,6 +179,20 @@ export default function TabSanitarioCerdos({ loteActual }: Props) {
           </button>
         ))}
       </div>
+
+      {/* El plan de la granja: qué vacuna va a qué día de vida del lote */}
+      {subTab === 'vacunas' && (
+        <PlanVacunacion
+          fincaId={loteActual.finca_id}
+          especie="cerdos"
+          loteId={loteActual.id}
+          fechaIngreso={loteActual.fecha_nacimiento ?? loteActual.fecha_ingreso}
+          vacunasAplicadas={vacunas.map(v => ({ vacuna: v.vacuna, plan_id: v.plan_id, fecha_aplicacion: v.fecha_aplicacion }))}
+          tablaVacunaciones="vacunaciones_cerdos"
+          animalesActuales={loteActual.animales_actuales}
+          onAplicada={fetchAll}
+        />
+      )}
 
       {subTab === 'vacunas' && showFormVac && (
         <Card className="border-green-200">

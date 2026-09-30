@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import type { Database } from '@/types/database'
 import { hoyLocal, aFechaLocal } from '@/lib/fechas'
 import { Ic } from '@/components/ui/icon'
+import PlanVacunacion from '@/components/agro/comun/PlanVacunacion'
 
 type LotePollo = Database['public']['Tables']['lotes_pollo']['Row']
 type Vacuna = Database['public']['Tables']['vacunaciones_pollo']['Row']
@@ -180,6 +181,20 @@ export default function TabSanitarioPollo({ loteActual }: Props) {
           {showForm ? 'Cerrar' : `+ Registrar`}
         </Button>
       </div>
+
+      {/* El plan de la granja manda: dice qué vacuna toca a cada día de vida */}
+      {subTab === 'vacunas' && (
+        <PlanVacunacion
+          fincaId={loteActual.finca_id}
+          especie="pollo_engorde"
+          loteId={loteActual.id}
+          fechaIngreso={loteActual.fecha_ingreso}
+          vacunasAplicadas={vacunas.map(v => ({ vacuna: v.vacuna, plan_id: v.plan_id, fecha_aplicacion: v.fecha_aplicacion }))}
+          tablaVacunaciones="vacunaciones_pollo"
+          animalesActuales={loteActual.pollos_actuales}
+          onAplicada={fetchData}
+        />
+      )}
 
       {/* Formularios */}
       {showForm && subTab === 'vacunas' && (
