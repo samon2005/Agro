@@ -18,6 +18,8 @@ import { hoyLocal } from '@/lib/fechas'
 import { Ic } from '@/components/ui/icon'
 import { useFinca } from '@/components/agro/FincaProvider'
 import ClasificarPorPesoModal from './ClasificarPorPesoModal'
+import ProgramarPesajeModal from './ProgramarPesajeModal'
+import { gdpEntre, gdpAcumulada, estadoPesaje, diasHasta } from '@/lib/crecimiento'
 import { etapasEngordeDeFinca } from '@/lib/cerdos'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
@@ -55,6 +57,7 @@ export default function TabCrecimiento({ loteActual, onLoteUpdated }: Props) {
   const [confirmandoEliminar, setConfirmandoEliminar] = useState<string | null>(null)
   const [subTab, setSubTab] = useState<'pesos' | 'mortalidad' | 'etapas' | 'movimientos'>('pesos')
   const [modalClasificar, setModalClasificar] = useState(false)
+  const [modalProgramar, setModalProgramar] = useState(false)
 
   // Etapa form
   const [formEtapa, setFormEtapa] = useState({ fecha: hoyLocal(), etapa_nueva: '', peso_promedio: '', corral_destino: '', observaciones: '' })
@@ -84,6 +87,17 @@ export default function TabCrecimiento({ loteActual, onLoteUpdated }: Props) {
   const ultimoPeso = pesos[0]
   const primerPeso = pesos[pesos.length - 1]
   const gananciaTotal = ultimoPeso && primerPeso ? (ultimoPeso.peso_promedio - (loteActual.peso_promedio_inicial ?? primerPeso.peso_promedio)) : null
+  // Ganancia diaria de peso: lo que engorda cada animal por día
+  const pesajesOrdenados = [...pesos].map(x => ({ fecha: x.fecha, peso_promedio: Number(x.peso_promedio) }))
+  const gdpTotal = gdpAcumulada(pesajesOrdenados, loteActual.peso_promedio_inicial, loteActual.fecha_ingreso)
+  const gdpUltimo = pesos.length >= 2
+    ? gdpEntre(
+        { fecha: pesos[1].fecha, peso_promedio: Number(pesos[1].peso_promedio) },
+        { fecha: pesos[0].fecha, peso_promedio: Number(pesos[0].peso_promedio) },
+      )
+    : null
+  const situacionPesaje = estadoPesaje(loteActual.proximo_pesaje)
+  const diasParaPesaje = loteActual.proximo_pesaje ? diasHasta(loteActual.proximo_pesaje) : null
   const mortAcum = mortalidad.reduce((s, m) => s + m.cantidad, 0)
   const mortPct = loteActual.numero_animales > 0 ? ((mortAcum / loteActual.numero_animales) * 100).toFixed(1) : '0.0'
 
@@ -166,7 +180,12 @@ export default function TabCrecimiento({ loteActual, onLoteUpdated }: Props) {
             </Button>
           )}
           {subTab === 'pesos' && (
-            <Button onClick={() => { setPesoEditar(null); setModalPeso(true) }} className="bg-orange-600 hover:bg-orange-700 text-white text-sm">+ Registrar pesaje</Button>
+            <>
+              <Button variant="outline" className="text-sm" onClick={() => setModalProgramar(true)}>
+                <Ic n="calendario" /> Programar pesajes
+              </Button>
+              <Button onClick={() => { setPesoEditar(null); setModalPeso(true) }} className="bg-orange-600 hover:bg-orange-700 text-white text-sm">+ Registrar pesaje</Button>
+            </>
           )}
         </div>
       </div>
@@ -174,7 +193,26 @@ export default function TabCrecimiento({ loteActual, onLoteUpdated }: Props) {
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Indicador tono="blue" icono="bascula" etiqueta="Peso promedio" valor={ultimoPeso ? `${ultimoPeso.peso_promedio.toFixed(1)} kg` : '—'} detalle={ultimoPeso ? fmt(ultimoPeso.fecha) : 'Sin pesajes'} />
-        <Indicador tono="green" icono="tendencia" etiqueta="Ganancia total" valor={gananciaTotal !== null ? `${gananciaTotal.toFixed(1)} kg` : '—'} detalle="vs peso inicial" />
+        <Indicador
+          tono="green" icono="tendencia" etiqueta="Ganancia diaria"
+          valor={gdpTotal !== null ? `${gdpTotal.toFixed(3)} kg` : '—'}
+          detalle={
+            gdpUltimo !== null
+              ? `Entre los dos últimos pesajes: ${gdpUltimo.toFixed(3)} kg/día`
+              : gananciaTotal !== null ? `${gananciaTotal.toFixed(1)} kg ganados en total` : 'Hacen falta dos pesajes'
+          }
+        />
+        <Indicador
+          tono={situacionPesaje === 'vencido' ? 'red' : situacionPesaje === 'hoy' || situacionPesaje === 'pronto' ? 'amber' : 'gray'}
+          icono="calendario" etiqueta="Próximo pesaje"
+          valor={loteActual.proximo_pesaje ? fmt(loteActual.proximo_pesaje) : 'Sin programar'}
+          detalle={
+            situacionPesaje === 'vencido' ? `Atrasado ${Math.abs(diasParaPesaje ?? 0)} día${Math.abs(diasParaPesaje ?? 0) === 1 ? '' : 's'}`
+              : situacionPesaje === 'hoy' ? 'Toca hoy'
+              : situacionPesaje === 'sin_programar' ? 'Programa cada cuánto se pesa'
+              : `Faltan ${diasParaPesaje} día${diasParaPesaje === 1 ? '' : 's'}`
+          }
+        />
         <Indicador tono="orange" icono="ciclo" compacto etiqueta="Etapa actual" valor={ETAPAS_LABEL[loteActual.etapa_actual] ?? loteActual.etapa_actual} detalle={<>{loteActual.animales_actuales} animales</>} />
         <Indicador tono="gray" icono="muerte" etiqueta="Mortalidad acum." valor={mortAcum} detalle={<>{mortPct}% del lote inicial</>} />
       </div>
@@ -211,6 +249,7 @@ export default function TabCrecimiento({ loteActual, onLoteUpdated }: Props) {
                         <TableHead className="text-right">Peso prom. (kg)</TableHead>
                         <TableHead className="text-right">Mín</TableHead>
                         <TableHead className="text-right">Máx</TableHead>
+                        <TableHead className="text-right">Ganancia diaria</TableHead>
                         <TableHead className="text-right">Variación</TableHead>
                         <TableHead>Método</TableHead>
                         <TableHead></TableHead>
@@ -221,12 +260,29 @@ export default function TabCrecimiento({ loteActual, onLoteUpdated }: Props) {
                         const variacion = p.peso_minimo && p.peso_maximo ? (((p.peso_maximo - p.peso_minimo) / p.peso_promedio) * 100).toFixed(1) : null
                         const prevPeso = pesos[idx + 1]
                         const ganancia = prevPeso ? (p.peso_promedio - prevPeso.peso_promedio).toFixed(2) : null
+                        // Lo que ganó por día desde el pesaje anterior
+                        const gdp = prevPeso
+                          ? gdpEntre(
+                              { fecha: prevPeso.fecha, peso_promedio: Number(prevPeso.peso_promedio) },
+                              { fecha: p.fecha, peso_promedio: Number(p.peso_promedio) },
+                            )
+                          : null
                         return (
                           <TableRow key={p.id}>
                             <TableCell className="font-medium text-sm">{fmt(p.fecha)}</TableCell>
                             <TableCell className="text-right font-semibold">{p.peso_promedio.toFixed(2)}</TableCell>
                             <TableCell className="text-right text-sm text-gray-500">{p.peso_minimo?.toFixed(1) ?? '—'}</TableCell>
                             <TableCell className="text-right text-sm text-gray-500">{p.peso_maximo?.toFixed(1) ?? '—'}</TableCell>
+                            <TableCell className="text-right text-sm">
+                              {gdp != null ? (
+                                <>
+                                  <span className={gdp > 0 ? 'font-medium text-green-700' : 'font-medium text-red-600'}>
+                                    {gdp.toFixed(3)} kg/día
+                                  </span>
+                                  {ganancia && <span className="block text-[0.6875rem] text-gray-400">{ganancia} kg desde el anterior</span>}
+                                </>
+                              ) : <span className="text-gray-400">Primer pesaje</span>}
+                            </TableCell>
                             <TableCell className="text-right text-sm">
                               {variacion ? <span className={Number(variacion) < 20 ? 'text-green-600' : 'text-amber-600'}>{variacion}%</span> : '—'}
                             </TableCell>
@@ -422,6 +478,15 @@ export default function TabCrecimiento({ loteActual, onLoteUpdated }: Props) {
         pesoExistente={pesoEditar}
         onCreated={fetchAll}
       />
+      <ProgramarPesajeModal
+        open={modalProgramar}
+        onClose={() => setModalProgramar(false)}
+        lote={loteActual}
+        tabla="lotes_cerdos"
+        ultimoPesaje={ultimoPeso?.fecha ?? null}
+        onGuardado={() => { fetchAll(); onLoteUpdated() }}
+      />
+
       <ClasificarPorPesoModal
         open={modalClasificar}
         onClose={() => setModalClasificar(false)}

@@ -159,6 +159,7 @@ export default function PolloEngordePage() {
                 config={CONFIG}
                 animalesActuales={loteActual.pollos_actuales}
                 precioKgObjetivo={loteActual.precio_kg_objetivo}
+                pesoObjetivo={loteActual.peso_objetivo_kg}
                 onLoteCambiado={refreshLote}
               />
             ))}

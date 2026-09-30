@@ -192,6 +192,7 @@ export default function CerdosPage() {
                 config={CONFIG}
                 animalesActuales={loteActual.animales_actuales}
                 precioKgObjetivo={loteActual.precio_kg_objetivo}
+                pesoObjetivo={loteActual.peso_objetivo_kg}
                 onLoteCambiado={refreshLote}
               />
             ))}

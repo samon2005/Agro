@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import RegistrarVentaGenericaModal from './RegistrarVentaGenericaModal'
+import DespachosProgramados from './DespachosProgramados'
 import { hoyLocal } from '@/lib/fechas'
 import {
   dbGenerico, kilosVenta, totalVentaAnimales,
@@ -24,6 +25,8 @@ interface Props {
   config: ConfigEspecie
   animalesActuales: number
   precioKgObjetivo?: number | null
+  /** Peso al que se espera vender, para proponerlo en el despacho */
+  pesoObjetivo?: number | null
   onLoteCambiado?: () => void
 }
 
@@ -35,7 +38,7 @@ function fmt(d: string) {
   return new Date(d + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-export default function TabVentasGenerico({ loteId, fincaId, config, animalesActuales, precioKgObjetivo, onLoteCambiado }: Props) {
+export default function TabVentasGenerico({ loteId, fincaId, config, animalesActuales, precioKgObjetivo, pesoObjetivo, onLoteCambiado }: Props) {
   const supabase = createClient()
   const [ventas, setVentas] = useState<VentaGenerica[]>([])
   const [loading, setLoading] = useState(true)
@@ -92,6 +95,20 @@ export default function TabVentasGenerico({ loteId, fincaId, config, animalesAct
         <Indicador tono="green" etiqueta="Kilos vendidos (mes)" valor={kilosMes > 0 ? kilosMes.toLocaleString('es-CO', { maximumFractionDigits: 1 }) : '—'} />
         <Indicador tono="green" etiqueta="Precio promedio / kg" valor={precioPromedioKg > 0 ? cop(precioPromedioKg) : '—'} />
       </div>
+
+      {/* Lo que está comprometido para salir, antes de que salga */}
+      {(config.especie === 'cerdos' || config.especie === 'pollo_engorde') && (
+        <DespachosProgramados
+          loteId={loteId}
+          fincaId={fincaId}
+          especie={config.especie}
+          animalesActuales={animalesActuales}
+          pesoObjetivo={pesoObjetivo}
+          precioKgObjetivo={precioKgObjetivo}
+          onDespachado={() => { fetchVentas(); onLoteCambiado?.() }}
+          onRegistrarVenta={() => { setVentaEditar(null); setModalOpen(true) }}
+        />
+      )}
 
       <Card>
         <CardHeader className="pb-2">

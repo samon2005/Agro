@@ -67,6 +67,8 @@ export default function TabAlimentoGenerico({ lotes, config }: Props) {
   const [requerimientosHistorial, setRequerimientosHistorial] = useState<RequerimientoGenerico[]>([])
   const [alimentoActivo, setAlimentoActivo] = useState<{ alimento_activo_id: string | null; consumo_activo_kg: number | null } | null>(null)
   const [animalesActuales, setAnimalesActuales] = useState(0)
+  // Etapa del lote: de ella depende qué alimento le corresponde
+  const [etapaLote, setEtapaLote] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [modalTipo, setModalTipo] = useState(false)
   const [tipoEditar, setTipoEditar] = useState<TipoAlimentoGenerico | null>(null)
@@ -96,6 +98,7 @@ export default function TabAlimentoGenerico({ lotes, config }: Props) {
       consumo_activo_kg: (loteData.consumo_activo_kg as number | null) ?? null,
     } : null)
     setAnimalesActuales(Number(loteData?.[config.campoActuales] ?? 0))
+    setEtapaLote((loteData?.etapa_actual as string | null) ?? null)
     setLoading(false)
   }, [lote, supabase, config])
 
@@ -473,6 +476,7 @@ export default function TabAlimentoGenerico({ lotes, config }: Props) {
             fincaId={lote.finca_id}
             config={config}
             tiposAlimento={tiposActivos}
+            etapaLote={etapaLote}
             onCreated={fetchAll}
           />
         </>

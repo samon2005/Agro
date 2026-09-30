@@ -20,6 +20,8 @@ interface Props {
   fincaId: string
   config: ConfigEspecie
   tiposAlimento: TipoAlimentoGenerico[]
+  /** Etapa en la que va el lote: el alimento debe ser el de esa etapa */
+  etapaLote?: string | null
   onCreated: () => void
 }
 
@@ -31,7 +33,7 @@ function defaultForm() {
   }
 }
 
-export default function RegistrarConsumoGenericoModal({ open, onClose, loteId, fincaId, config, tiposAlimento, onCreated }: Props) {
+export default function RegistrarConsumoGenericoModal({ open, onClose, loteId, fincaId, config, tiposAlimento, etapaLote, onCreated }: Props) {
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState(defaultForm)
@@ -75,6 +77,16 @@ export default function RegistrarConsumoGenericoModal({ open, onClose, loteId, f
     onClose()
   }
 
+  // Cada etapa come lo suyo: el alimento de la etapa del lote va primero y el
+  // resto queda debajo, avisando que no corresponde.
+  const etiquetaEtapa = (etapa: string | null | undefined) =>
+    config.nutricion.categoriasAlimento.find(c => c.value === etapa)?.label ?? etapa ?? ''
+  const deLaEtapa = etapaLote ? tiposAlimento.filter(t => t.tipo_alimento_categoria === etapaLote) : tiposAlimento
+  const deOtraEtapa = etapaLote ? tiposAlimento.filter(t => t.tipo_alimento_categoria !== etapaLote) : []
+  const elegido = tiposAlimento.find(t => t.id === form.tipo_alimento_id) ?? null
+  const noCorresponde = Boolean(
+    etapaLote && elegido && elegido.tipo_alimento_categoria && elegido.tipo_alimento_categoria !== etapaLote,
+  )
   const items = Object.fromEntries(tiposAlimento.map(t => [t.id, t.nombre]))
 
   return (
@@ -92,10 +104,29 @@ export default function RegistrarConsumoGenericoModal({ open, onClose, loteId, f
             <Label>Tipo de alimento *</Label>
             <Select value={form.tipo_alimento_id} onValueChange={v => set('tipo_alimento_id', v)} items={items}>
               <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
-              <SelectContent>
-                {tiposAlimento.map(t => <SelectItem key={t.id} value={t.id}>{t.nombre}</SelectItem>)}
+              <SelectContent alignItemWithTrigger={false} className="max-h-72">
+                {deLaEtapa.map(t => <SelectItem key={t.id} value={t.id}>{t.nombre}</SelectItem>)}
+                {deOtraEtapa.length > 0 && (
+                  <div className="px-2 pt-2 pb-1 text-[0.6875rem] text-gray-400">De otras etapas</div>
+                )}
+                {deOtraEtapa.map(t => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.nombre}{t.tipo_alimento_categoria ? ` · ${etiquetaEtapa(t.tipo_alimento_categoria)}` : ''}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
+            {etapaLote && (
+              <p className="text-xs text-gray-500">
+                El lote va en <strong>{etiquetaEtapa(etapaLote)}</strong>: cada etapa lleva su propio alimento.
+              </p>
+            )}
+            {noCorresponde && (
+              <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                <Ic n="alerta" /> Ese alimento es de {etiquetaEtapa(elegido?.tipo_alimento_categoria)} y el lote va en {etiquetaEtapa(etapaLote)}.
+                Puedes registrarlo, pero revisa que sea lo que realmente están comiendo.
+              </p>
+            )}
             {tiposAlimento.length === 0 && (
               <p className="text-xs text-amber-600">Primero registra un tipo de alimento en la pestaña Alimento.</p>
             )}
