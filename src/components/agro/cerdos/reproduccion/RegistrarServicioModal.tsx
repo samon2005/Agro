@@ -55,14 +55,24 @@ export default function RegistrarServicioModal({ open, onClose, lote, hembras, s
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState(() => defaultForm(servicioExistente))
   const [aplicaciones, setAplicaciones] = useState<Aplicacion[]>([{ fecha: hoyLocal(), hora: '', codigo_semen: '' }])
+  // El parto sale solo a los 114 días, pero cada granja ajusta: se puede corregir
+  const [partoManual, setPartoManual] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) return
     setForm(defaultForm(servicioExistente))
     if (!servicioExistente) {
       setAplicaciones([{ fecha: hoyLocal(), hora: '', codigo_semen: '' }])
+      setPartoManual(null)
       return
     }
+    // Si la fecha guardada no es la que dan los 114 días, es que la corrigieron
+    const calculada = fechaProbableParto(servicioExistente.fecha_servicio)
+    setPartoManual(
+      servicioExistente.fecha_probable_parto && servicioExistente.fecha_probable_parto !== calculada
+        ? servicioExistente.fecha_probable_parto
+        : null,
+    )
     supabase.from('inseminaciones_cerdos').select('*').eq('servicio_id', servicioExistente.id).order('fecha')
       .then(({ data }) => setAplicaciones(
         (data ?? []).length > 0
@@ -79,10 +89,14 @@ export default function RegistrarServicioModal({ open, onClose, lote, hembras, s
     setForm(prev => ({ ...prev, [field]: value ?? '' }))
   }
 
-  // El parto se cuenta desde la primera aplicacion
+  // El parto se cuenta desde la primera aplicación, salvo que se haya corregido
   const fechaBase = aplicaciones[0]?.fecha ?? form.fecha_servicio
-  const parto = fechaBase ? fechaProbableParto(fechaBase) : null
+  const partoCalculado = fechaBase ? fechaProbableParto(fechaBase) : null
+  const parto = partoManual ?? partoCalculado
   const celo = fechaBase ? fechaRepeticionCelo(fechaBase) : null
+  const diasHastaParto = parto && fechaBase
+    ? Math.round((new Date(parto + 'T00:00:00').getTime() - new Date(fechaBase + 'T00:00:00').getTime()) / 86400000)
+    : null
 
   function fmt(d: string) {
     return new Date(d + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'long', year: 'numeric' })
@@ -251,8 +265,30 @@ export default function RegistrarServicioModal({ open, onClose, lote, hembras, s
           </div>
 
           {parto && celo && (
-            <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg text-xs text-purple-800 space-y-1">
-              <p><Ic n="tetero" /> <strong>Parto probable:</strong> {fmt(parto)} ({DIAS_GESTACION} días desde el servicio)</p>
+            <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg text-xs text-purple-800 space-y-2">
+              <div className="flex flex-wrap items-end justify-between gap-2">
+                <div>
+                  <p className="font-semibold"><Ic n="tetero" /> Parto probable</p>
+                  <p className="mt-0.5">
+                    {fmt(parto)}
+                    {diasHastaParto != null && ` · ${diasHastaParto} días desde la primera aplicación`}
+                    {partoManual && ' · ajustado a mano'}
+                  </p>
+                </div>
+                <div className="flex items-end gap-2">
+                  <Input
+                    type="date"
+                    className="h-8 w-40 bg-white text-xs"
+                    value={parto}
+                    onChange={e => setPartoManual(e.target.value || null)}
+                  />
+                  {partoManual && (
+                    <Button type="button" size="sm" variant="outline" className="h-8 text-xs" onClick={() => setPartoManual(null)}>
+                      Volver a {DIAS_GESTACION} días
+                    </Button>
+                  )}
+                </div>
+              </div>
               <p><Ic n="repetir" /> <strong>Si repite celo</strong>, sería alrededor del {fmt(celo)} — a los 21 días. Si vuelve a
                  entrar en celo, este servicio no prendió.</p>
             </div>

@@ -51,6 +51,9 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
   const [modalServicio, setModalServicio] = useState(false)
   const [servicioEditar, setServicioEditar] = useState<Servicio | null>(null)
   const [modalParto, setModalParto] = useState(false)
+  const [partoEditar, setPartoEditar] = useState<Parto | null>(null)
+  const [desteteEditar, setDesteteEditar] = useState<Destete | null>(null)
+  const [confirmandoPrenez, setConfirmandoPrenez] = useState<string | null>(null)
   const [servicioParaParto, setServicioParaParto] = useState<Servicio | null>(null)
   const [modalDestete, setModalDestete] = useState(false)
   const [partoParaDestete, setPartoParaDestete] = useState<Parto | null>(null)
@@ -118,18 +121,83 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
   const camadasLactando = partos.filter(p => !partosConDestete.has(p.id))
   const destetesVencidos = camadasLactando.filter(p => diasDesde(p.fecha_parto) > DIAS_LACTANCIA_MAX)
   // En la ventana de destete: ya se pueden destetar, todavía sin atraso
+  // El parto más cercano de las hembras preñadas, para el cuadro de "por venir"
+  const proximoParto = servicios
+    .filter(s => s.estado !== 'parido' && s.fecha_probable_parto)
+    .map(s => s.fecha_probable_parto!)
+    .sort()[0] ?? null
+
   const destetesListos = camadasLactando.filter(p => {
     const d = diasDesde(p.fecha_parto)
     return d >= DIAS_LACTANCIA_MIN && d <= DIAS_LACTANCIA_MAX
   })
 
+  /**
+   * A los 21 días se sabe si el servicio prendió. Responder aquí deja a la cerda
+   * gestante y el parto en pie, o la devuelve a vacía por haber repetido celo.
+   */
+  async function responderPrenez(servicio: Servicio, prendio: boolean) {
+    setConfirmandoPrenez(servicio.id)
+    const { error } = await supabase.from('servicios_cerdos').update({
+      estado: prendio ? 'confirmado' : 'repetido',
+      prenez_confirmada: prendio,
+      fecha_confirmacion: prendio ? hoyLocal() : null,
+    }).eq('id', servicio.id)
+
+    if (!error) {
+      await supabase.from('reproductoras_cerdos')
+        .update({ estado: prendio ? 'gestante' : 'vacia' })
+        .eq('id', servicio.reproductora_id)
+    }
+    setConfirmandoPrenez(null)
+    if (error) { toast.error('Error al guardar la confirmación'); return }
+
+    const codigo = hembraPorId.get(servicio.reproductora_id)?.codigo ?? 'La hembra'
+    toast.success(prendio
+      ? `${codigo} queda preñada · parto probable el ${servicio.fecha_probable_parto ? fmt(servicio.fecha_probable_parto) : 'por calcular'}`
+      : `${codigo} repitió celo y vuelve a estar vacía: hay que servirla de nuevo`)
+    fetchAll()
+  }
+
+  /**
+   * Borrar un registro deshace lo que ese registro había cambiado: si se borra el
+   * parto, la cerda vuelve a estar preñada y su servicio a estar confirmado; si se
+   * borra el destete, la cerda vuelve a lactante.
+   */
   async function eliminar(tabla: 'reproductoras_cerdos' | 'servicios_cerdos' | 'partos_cerdos' | 'destetes_cerdos', id: string) {
     const key = `${tabla}-${id}`
     if (confirmandoEliminar !== key) { setConfirmandoEliminar(key); return }
     setConfirmandoEliminar(null)
+
+    const parto = tabla === 'partos_cerdos' ? partos.find(p => p.id === id) ?? null : null
+    const destete = tabla === 'destetes_cerdos' ? destetes.find(d => d.id === id) ?? null : null
+
+    // Un parto borrado se lleva su destete: esa camada ya no existe
+    if (parto) {
+      await supabase.from('destetes_cerdos').delete().eq('parto_id', parto.id)
+    }
+
     const { error } = await supabase.from(tabla).delete().eq('id', id)
     if (error) { toast.error('Error al eliminar el registro'); return }
-    toast.success('Registro eliminado')
+
+    if (parto) {
+      const hembra = hembraPorId.get(parto.reproductora_id)
+      await supabase.from('reproductoras_cerdos').update({
+        estado: 'gestante',
+        numero_partos: Math.max(0, (hembra?.numero_partos ?? 1) - 1),
+      }).eq('id', parto.reproductora_id)
+      if (parto.servicio_id) {
+        await supabase.from('servicios_cerdos')
+          .update({ estado: 'confirmado', prenez_confirmada: true })
+          .eq('id', parto.servicio_id)
+      }
+      toast.success(`Parto eliminado · ${hembra?.codigo ?? 'la hembra'} vuelve a figurar preñada`)
+    } else if (destete) {
+      await supabase.from('reproductoras_cerdos').update({ estado: 'lactante' }).eq('id', destete.reproductora_id)
+      toast.success(`Destete eliminado · ${hembraPorId.get(destete.reproductora_id)?.codigo ?? 'la hembra'} vuelve a lactante`)
+    } else {
+      toast.success('Registro eliminado')
+    }
     fetchAll()
   }
 
@@ -166,7 +234,7 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
           )}
           {subTab === 'partos' && (
             <Button
-              onClick={() => { setServicioParaParto(null); setModalParto(true) }}
+              onClick={() => { setServicioParaParto(null); setPartoEditar(null); setModalParto(true) }}
               disabled={activas.length === 0}
               className="bg-pink-600 hover:bg-pink-700 text-white text-sm"
             >
@@ -175,7 +243,7 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
           )}
           {subTab === 'destetes' && (
             <Button
-              onClick={() => { setPartoParaDestete(null); setModalDestete(true) }}
+              onClick={() => { setPartoParaDestete(null); setDesteteEditar(null); setModalDestete(true) }}
               disabled={partos.length === 0}
               className="bg-pink-600 hover:bg-pink-700 text-white text-sm"
             >
@@ -221,9 +289,20 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
       {/* KPIs del núcleo de cría */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Indicador tono="pink" icono="cerdo" etiqueta="Hembras activas" valor={activas.length} detalle={<>{gestantes.length} gestantes · {lactantes.length} lactantes · {vacias.length} vacías</>} />
-        <Indicador tono="purple" icono="tetero" etiqueta="Nacidos vivos / parto" valor={promedioNacidosVivos ?? '—'} detalle={<>{partos.length} partos registrados</>} />
-        <Indicador tono="gray" icono="muerte" etiqueta="Mortinatos + momias" valor={mortalidadNacimiento ? `${mortalidadNacimiento}%` : '—'} detalle="de los nacidos totales" />
-        <Indicador tono="green" icono="brote" etiqueta="Lechones destetados" valor={destetadosTotal} detalle={<>{partosMes.length} partos este mes</>} />
+        {gestantes.length > 0 && (
+          <Indicador
+            tono="purple" icono="tetero" etiqueta="Partos por venir" valor={gestantes.length}
+            detalle={proximoParto ? `El más cercano el ${fmt(proximoParto)}` : 'Sin fecha probable registrada'}
+          />
+        )}
+        {/* Lo de partos solo cuando ya hubo uno: antes no hay nada que medir */}
+        {partos.length > 0 && (
+          <>
+            <Indicador tono="purple" icono="tetero" etiqueta="Nacidos vivos / parto" valor={promedioNacidosVivos ?? '—'} detalle={<>{partos.length} partos registrados</>} />
+            <Indicador tono="gray" icono="muerte" etiqueta="Mortinatos + momias" valor={mortalidadNacimiento ? `${mortalidadNacimiento}%` : '—'} detalle="de los nacidos totales" />
+            <Indicador tono="green" icono="brote" etiqueta="Lechones destetados" valor={destetadosTotal} detalle={<>{partosMes.length} partos este mes</>} />
+          </>
+        )}
       </div>
 
       <div className="flex gap-2 border-b border-gray-200 pb-0 overflow-x-auto">
@@ -353,14 +432,36 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
                               : s.prenez_confirmada ? <span className="text-purple-700"><Ic n="listo" /> Preñez confirmada</span>
                               : s.estado === 'repetido' ? <span className="text-amber-700"><Ic n="repetir" /> Repitió celo</span>
                               : s.estado === 'fallido' ? <span className="text-red-600"><Ic n="x" /> Falló</span>
-                              : <span className="text-blue-700"><Ic n="reloj" /> Por confirmar (celo el {fmt(fechaRepeticionCelo(s.fecha_servicio))})</span>}
+                              : (
+                                <div className="space-y-1.5">
+                                  <span className="block text-blue-700">
+                                    <Ic n="reloj" /> ¿Quedó preñada? Se revisa hacia el {fmt(fechaRepeticionCelo(s.fecha_servicio))}
+                                  </span>
+                                  <div className="flex gap-1.5">
+                                    <Button
+                                      size="sm" variant="outline" className="h-7 text-xs"
+                                      disabled={confirmandoPrenez === s.id}
+                                      onClick={() => responderPrenez(s, true)}
+                                    >
+                                      <Ic n="listo" /> Sí, está preñada
+                                    </Button>
+                                    <Button
+                                      size="sm" variant="ghost" className="h-7 text-xs text-amber-700"
+                                      disabled={confirmandoPrenez === s.id}
+                                      onClick={() => responderPrenez(s, false)}
+                                    >
+                                      <Ic n="repetir" /> No, repitió celo
+                                    </Button>
+                                  </div>
+                                </div>
+                              )}
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center justify-end gap-1">
                               {s.estado !== 'parido' && (
                                 <Button
                                   size="sm" variant="outline" className="h-7 text-xs"
-                                  onClick={() => { setServicioParaParto(s); setModalParto(true) }}
+                                  onClick={() => { setServicioParaParto(s); setPartoEditar(null); setModalParto(true) }}
                                 >
                                   + Parto
                                 </Button>
@@ -384,7 +485,7 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
             )
           ) : subTab === 'partos' ? (
             partos.length === 0 ? (
-              <Vacio emoji="" texto="Sin partos registrados" accion={() => { setServicioParaParto(null); setModalParto(true) }} etiqueta="+ Registrar parto" />
+              <Vacio emoji="" texto="Sin partos registrados" accion={() => { setServicioParaParto(null); setPartoEditar(null); setModalParto(true) }} etiqueta="+ Registrar parto" />
             ) : (
               <div className="overflow-x-auto">
                 <Table>
@@ -436,11 +537,17 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
                               {!destetado && (
                                 <Button
                                   size="sm" variant="outline" className="h-7 text-xs"
-                                  onClick={() => { setPartoParaDestete(p); setModalDestete(true) }}
+                                  onClick={() => { setPartoParaDestete(p); setDesteteEditar(null); setModalDestete(true) }}
                                 >
                                   + Destete
                                 </Button>
                               )}
+                              <Button
+                                size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500"
+                                onClick={() => { setPartoEditar(p); setServicioParaParto(null); setModalParto(true) }}
+                              >
+                                <Ic n="editar" />
+                              </Button>
                               <Button
                                 size="sm" variant="ghost"
                                 className={confirmandoEliminar === `partos_cerdos-${p.id}` ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
@@ -459,7 +566,7 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
             )
           ) : (
             destetes.length === 0 ? (
-              <Vacio emoji="" texto="Sin destetes registrados" accion={() => { setPartoParaDestete(null); setModalDestete(true) }} etiqueta="+ Registrar destete" />
+              <Vacio emoji="" texto="Sin destetes registrados" accion={() => { setPartoParaDestete(null); setDesteteEditar(null); setModalDestete(true) }} etiqueta="+ Registrar destete" />
             ) : (
               <div className="overflow-x-auto">
                 <Table>
@@ -487,7 +594,13 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
                             {parto ? `${diasDesde(parto.fecha_parto, d.fecha_destete)} días` : '—'}
                           </TableCell>
                           <TableCell>
-                            <div className="flex items-center justify-end">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500"
+                                onClick={() => { setDesteteEditar(d); setPartoParaDestete(parto ?? null); setModalDestete(true) }}
+                              >
+                                <Ic n="editar" />
+                              </Button>
                               <Button
                                 size="sm" variant="ghost"
                                 className={confirmandoEliminar === `destetes_cerdos-${d.id}` ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
@@ -525,20 +638,22 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
       />
       <RegistrarPartoModal
         open={modalParto}
-        onClose={() => { setModalParto(false); setServicioParaParto(null) }}
+        onClose={() => { setModalParto(false); setServicioParaParto(null); setPartoEditar(null) }}
         lote={loteActual}
         hembras={activas}
         servicios={serviciosActivos}
         servicioPreseleccionado={servicioParaParto}
+        partoExistente={partoEditar}
         onCreated={fetchAll}
       />
       <RegistrarDesteteModal
         open={modalDestete}
-        onClose={() => { setModalDestete(false); setPartoParaDestete(null) }}
+        onClose={() => { setModalDestete(false); setPartoParaDestete(null); setDesteteEditar(null) }}
         lote={loteActual}
         hembras={activas}
         partos={camadasLactando}
         partoPreseleccionado={partoParaDestete}
+        desteteExistente={desteteEditar}
         onCreated={fetchAll}
       />
     </div>

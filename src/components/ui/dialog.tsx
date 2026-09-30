@@ -53,7 +53,10 @@ function DialogContent({
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-5 rounded-2xl bg-white p-6 text-sm text-gray-900 shadow-[0_24px_64px_-24px_rgb(27_26_23/35%),0_0_0_1px_rgb(27_26_23/6%)] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-[0.97] data-open:slide-in-from-bottom-2 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-[0.97]",
+          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-5 rounded-2xl bg-white p-6 text-sm text-gray-900 shadow-[0_24px_64px_-24px_rgb(27_26_23/35%),0_0_0_1px_rgb(27_26_23/6%)] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-[0.97] data-open:slide-in-from-bottom-2 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-[0.97]",
+          // El ancho por defecto es angosto, pero si el formulario pide uno propio
+          // (max-w-lg, max-w-2xl…) manda el suyo: antes este ganaba y los dejaba a todos igual de angostos.
+          !(typeof className === 'string' && /(^|\s)(sm:)?max-w-/.test(className)) && "sm:max-w-sm",
           className
         )}
         {...props}

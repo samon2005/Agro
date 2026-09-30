@@ -16,6 +16,7 @@ import { Ic } from '@/components/ui/icon'
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
 type Reproductora = Database['public']['Tables']['reproductoras_cerdos']['Row']
 type Parto = Database['public']['Tables']['partos_cerdos']['Row']
+type Destete = Database['public']['Tables']['destetes_cerdos']['Row']
 
 interface Props {
   open: boolean
@@ -25,10 +26,21 @@ interface Props {
   /** Camadas todavía sin destetar */
   partos: Parto[]
   partoPreseleccionado?: Parto | null
+  /** Destete que se está corrigiendo; sin él, se registra uno nuevo */
+  desteteExistente?: Destete | null
   onCreated: () => void
 }
 
-function defaultForm(p?: Parto | null) {
+function defaultForm(p?: Parto | null, destete?: Destete | null) {
+  if (destete) {
+    return {
+      parto_id: destete.parto_id ?? '',
+      fecha_destete: destete.fecha_destete,
+      lechones_destetados: String(destete.lechones_destetados),
+      peso_promedio_kg: destete.peso_promedio_kg != null ? String(destete.peso_promedio_kg) : '',
+      observaciones: destete.observaciones ?? '',
+    }
+  }
   return {
     parto_id: p?.id ?? '',
     fecha_destete: hoyLocal(),
@@ -38,18 +50,20 @@ function defaultForm(p?: Parto | null) {
   }
 }
 
-export default function RegistrarDesteteModal({ open, onClose, lote, hembras, partos, partoPreseleccionado, onCreated }: Props) {
+export default function RegistrarDesteteModal({ open, onClose, lote, hembras, partos, partoPreseleccionado, desteteExistente, onCreated }: Props) {
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
-  const [form, setForm] = useState(() => defaultForm(partoPreseleccionado))
+  const [form, setForm] = useState(() => defaultForm(partoPreseleccionado, desteteExistente))
 
-  useEffect(() => { if (open) setForm(defaultForm(partoPreseleccionado)) }, [open, partoPreseleccionado])
+  useEffect(() => {
+    if (open) setForm(defaultForm(partoPreseleccionado, desteteExistente))
+  }, [open, partoPreseleccionado, desteteExistente])
 
   function set(field: string, value: string | null) {
     setForm(prev => ({ ...prev, [field]: value ?? '' }))
   }
 
-  const parto = partos.find(p => p.id === form.parto_id) ?? null
+  const parto = partos.find(p => p.id === form.parto_id) ?? partoPreseleccionado ?? null
   const hembra = parto ? hembras.find(h => h.id === parto.reproductora_id) : null
   const diasLactancia = parto ? diasDesde(parto.fecha_parto, form.fecha_destete) : null
   const destetados = Number(form.lechones_destetados) || 0
@@ -73,16 +87,17 @@ export default function RegistrarDesteteModal({ open, onClose, lote, hembras, pa
     }
 
     setLoading(true)
-    const { error } = await supabase.from('destetes_cerdos').insert({
-      lote_id: lote.id,
-      finca_id: lote.finca_id,
+    const datos = {
       parto_id: parto.id,
       reproductora_id: parto.reproductora_id,
       fecha_destete: form.fecha_destete,
       lechones_destetados: destetados,
       peso_promedio_kg: form.peso_promedio_kg ? Number(form.peso_promedio_kg) : null,
       observaciones: form.observaciones || null,
-    })
+    }
+    const { error } = desteteExistente
+      ? await supabase.from('destetes_cerdos').update(datos).eq('id', desteteExistente.id)
+      : await supabase.from('destetes_cerdos').insert({ ...datos, lote_id: lote.id, finca_id: lote.finca_id })
 
     // Destetada la camada, la cerda queda vacía y lista para volver a servicio
     if (!error) {
@@ -90,8 +105,8 @@ export default function RegistrarDesteteModal({ open, onClose, lote, hembras, pa
     }
 
     setLoading(false)
-    if (error) { toast.error('Error al registrar el destete'); return }
-    toast.success(`Destete registrado: ${destetados} lechones`)
+    if (error) { toast.error(desteteExistente ? 'Error al guardar el destete' : 'Error al registrar el destete'); return }
+    toast.success(desteteExistente ? 'Destete actualizado' : `Destete registrado: ${destetados} lechones`)
     onCreated()
     onClose()
   }
@@ -100,7 +115,7 @@ export default function RegistrarDesteteModal({ open, onClose, lote, hembras, pa
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle><Ic n="cerdo" /> Registrar Destete</DialogTitle>
+          <DialogTitle><Ic n="cerdo" /> {desteteExistente ? 'Editar destete' : 'Registrar Destete'}</DialogTitle>
           <p className="text-sm text-gray-500">
             El destete normal va entre los {DIAS_LACTANCIA_MIN} y los {DIAS_LACTANCIA_MAX} días de nacidos.
           </p>
@@ -163,7 +178,7 @@ export default function RegistrarDesteteModal({ open, onClose, lote, hembras, pa
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
             <Button type="submit" disabled={loading} className="bg-pink-600 hover:bg-pink-700 text-white">
-              {loading ? 'Guardando...' : 'Registrar destete'}
+              {loading ? 'Guardando...' : desteteExistente ? 'Guardar cambios' : 'Registrar destete'}
             </Button>
           </DialogFooter>
         </form>

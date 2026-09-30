@@ -15,6 +15,7 @@ import { Ic } from '@/components/ui/icon'
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
 type Reproductora = Database['public']['Tables']['reproductoras_cerdos']['Row']
 type Servicio = Database['public']['Tables']['servicios_cerdos']['Row']
+type Parto = Database['public']['Tables']['partos_cerdos']['Row']
 
 interface Props {
   open: boolean
@@ -23,12 +24,27 @@ interface Props {
   hembras: Reproductora[]
   servicios: Servicio[]
   servicioPreseleccionado?: Servicio | null
+  /** Parto que se está corrigiendo; sin él, se registra uno nuevo */
+  partoExistente?: Parto | null
   onCreated: () => void
 }
 
 const SIN_SERVICIO = '__sin_servicio__'
 
-function defaultForm(s?: Servicio | null) {
+function defaultForm(s?: Servicio | null, parto?: Parto | null) {
+  if (parto) {
+    return {
+      reproductora_id: parto.reproductora_id,
+      servicio_id: parto.servicio_id ?? '',
+      fecha_parto: parto.fecha_parto,
+      nacidos_vivos: String(parto.nacidos_vivos),
+      nacidos_muertos: String(parto.nacidos_muertos),
+      momificados: String(parto.momificados),
+      muertos_postparto: String(parto.muertos_postparto),
+      peso_camada_kg: parto.peso_camada_kg != null ? String(parto.peso_camada_kg) : '',
+      observaciones: parto.observaciones ?? '',
+    }
+  }
   return {
     reproductora_id: s?.reproductora_id ?? '',
     servicio_id: s?.id ?? '',
@@ -42,18 +58,19 @@ function defaultForm(s?: Servicio | null) {
   }
 }
 
-export default function RegistrarPartoModal({ open, onClose, lote, hembras, servicios, servicioPreseleccionado, onCreated }: Props) {
+export default function RegistrarPartoModal({ open, onClose, lote, hembras, servicios, servicioPreseleccionado, partoExistente, onCreated }: Props) {
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
-  const [form, setForm] = useState(() => defaultForm(servicioPreseleccionado))
+  const [form, setForm] = useState(() => defaultForm(servicioPreseleccionado, partoExistente))
   // Un peso por lechón nacido vivo: la lista crece y se recorta con la cantidad
   const [pesos, setPesos] = useState<string[]>([])
 
   useEffect(() => {
     if (!open) return
-    setForm(defaultForm(servicioPreseleccionado))
-    setPesos([])
-  }, [open, servicioPreseleccionado])
+    setForm(defaultForm(servicioPreseleccionado, partoExistente))
+    // Al corregir un parto se traen los pesos que ya tenía
+    setPesos((partoExistente?.pesos_nacimiento_kg ?? []).map(x => String(x)))
+  }, [open, servicioPreseleccionado, partoExistente])
 
   function set(field: string, value: string | null) {
     setForm(prev => ({ ...prev, [field]: value ?? '' }))
@@ -93,9 +110,7 @@ export default function RegistrarPartoModal({ open, onClose, lote, hembras, serv
 
     setLoading(true)
     const servicioId = form.servicio_id && form.servicio_id !== SIN_SERVICIO ? form.servicio_id : null
-    const { error } = await supabase.from('partos_cerdos').insert({
-      lote_id: lote.id,
-      finca_id: lote.finca_id,
+    const datos = {
       reproductora_id: form.reproductora_id,
       servicio_id: servicioId,
       fecha_parto: form.fecha_parto,
@@ -106,10 +121,14 @@ export default function RegistrarPartoModal({ open, onClose, lote, hembras, serv
       pesos_nacimiento_kg: pesosLlenos.length > 0 ? pesosLlenos : null,
       peso_camada_kg: pesoCamada,
       observaciones: form.observaciones || null,
-    })
+    }
 
-    if (!error) {
-      // La hembra pasa a lactante y suma un parto a su historial
+    const { error } = partoExistente
+      ? await supabase.from('partos_cerdos').update(datos).eq('id', partoExistente.id)
+      : await supabase.from('partos_cerdos').insert({ ...datos, lote_id: lote.id, finca_id: lote.finca_id })
+
+    // Al corregir un parto no se vuelve a contar: la hembra ya quedó lactante
+    if (!error && !partoExistente) {
       const hembra = hembras.find(h => h.id === form.reproductora_id)
       await supabase.from('reproductoras_cerdos').update({
         estado: 'lactante',
@@ -122,17 +141,17 @@ export default function RegistrarPartoModal({ open, onClose, lote, hembras, serv
     }
 
     setLoading(false)
-    if (error) { toast.error('Error al registrar el parto'); return }
-    toast.success(`Parto registrado: ${vivos} nacidos vivos`)
+    if (error) { toast.error(partoExistente ? 'Error al guardar el parto' : 'Error al registrar el parto'); return }
+    toast.success(partoExistente ? 'Parto actualizado' : `Parto registrado: ${vivos} nacidos vivos`)
     onCreated()
     onClose()
   }
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-h-[90vh] max-w-2xl sm:max-w-2xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle><Ic n="tetero" /> Registrar Parto</DialogTitle>
+          <DialogTitle><Ic n="tetero" /> {partoExistente ? 'Editar parto' : 'Registrar Parto'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -183,55 +202,69 @@ export default function RegistrarPartoModal({ open, onClose, lote, hembras, serv
             </div>
           </div>
 
-          <div className="p-3 bg-pink-50 rounded-lg border border-pink-200 space-y-2">
-            <p className="text-xs font-semibold text-pink-700">Camada</p>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs">Nacidos vivos *</Label>
-                <Input type="number" min="0" className="bg-white" value={form.nacidos_vivos} onChange={e => set('nacidos_vivos', e.target.value)} />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Nacidos muertos</Label>
-                <Input type="number" min="0" className="bg-white" value={form.nacidos_muertos} onChange={e => set('nacidos_muertos', e.target.value)} />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Momias</Label>
-                <Input type="number" min="0" className="bg-white" value={form.momificados} onChange={e => set('momificados', e.target.value)} />
-                <p className="text-[0.6875rem] text-gray-500">Nacidos muertos momificados</p>
-              </div>
-              <div className="col-span-3 space-y-1">
-                <Label className="text-xs">Muertos en el posparto</Label>
-                <Input type="number" min="0" className="bg-white" value={form.muertos_postparto} onChange={e => set('muertos_postparto', e.target.value)} />
-                <p className="text-[0.6875rem] text-gray-500">Lechones que nacieron vivos y murieron después del parto</p>
-              </div>
-              {pesos.length > 0 ? (
-                <div className="col-span-3 space-y-1">
+          <div className="space-y-3 rounded-xl border border-pink-200 bg-pink-50 p-4">
+            <p className="text-sm font-semibold text-pink-800">Camada</p>
+            {/* Las cuatro cuentas, del mismo alto y alineadas */}
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              {([
+                { campo: 'nacidos_vivos', label: 'Nacidos vivos *', ayuda: 'Los que nacen con vida' },
+                { campo: 'nacidos_muertos', label: 'Nacidos muertos', ayuda: 'Muertos al nacer' },
+                { campo: 'momificados', label: 'Momias', ayuda: 'Nacidos muertos momificados' },
+                { campo: 'muertos_postparto', label: 'Muertos en posparto', ayuda: 'Nacieron vivos y murieron después' },
+              ] as const).map(c => (
+                <div key={c.campo} className="flex flex-col">
+                  <Label className="text-xs">{c.label}</Label>
+                  <Input
+                    type="number" min="0" className="mt-1 h-10 bg-white text-base"
+                    value={form[c.campo]}
+                    onChange={e => set(c.campo, e.target.value)}
+                  />
+                  <p className="mt-1 text-[0.6875rem] leading-snug text-gray-500">{c.ayuda}</p>
+                </div>
+              ))}
+            </div>
+
+            {pesos.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <Label className="text-xs">Peso de cada lechón al nacer (kg)</Label>
-                  <div className="grid grid-cols-4 gap-2 md:grid-cols-6">
-                    {pesos.map((peso, i) => (
-                      <Input
-                        key={i}
-                        type="number" min="0" step="0.01" className="bg-white" placeholder={`#${i + 1}`}
-                        value={peso}
-                        onChange={e => setPesos(prev => prev.map((x, j) => j === i ? e.target.value : x))}
-                      />
-                    ))}
-                  </div>
-                  <p className="text-[0.6875rem] text-gray-500">
+                  <span className="text-[0.6875rem] text-gray-500">
                     {pesosLlenos.length > 0
                       ? `${pesosLlenos.length} de ${pesos.length} pesados · la camada suma sola`
-                      : 'Puedes dejarlos en blanco y escribir solo el peso total abajo'}
-                  </p>
+                      : 'Déjalos en blanco si solo tienes el peso total'}
+                  </span>
                 </div>
-              ) : null}
-              {pesosLlenos.length === 0 && (
-                <div className="col-span-3 space-y-1">
-                  <Label className="text-xs">Peso total de la camada (kg)</Label>
-                  <Input type="number" min="0" step="0.01" className="bg-white" placeholder="Ej: 18.5" value={form.peso_camada_kg} onChange={e => set('peso_camada_kg', e.target.value)} />
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+                  {pesos.map((peso, i) => (
+                    <div key={i} className="space-y-1">
+                      <Label className="text-[0.6875rem] text-gray-500">Lechón #{i + 1}</Label>
+                      <div className="relative">
+                        <Input
+                          type="number" min="0" step="0.01" placeholder="0,00"
+                          className="h-10 w-full bg-white pr-9 text-base"
+                          value={peso}
+                          onChange={e => setPesos(prev => prev.map((x, j) => j === i ? e.target.value : x))}
+                        />
+                        <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-gray-400">kg</span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              )}
-            </div>
-            <p className="text-xs text-pink-700">
+              </div>
+            )}
+
+            {pesosLlenos.length === 0 && (
+              <div className="max-w-xs space-y-1">
+                <Label className="text-xs">Peso total de la camada (kg)</Label>
+                <Input
+                  type="number" min="0" step="0.01" className="h-10 bg-white text-base" placeholder="Ej: 18,5"
+                  value={form.peso_camada_kg}
+                  onChange={e => set('peso_camada_kg', e.target.value)}
+                />
+              </div>
+            )}
+
+            <p className="border-t border-pink-200 pt-2 text-xs text-pink-800">
               Nacidos totales: <strong>{totales}</strong>
               {pesoCamada != null && ` · camada de ${pesoCamada.toFixed(2)} kg`}
               {pesoPromedio && ` · promedio por lechón ${pesoPromedio} kg`}
@@ -252,7 +285,7 @@ export default function RegistrarPartoModal({ open, onClose, lote, hembras, serv
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
             <Button type="submit" disabled={loading} className="bg-pink-600 hover:bg-pink-700 text-white">
-              {loading ? 'Guardando...' : 'Registrar parto'}
+              {loading ? 'Guardando...' : partoExistente ? 'Guardar cambios' : 'Registrar parto'}
             </Button>
           </DialogFooter>
         </form>
