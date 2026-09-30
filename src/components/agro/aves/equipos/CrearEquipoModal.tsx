@@ -30,8 +30,13 @@ const TIPOS = [
   { value: 'lampara', label: 'Lámpara / Iluminación' },
   { value: 'calefactor', label: 'Calefactor' },
   { value: 'cuenta_huevos', label: 'Máquina cuenta huevos' },
-  { value: 'otro', label: 'Otro' },
+  { value: 'otro', label: 'Otro — escribir cuál' },
 ]
+
+/** Un tipo que no está en la lista es uno escrito a mano. */
+function esTipoPropio(tipo: string) {
+  return tipo !== '' && !TIPOS.some(t => t.value === tipo)
+}
 
 const ESTADOS = [
   { value: 'operativo', label: 'Operativo' },
@@ -42,8 +47,10 @@ const ESTADOS = [
 ]
 
 function defaultForm(equipo?: Equipo | null) {
+  const propio = esTipoPropio(equipo?.tipo ?? '')
   return {
-    tipo: equipo?.tipo ?? '',
+    tipo: propio ? 'otro' : (equipo?.tipo ?? ''),
+    tipo_otro: propio ? (equipo?.tipo ?? '') : '',
     marca: equipo?.marca ?? '',
     numero_serie: equipo?.numero_serie ?? '',
     apodo: equipo?.nombre ?? '',
@@ -70,12 +77,17 @@ export default function CrearEquipoModal({ open, onClose, loteId, fincaId, equip
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!form.tipo) { toast.error('Selecciona el tipo de equipo'); return }
+    if (form.tipo === 'otro' && !form.tipo_otro.trim()) { toast.error('Escribe qué equipo es'); return }
 
     setLoading(true)
-    const tipoLabel = TIPOS.find(t => t.value === form.tipo)?.label.replace(/^\S+\s/, '') ?? form.tipo
+    // "Otro" no se guarda como "otro": se guarda lo que el operario escribió
+    const tipoGuardado = form.tipo === 'otro' ? form.tipo_otro.trim() : form.tipo
+    const tipoLabel = form.tipo === 'otro'
+      ? tipoGuardado
+      : TIPOS.find(t => t.value === form.tipo)?.label.replace(/^\S+\s/, '') ?? tipoGuardado
     const payload = {
       nombre: form.apodo.trim() || (form.numero_serie.trim() ? `${tipoLabel} ${form.numero_serie.trim()}` : tipoLabel),
-      tipo: form.tipo,
+      tipo: tipoGuardado,
       marca: form.marca || null,
       numero_serie: form.numero_serie.trim() || null,
       estado: form.estado,
@@ -124,6 +136,17 @@ export default function CrearEquipoModal({ open, onClose, loteId, fincaId, equip
                 <SelectContent>{TIPOS.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
               </Select>
             </div>
+            {form.tipo === 'otro' && (
+              <div className="col-span-2 space-y-1">
+                <Label>¿Qué equipo es? *</Label>
+                <Input
+                  placeholder="Ej: Nebulizador, planta eléctrica..."
+                  value={form.tipo_otro}
+                  onChange={e => set('tipo_otro', e.target.value)}
+                />
+                <p className="text-xs text-gray-400">Queda guardado con ese nombre y se agrupa con los demás iguales.</p>
+              </div>
+            )}
             <div className="space-y-1">
               <Label>N° de serie / diferenciador</Label>
               <Input placeholder="Ej: VN-2024-001" value={form.numero_serie} onChange={e => set('numero_serie', e.target.value)} />

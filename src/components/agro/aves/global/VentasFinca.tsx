@@ -199,16 +199,9 @@ export default function VentasFinca({ fincaId, lotes }: Props) {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900">Ventas de huevo de la finca</h2>
-          <p className="text-xs text-gray-500">Se registran el día que el huevo sale de bodega; el dinero se anota cuando entra.</p>
-        </div>
-        {subTab === 'ventas' ? (
-          <Button onClick={abrirNuevaVenta}><Ic n="mas" /> Registrar venta</Button>
-        ) : (
-          <Button onClick={() => { setEncargoEditar(null); setModalEncargo(true) }}><Ic n="mas" /> Registrar encargo</Button>
-        )}
+      <div>
+        <h2 className="text-lg font-semibold text-gray-900">Ventas de huevo de la finca</h2>
+        <p className="text-xs text-gray-500">Se registran el día que el huevo sale de bodega; el dinero se anota cuando entra.</p>
       </div>
 
       {/* Precios: uno por tamaño para toda la finca, obligatorios antes de vender */}
@@ -303,6 +296,10 @@ export default function VentasFinca({ fincaId, lotes }: Props) {
 
       {subTab === 'ventas' ? (
         <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-3">
+            <CardTitle>Ventas registradas</CardTitle>
+            <Button size="sm" onClick={abrirNuevaVenta}><Ic n="mas" /> Registrar venta</Button>
+          </CardHeader>
           <CardContent className="p-0">
             {ventas.length === 0 ? (
               <div className="py-12 text-center">
@@ -376,6 +373,10 @@ export default function VentasFinca({ fincaId, lotes }: Props) {
         </Card>
       ) : (
         <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-3">
+            <CardTitle>Encargos futuros</CardTitle>
+            <Button size="sm" onClick={() => { setEncargoEditar(null); setModalEncargo(true) }}><Ic n="mas" /> Registrar encargo</Button>
+          </CardHeader>
           <CardContent className="p-0">
             {encargos.length === 0 ? (
               <div className="py-12 text-center">

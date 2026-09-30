@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import { avisoCostoVinculado } from '@/lib/eliminarConAviso'
@@ -164,47 +165,75 @@ export default function TabEquipos({ loteActual }: Props) {
           <Button variant="outline" size="sm" className="text-xs" onClick={() => setCategoriaSeleccionada(null)}>
             ← Todas las categorías
           </Button>
-          {equiposDeCategoria.map(equipo => {
-            const cfg = estadoConfig(equipo.estado)
-            const mtoSt = mtoStatus(equipo.proximo_mantenimiento)
-            return (
-              <Card key={equipo.id} className={`border-2 ${cfg.cls}`}>
-                <CardContent className="p-4 flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-[220px]">
-                    <div className={`w-2 h-2 rounded-full shrink-0 ${cfg.dot}`} />
-                    <div>
-                      <p className="font-semibold text-sm text-gray-800 leading-tight">{equipo.nombre}</p>
-                      <p className="text-xs text-gray-400">{equipo.numero_serie ? `S/N: ${equipo.numero_serie}` : 'Sin N° de serie'}{equipo.marca ? ` · ${equipo.marca}` : ''}</p>
-                    </div>
-                  </div>
-                  <Badge className={`text-[10px] ${cfg.badge}`}>{cfg.label}</Badge>
-                  <div className="text-xs text-gray-500">
-                    <span className="text-gray-400">Última rev.: </span>
-                    <span className="font-medium text-gray-700">{equipo.ultima_revision ? fmt(equipo.ultima_revision) : '—'}</span>
-                  </div>
-                  <div className="text-xs">
-                    <span className="text-gray-400">Prox. mtto.: </span>
-                    <span className={`font-medium ${mtoSt === 'vencido' ? 'text-red-600' : mtoSt === 'pronto' ? 'text-amber-600' : 'text-gray-700'}`}>
-                      {equipo.proximo_mantenimiento ? fmt(equipo.proximo_mantenimiento) : '—'}
-                      {mtoSt === 'vencido' && <Badge className="ml-1 text-[9px] bg-red-100 text-red-700">Vencido</Badge>}
-                      {mtoSt === 'pronto' && <Badge className="ml-1 text-[9px] bg-yellow-100 text-yellow-700">Pronto</Badge>}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <Button size="sm" variant="outline" className="text-xs" onClick={() => setLogEquipo(equipo)}><Ic n="diario" /> Registrar estado</Button>
-                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-gray-500" onClick={() => { setEquipoEditar(equipo); setModalCrear(true) }}><Ic n="editar" /></Button>
-                    <Button
-                      size="sm" variant="ghost"
-                      className={confirmandoEliminar === equipo.id ? 'h-8 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-8 px-2 text-xs text-red-600'}
-                      onClick={() => eliminarEquipo(equipo)}
-                    >
-                      {confirmandoEliminar === equipo.id ? '¿Confirmar?' : <Ic n="borrar" />}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )
-          })}
+          {/* Una fila por equipo: se lee de corrido y cabe mucho más en pantalla */}
+          <Card>
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Equipo</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead>Última revisión</TableHead>
+                      <TableHead>Próximo mantenimiento</TableHead>
+                      <TableHead></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {equiposDeCategoria.map(equipo => {
+                      const cfg = estadoConfig(equipo.estado)
+                      const mtoSt = mtoStatus(equipo.proximo_mantenimiento)
+                      return (
+                        <TableRow key={equipo.id}>
+                          <TableCell className="py-2">
+                            <div className="flex items-center gap-2">
+                              <span className={`size-2 shrink-0 rounded-full ${cfg.dot}`} />
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-medium text-gray-800">{equipo.nombre}</p>
+                                <p className="truncate text-[0.6875rem] text-gray-400">
+                                  {equipo.numero_serie ? `S/N: ${equipo.numero_serie}` : 'Sin N° de serie'}{equipo.marca ? ` · ${equipo.marca}` : ''}
+                                </p>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="py-2">
+                            <Badge className={`text-[10px] ${cfg.badge}`}>{cfg.label}</Badge>
+                          </TableCell>
+                          <TableCell className="py-2 text-sm text-gray-600">
+                            {equipo.ultima_revision ? fmt(equipo.ultima_revision) : '—'}
+                          </TableCell>
+                          <TableCell className="py-2 text-sm">
+                            <span className={mtoSt === 'vencido' ? 'font-medium text-red-600' : mtoSt === 'pronto' ? 'font-medium text-amber-600' : 'text-gray-600'}>
+                              {equipo.proximo_mantenimiento ? fmt(equipo.proximo_mantenimiento) : '—'}
+                            </span>
+                            {mtoSt === 'vencido' && <Badge className="ml-1 text-[9px] bg-red-100 text-red-700">Vencido</Badge>}
+                            {mtoSt === 'pronto' && <Badge className="ml-1 text-[9px] bg-yellow-100 text-yellow-700">Pronto</Badge>}
+                          </TableCell>
+                          <TableCell className="py-2">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setLogEquipo(equipo)}>
+                                <Ic n="diario" /> Registrar estado
+                              </Button>
+                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={() => { setEquipoEditar(equipo); setModalCrear(true) }}>
+                                <Ic n="editar" />
+                              </Button>
+                              <Button
+                                size="sm" variant="ghost"
+                                className={confirmandoEliminar === equipo.id ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
+                                onClick={() => eliminarEquipo(equipo)}
+                              >
+                                {confirmandoEliminar === equipo.id ? '¿Confirmar?' : <Ic n="borrar" />}
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
 
