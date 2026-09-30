@@ -232,6 +232,34 @@ export default function TabAlimentoAves({ lotes, loteInicialId }: Props) {
   const tramos = tramosDeConsumo(consumos, hoyLocal(), lote?.estado !== 'finalizado')
   const bultosDia = stockActivo && consumoDelGalpon > 0 ? consumoDelGalpon / stockActivo.peso_bulto_kg : null
   const sinEntradas = stockActivo != null && stockActivo.bultos_entrados === 0
+
+  /**
+   * El movimiento del alimento en bultos: lo que entró y lo que salió, en orden,
+   * con el saldo que queda después de cada movimiento. Es la cuenta de la bodega.
+   */
+  const movimientos = stockActivo ? (() => {
+    const pesoBulto = stockActivo.peso_bulto_kg
+    const filas: { fecha: string; concepto: string; entran: number; salen: number }[] = [
+      ...entradasVisibles.map(e => ({
+        fecha: e.fecha,
+        concepto: e.proveedor ? `Entrada · ${e.proveedor}` : 'Entrada de alimento',
+        entran: Number(e.cantidad_bultos),
+        salen: 0,
+      })),
+      ...tramos.map(tr => ({
+        fecha: tr.desde,
+        concepto: `Consumo de ${tr.kgDia.toLocaleString('es-CO', { maximumFractionDigits: 1 })} kg/día · ${tr.dias} día${tr.dias === 1 ? '' : 's'}`,
+        entran: 0,
+        salen: tr.kgTotal / pesoBulto,
+      })),
+    ].sort((a, b) => a.fecha.localeCompare(b.fecha))
+
+    let saldo = 0
+    return filas.map(f => {
+      saldo += f.entran - f.salen
+      return { ...f, saldo }
+    }).reverse()
+  })() : []
   const hoyStr = hoyLocal()
   const requerimientos = requerimientosHistorial.find(r => r.vigente_desde <= hoyStr) ?? null
   const req = requerimientos ?? { ...DEFAULTS, lote_id: lote!.id, finca_id: lote!.finca_id, id: '', vigente_desde: '', created_at: '' }
@@ -526,6 +554,50 @@ export default function TabAlimentoAves({ lotes, loteInicialId }: Props) {
               Este galpón todavía no tiene alimento en uso. Registra su consumo y aquí aparecerá su stock.
             </div>
           ) : null}
+
+          {/* Movimiento de la bodega: cuánto entra, cuánto sale y cuánto queda */}
+          {movimientos.length > 0 && stockActivo && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold text-gray-700">Movimiento de bultos</CardTitle>
+                <p className="text-xs text-gray-400">
+                  Lo que entró y lo que salió de {stockActivo.nombre}, con los bultos que van quedando.
+                </p>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Fecha</TableHead>
+                        <TableHead>Movimiento</TableHead>
+                        <TableHead className="text-right">Entran</TableHead>
+                        <TableHead className="text-right">Salen</TableHead>
+                        <TableHead className="text-right">Quedan</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {movimientos.map((m, i) => (
+                        <TableRow key={`${m.fecha}-${i}`}>
+                          <TableCell className="py-2 text-sm">{fmt(m.fecha)}</TableCell>
+                          <TableCell className="py-2 text-sm text-gray-600">{m.concepto}</TableCell>
+                          <TableCell className="py-2 text-right text-sm font-medium text-green-700">
+                            {m.entran > 0 ? `+${m.entran.toLocaleString('es-CO', { maximumFractionDigits: 2 })}` : '—'}
+                          </TableCell>
+                          <TableCell className="py-2 text-right text-sm font-medium text-orange-700">
+                            {m.salen > 0 ? `−${m.salen.toLocaleString('es-CO', { maximumFractionDigits: 2 })}` : '—'}
+                          </TableCell>
+                          <TableCell className={`py-2 text-right text-sm font-semibold ${m.saldo < 0 ? 'text-red-700' : 'text-gray-900'}`}>
+                            {m.saldo.toLocaleString('es-CO', { maximumFractionDigits: 2 })}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* El historial: de dónde sale cada kilo que se descontó */}
           {tramos.length > 0 && (

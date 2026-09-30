@@ -6,6 +6,7 @@ import { useFinca } from '@/components/agro/FincaProvider'
 import CrearFincaModal from '@/components/agro/CrearFincaModal'
 import ResumenEspecies from '@/components/agro/ResumenEspecies'
 import ResumenFinanciero from '@/components/agro/ResumenFinanciero'
+import ResumenAlimentoGalpones from '@/components/agro/ResumenAlimentoGalpones'
 import EditarFincaModal from '@/components/agro/EditarFincaModal'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -113,6 +114,11 @@ export default function DashboardPage() {
 
         {fincaActual && (
           <ResumenEspecies fincaId={fincaActual.id} especies={(fincaActual.tipo_produccion ?? []) as EspecieFinca[]} />
+        )}
+
+        {/* Cómo va el alimento en cada galpón: lo que se mira para saber cuándo pedir */}
+        {fincaActual && (fincaActual.tipo_produccion ?? []).includes('aves_ponedoras') && (
+          <ResumenAlimentoGalpones fincaId={fincaActual.id} />
         )}
 
         {fincaActual && (

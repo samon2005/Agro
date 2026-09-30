@@ -706,8 +706,8 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-semibold text-gray-700">Historial (alimento y muertes)</CardTitle>
           <p className="text-xs text-gray-400">
-            Cada día es una fila con sus muertes y su causa. Si ese día hubo además un evento clínico,
-            aparece en un recuadro dentro de la misma fila con sus afectadas y sus muertas.
+            Cada día es una fila con sus muertes y su causa. El evento clínico de ese día va en su
+            propia columna, al lado, con sus afectadas y sus muertas.
           </p>
         </CardHeader>
         <CardContent className="p-0">
@@ -725,6 +725,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
                     <TableHead className="text-right">Alimento kg</TableHead>
                     <TableHead className="text-right">Muertes</TableHead>
                     <TableHead>Causa</TableHead>
+                    <TableHead>Evento clínico</TableHead>
                     <TableHead></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -733,7 +734,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
                       esperar al primer día registrado para ver la tabla. */}
                   {fechasHistorial.length === 0 && (
                     <TableRow className="hover:bg-transparent">
-                      <TableCell colSpan={enPostura ? 6 : 5} className="py-8 text-center">
+                      <TableCell colSpan={enPostura ? 7 : 6} className="py-8 text-center">
                         <p className="text-3xl mb-1"><Ic n="diario" /></p>
                         <p className="text-gray-600 font-medium text-sm">Sin días registrados todavía</p>
                         <p className="text-xs text-gray-400 mb-3">
@@ -749,7 +750,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
                     if (fila.tipo === 'separador') {
                       return (
                         <TableRow key={fila.key} className="bg-purple-50 hover:bg-purple-50 border-y border-purple-200">
-                          <TableCell colSpan={enPostura ? 6 : 5} className="py-2">
+                          <TableCell colSpan={enPostura ? 7 : 6} className="py-2">
                             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-purple-800 font-medium">
                               <span className="font-semibold"><Ic n="calendario" /> {fila.etiquetaSemana}</span>
                               <span>
@@ -768,7 +769,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
                         : 'bg-blue-50 hover:bg-blue-50 border-y border-blue-200 text-blue-800'
                       return (
                         <TableRow key={fila.key} className={cls}>
-                          <TableCell colSpan={enPostura ? 6 : 5} className="py-2">
+                          <TableCell colSpan={enPostura ? 7 : 6} className="py-2">
                             <div className="flex items-center gap-3 text-xs font-medium">
                               <span>{fila.etiqueta}</span>
                               <span className="font-normal opacity-80">
@@ -805,18 +806,30 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
                         </TableCell>
                         <TableCell className="text-xs text-gray-500">
                           {r.causa_muerte ? CAUSAS_LABEL[r.causa_muerte] ?? r.causa_muerte : '—'}
-                          {/* El evento clínico del día, en su propio cuadro dentro de la
-                              misma fila, con sus afectadas y sus muertas. */}
-                          {fila.eventos.map(ev => (
-                            <span key={ev.id} className="mt-1 block rounded-md border border-red-200 bg-red-50 px-2 py-1 text-[11px] leading-tight text-red-700">
-                              <span className="font-semibold"><Ic n="clinico" /> {ev.causa ? CAUSAS_LABEL[ev.causa] ?? ev.causa : ev.descripcion}</span>
-                              <span className="block text-red-500">
-                                {TIPO_EVENTO_LABEL[ev.tipo_evento] ?? ev.tipo_evento}
-                                {(ev.aves_afectadas ?? 0) > 0 ? ` · ${ev.aves_afectadas} afectadas` : ''}
-                                {(ev.aves_muertas ?? 0) > 0 ? ` · ${ev.aves_muertas} muertas` : ''}
-                              </span>
-                            </span>
-                          ))}
+                        </TableCell>
+                        {/* El evento clínico va al lado de la causa, en su propia columna */}
+                        <TableCell className="text-xs">
+                          {fila.eventos.length === 0 ? (
+                            <span className="text-gray-400">—</span>
+                          ) : (
+                            <div className="flex flex-wrap gap-1.5">
+                              {fila.eventos.map(ev => (
+                                <span
+                                  key={ev.id}
+                                  className="inline-flex max-w-full flex-col rounded-md border border-red-200 bg-red-50 px-2 py-1 leading-tight text-red-700"
+                                >
+                                  <span className="truncate text-[11px] font-semibold">
+                                    <Ic n="clinico" /> {ev.causa ? CAUSAS_LABEL[ev.causa] ?? ev.causa : ev.descripcion}
+                                  </span>
+                                  <span className="truncate text-[10px] text-red-500">
+                                    {TIPO_EVENTO_LABEL[ev.tipo_evento] ?? ev.tipo_evento}
+                                    {(ev.aves_afectadas ?? 0) > 0 ? ` · ${ev.aves_afectadas} afectadas` : ''}
+                                    {(ev.aves_muertas ?? 0) > 0 ? ` · ${ev.aves_muertas} muertas` : ''}
+                                  </span>
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center justify-end gap-1">

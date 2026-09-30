@@ -27,6 +27,7 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, 
   const [confirmarNombre, setConfirmarNombre] = useState('')
   const [form, setForm] = useState({
     area_galpon_m2: '',
+    fecha_inicio: '',
     fecha_inicio_postura: '',
     semanas_ciclo_postura: '',
     meta_postura_pct: '',
@@ -38,6 +39,7 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, 
   useEffect(() => {
     setForm({
       area_galpon_m2: lote.area_galpon_m2 != null ? String(lote.area_galpon_m2) : '',
+      fecha_inicio: lote.fecha_inicio ?? '',
       fecha_inicio_postura: lote.fecha_inicio_postura ?? '',
       semanas_ciclo_postura: lote.semanas_ciclo_postura != null ? String(lote.semanas_ciclo_postura) : '60',
       meta_postura_pct: lote.meta_postura_pct != null ? String(lote.meta_postura_pct) : '90',
@@ -72,6 +74,8 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, 
     setLoading(true)
     const payload = {
       area_galpon_m2: form.area_galpon_m2 ? Number(form.area_galpon_m2) : null,
+      // La fecha de entrada se puede corregir: de ella cuelgan la edad y las semanas
+      ...(form.fecha_inicio ? { fecha_inicio: form.fecha_inicio } : {}),
       fecha_inicio_postura: form.fecha_inicio_postura || null,
       semanas_ciclo_postura: form.semanas_ciclo_postura ? Number(form.semanas_ciclo_postura) : null,
       meta_postura_pct: form.meta_postura_pct ? Number(form.meta_postura_pct) : null,
@@ -112,8 +116,10 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, 
             </div>
             <div className="space-y-1">
               <Label>Fecha de entrada al galpón</Label>
-              <Input disabled value={new Date(lote.fecha_inicio + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'long', year: 'numeric' })} />
-              <p className="text-xs text-gray-400">Se registró al crear el galpón</p>
+              <Input type="date" value={form.fecha_inicio} onChange={e => set('fecha_inicio', e.target.value)} />
+              <p className="text-xs text-gray-400">
+                De esta fecha salen la edad del lote y las semanas de preparación: corrígela si se digitó mal.
+              </p>
             </div>
             <div className="space-y-1">
               <Label>Fecha de inicio real de postura</Label>

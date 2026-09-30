@@ -59,6 +59,9 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
   const [confirmandoPrenez, setConfirmandoPrenez] = useState<string | null>(null)
   const [lechones, setLechones] = useState<Lechon[]>([])
   const [fichaCerda, setFichaCerda] = useState<Reproductora | null>(null)
+  // Un plantel grande no se lee como lista: primero los grupos, y al abrir uno su detalle
+  const [grupoHembras, setGrupoHembras] = useState<string | null>(null)
+  const [grupoLechones, setGrupoLechones] = useState<string | null>(null)
   const [servicioParaParto, setServicioParaParto] = useState<Servicio | null>(null)
   const [modalDestete, setModalDestete] = useState(false)
   const [partoParaDestete, setPartoParaDestete] = useState<Parto | null>(null)
@@ -136,6 +139,37 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
 
   // Lechones que siguen en la finca: los vendidos y los muertos ya no cuentan
   const lechonesEnPie = lechones.filter(l => l.estado !== 'vendido' && l.estado !== 'muerto')
+
+  // Las hembras por estado: es como las mira el encargado del plantel
+  const gruposHembras = [
+    { id: 'gestante', label: 'Gestantes', tono: 'bg-purple-50 text-purple-800 ring-purple-200' },
+    { id: 'lactante', label: 'Lactantes', tono: 'bg-pink-50 text-pink-800 ring-pink-200' },
+    { id: 'servida', label: 'Servidas', tono: 'bg-blue-50 text-blue-800 ring-blue-200' },
+    { id: 'vacia', label: 'Vacías', tono: 'bg-gray-50 text-gray-700 ring-gray-200' },
+    { id: 'descartada', label: 'Descartadas', tono: 'bg-red-50 text-red-700 ring-red-200' },
+  ].map(g => ({ ...g, total: hembras.filter(h => h.estado === g.id).length }))
+    .filter(g => g.total > 0)
+
+  const hembrasVisibles = grupoHembras === null
+    ? hembras
+    : grupoHembras === '__todas__'
+      ? hembras
+      : hembras.filter(h => h.estado === grupoHembras)
+
+  const gruposLechones = [
+    { id: 'lactante', label: 'Lactantes' },
+    { id: 'destetado', label: 'Destetados' },
+    { id: 'precebo', label: 'En precebo' },
+    { id: 'levante', label: 'En levante' },
+    { id: 'ceba', label: 'En ceba' },
+    { id: 'vendido', label: 'Vendidos' },
+    { id: 'muerto', label: 'Muertos' },
+  ].map(g => ({ ...g, total: lechones.filter(l => l.estado === g.id).length }))
+    .filter(g => g.total > 0)
+
+  const lechonesVisibles = grupoLechones === null || grupoLechones === '__todos__'
+    ? lechones
+    : lechones.filter(l => l.estado === grupoLechones)
 
   const destetesListos = camadasLactando.filter(p => {
     const d = diasDesde(p.fecha_parto)
@@ -340,6 +374,40 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
             hembras.length === 0 ? (
               <Vacio emoji="" texto="Sin hembras registradas" accion={() => { setHembraEditar(null); setModalHembra(true) }} etiqueta="+ Registrar hembra" />
             ) : (
+              <>
+              {/* Los grupos primero: se entra al que interesa en vez de leer toda la lista */}
+              <div className="flex flex-wrap items-center gap-2 border-b border-gray-100 p-3">
+                <button
+                  type="button"
+                  onClick={() => setGrupoHembras('__todas__')}
+                  className={`rounded-xl px-3 py-2 text-left text-xs ring-1 transition-colors ${
+                    grupoHembras === '__todas__' || grupoHembras === null
+                      ? 'bg-gray-900 text-white ring-gray-900'
+                      : 'bg-white text-gray-600 ring-gray-200 hover:ring-gray-300'
+                  }`}
+                >
+                  <span className="block text-base font-semibold leading-none">{hembras.length}</span>
+                  <span className="text-[0.6875rem]">Todas</span>
+                </button>
+                {gruposHembras.map(g => (
+                  <button
+                    key={g.id}
+                    type="button"
+                    onClick={() => setGrupoHembras(grupoHembras === g.id ? '__todas__' : g.id)}
+                    className={`rounded-xl px-3 py-2 text-left text-xs ring-1 transition-colors ${g.tono} ${
+                      grupoHembras === g.id ? 'ring-2' : 'hover:ring-2'
+                    }`}
+                  >
+                    <span className="block text-base font-semibold leading-none">{g.total}</span>
+                    <span className="text-[0.6875rem]">{g.label}</span>
+                  </button>
+                ))}
+                {grupoHembras && grupoHembras !== '__todas__' && (
+                  <span className="text-xs text-gray-500">
+                    Mostrando {hembrasVisibles.length} de {hembras.length}
+                  </span>
+                )}
+              </div>
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
@@ -354,7 +422,7 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {hembras.map(h => {
+                    {hembrasVisibles.map(h => {
                       const servicioActivo = servicios.find(s => s.reproductora_id === h.id && (s.estado === 'pendiente' || s.estado === 'confirmado'))
                       const dia = servicioActivo ? diaDeGestacion(servicioActivo.fecha_servicio) : null
                       const partoAbierto = camadasLactando.find(p => p.reproductora_id === h.id)
@@ -404,6 +472,7 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
                   </TableBody>
                 </Table>
               </div>
+              </>
             )
           ) : subTab === 'servicios' ? (
             servicios.length === 0 ? (
@@ -511,6 +580,42 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
             lechones.length === 0 ? (
               <Vacio emoji="" texto="Todavía no hay lechones identificados" accion={() => setSubTab('partos')} etiqueta="Ver partos" />
             ) : (
+              <>
+              <div className="flex flex-wrap items-center gap-2 border-b border-gray-100 p-3">
+                <button
+                  type="button"
+                  onClick={() => setGrupoLechones('__todos__')}
+                  className={`rounded-xl px-3 py-2 text-left text-xs ring-1 transition-colors ${
+                    grupoLechones === '__todos__' || grupoLechones === null
+                      ? 'bg-gray-900 text-white ring-gray-900'
+                      : 'bg-white text-gray-600 ring-gray-200 hover:ring-gray-300'
+                  }`}
+                >
+                  <span className="block text-base font-semibold leading-none">{lechones.length}</span>
+                  <span className="text-[0.6875rem]">Todos</span>
+                </button>
+                {gruposLechones.map(g => {
+                  const e = ESTADOS_LECHON[g.id] ?? { label: g.label, clase: 'bg-gray-100 text-gray-600' }
+                  return (
+                    <button
+                      key={g.id}
+                      type="button"
+                      onClick={() => setGrupoLechones(grupoLechones === g.id ? '__todos__' : g.id)}
+                      className={`rounded-xl px-3 py-2 text-left text-xs ring-1 ring-transparent transition-colors ${e.clase} ${
+                        grupoLechones === g.id ? 'ring-2 ring-gray-400' : 'hover:ring-2 hover:ring-gray-300'
+                      }`}
+                    >
+                      <span className="block text-base font-semibold leading-none">{g.total}</span>
+                      <span className="text-[0.6875rem]">{g.label}</span>
+                    </button>
+                  )
+                })}
+                {grupoLechones && grupoLechones !== '__todos__' && (
+                  <span className="text-xs text-gray-500">
+                    Mostrando {lechonesVisibles.length} de {lechones.length}
+                  </span>
+                )}
+              </div>
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
@@ -524,7 +629,7 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {lechones.map(l => {
+                    {lechonesVisibles.map(l => {
                       const estadoLechon = ESTADOS_LECHON[l.estado] ?? { label: l.estado, clase: 'bg-gray-100 text-gray-600' }
                       return (
                         <TableRow key={l.id}>
@@ -547,6 +652,7 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
                   </TableBody>
                 </Table>
               </div>
+              </>
             )
           ) : subTab === 'partos' ? (
             partos.length === 0 ? (
