@@ -19,7 +19,7 @@ import Link from 'next/link'
 import { estadoPostura } from '@/lib/postura'
 import type { Database } from '@/types/database'
 import { aFechaLocal } from '@/lib/fechas'
-import { ajustarHuevos } from '@/lib/inventario'
+import { ajustarHuevos, recalcularStockAlimentoAves } from '@/lib/inventario'
 import { Ic } from '@/components/ui/icon'
 import { useFinca } from '@/components/agro/FincaProvider'
 import { preciosDeFinca, hayPrecios } from '@/lib/huevos'
@@ -149,6 +149,9 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
         consumo_activo_kg: anterior ? Number(anterior.alimento_kg) : null,
       }).eq('id', loteActual.id)
     }
+
+    // Ese día ya no se comió: el stock de alimento vuelve a cuadrar solo
+    await recalcularStockAlimentoAves(supabase, loteActual.finca_id)
 
     toast.success(muertasEventos > 0 || eventosDelDia?.length
       ? 'Día eliminado junto con su evento clínico'

@@ -90,12 +90,47 @@ export function ajustarHuevos(
   })
 }
 
+/** Stock de un alimento de aves: lo que entró menos lo que se comieron los galpones. */
+export interface StockAlimentoAves {
+  tipo_alimento_id: string
+  finca_id: string
+  nombre: string
+  peso_bulto_kg: number
+  bultos_entrados: number
+  kg_consumidos: number
+  bultos_consumidos: number
+  bultos_disponibles: number
+  ultima_entrada: string | null
+  activo_en_algun_lote: boolean
+}
+
 /**
- * Descuenta del inventario de alimento los días de consumo que falten de la
- * finca (días pendientes × kg/día ÷ kg por bulto). Lo hace la base de datos en
- * una sola transacción, así dos pestañas abiertas no descuentan el mismo día.
+ * Rehace el stock de alimento de la finca: bultos que entraron menos los kg que
+ * se consumieron, día por día, según lo registrado. Al ser una cuenta y no un
+ * descuento, corregir o borrar un día deja el stock bien sin arrastrar errores.
+ * Se llama al abrir las pantallas y después de tocar entradas, consumo o días.
  */
-export async function aplicarConsumoAlimentoAves(supabase: SupabaseClient<Database>, fincaId: string): Promise<void> {
+export async function recalcularStockAlimentoAves(supabase: SupabaseClient<Database>, fincaId: string): Promise<void> {
   if (!fincaId) return
-  await (supabase as unknown as SupabaseClient).rpc('aplicar_consumo_alimento_aves', { p_finca: fincaId })
+  await (supabase as unknown as SupabaseClient).rpc('recalcular_stock_alimento_aves', { p_finca: fincaId })
+}
+
+/** Lo que hay y lo que se ha consumido de cada alimento de la finca. */
+export async function leerStockAlimentoAves(
+  supabase: SupabaseClient<Database>,
+  fincaId: string,
+): Promise<StockAlimentoAves[]> {
+  if (!fincaId) return []
+  const { data } = await (supabase as unknown as SupabaseClient)
+    .from('stock_alimento_aves')
+    .select('*')
+    .eq('finca_id', fincaId)
+  return ((data ?? []) as StockAlimentoAves[]).map(s => ({
+    ...s,
+    peso_bulto_kg: Number(s.peso_bulto_kg),
+    bultos_entrados: Number(s.bultos_entrados),
+    kg_consumidos: Number(s.kg_consumidos),
+    bultos_consumidos: Number(s.bultos_consumidos),
+    bultos_disponibles: Number(s.bultos_disponibles),
+  }))
 }

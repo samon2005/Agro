@@ -178,6 +178,8 @@ export default function FinanzasPage() {
 
       {/* Filtros */}
       <div className="superficie flex flex-wrap items-center gap-2 rounded-2xl p-3">
+        {/* Con una sola especie no hay entre qué filtrar */}
+        {especiesFinca.length > 1 && (
         <Select
           value={especieFiltro}
           onValueChange={v => { setEspecieFiltro((v ?? 'todas') as 'todas' | EspecieFinca); setLoteFiltro('todos') }}
@@ -189,6 +191,7 @@ export default function FinanzasPage() {
             {especiesFinca.map(e => <SelectItem key={e.value} value={e.value}>{e.labelNav ?? e.label}</SelectItem>)}
           </SelectContent>
         </Select>
+        )}
         <Select value={loteFiltro} onValueChange={v => setLoteFiltro(v ?? 'todos')} items={itemsLote}>
           <SelectTrigger className="w-44"><SelectValue placeholder="Galpón" /></SelectTrigger>
           <SelectContent>

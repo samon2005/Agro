@@ -14,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { cn } from '@/lib/utils'
 import type { EspecieFinca } from '@/lib/especies'
 import { Ic } from '@/components/ui/icon'
-import { aplicarConsumoAlimentoAves } from '@/lib/inventario'
+import { recalcularStockAlimentoAves, leerStockAlimentoAves, type StockAlimentoAves } from '@/lib/inventario'
 
 type Item = {
   id: string
@@ -26,12 +26,15 @@ type Item = {
   precio_unitario: number | null
   proveedor: string | null
   fecha_vencimiento: string | null
+  tipo_alimento_aves_id: string | null
   inventario_categorias: { nombre: string; color: string } | null
 }
 
 export default function InventarioPage() {
   const { fincaActual, loading: fincaLoading } = useFinca()
   const [items, setItems] = useState<Item[]>([])
+  // Stock de cada alimento de aves, para saber cuál está en uso y cuánto queda
+  const [stockAlimento, setStockAlimento] = useState<StockAlimentoAves[]>([])
   const [loading, setLoading] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [tab, setTab] = useState<'insumos' | 'alimento' | 'huevos' | 'farmacos' | 'equipos'>('insumos')
@@ -43,13 +46,14 @@ export default function InventarioPage() {
     setLoading(true)
     const supabase = createClient()
     // Antes de mostrar el stock, se descuenta el alimento que ya se comieron los galpones
-    await aplicarConsumoAlimentoAves(supabase, fincaActual.id)
+    await recalcularStockAlimentoAves(supabase, fincaActual.id)
     const { data } = await supabase
       .from('inventario')
       .select('*, inventario_categorias(nombre, color)')
       .eq('finca_id', fincaActual.id)
       .order('nombre')
     setItems(data ?? [])
+    setStockAlimento(await leerStockAlimentoAves(supabase, fincaActual.id))
     setLoading(false)
   }
 
@@ -78,9 +82,16 @@ export default function InventarioPage() {
     return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
   }
 
+  // De alimento solo se muestra lo que algún lote está consumiendo hoy: lo demás
+  // ya se acabó o quedó guardado en el catálogo, y solo estorba aquí.
+  const alimentosEnUso = new Set(stockAlimento.filter(s => s.activo_en_algun_lote).map(s => s.tipo_alimento_id))
+  const bultosEnUso = stockAlimento
+    .filter(s => s.activo_en_algun_lote)
+    .reduce((suma, s) => suma + Math.max(0, s.bultos_disponibles), 0)
+
   const itemsVista = items.filter(i => {
     const cat = i.inventario_categorias?.nombre ? normaliza(i.inventario_categorias.nombre) : ''
-    if (tab === 'alimento') return cat === 'alimento'
+    if (tab === 'alimento') return cat === 'alimento' && (!i.tipo_alimento_aves_id || alimentosEnUso.has(i.tipo_alimento_aves_id))
     if (tab === 'huevos') return cat === 'huevos'
     if (tab === 'farmacos') return cat === 'farmacos' || cat === 'medicamentos'
     if (tab === 'insumos') return cat !== 'alimento' && cat !== 'huevos' && cat !== 'farmacos' && cat !== 'medicamentos'
@@ -157,6 +168,22 @@ export default function InventarioPage() {
         ) : (
         <>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          {tab === 'alimento' && (
+            <Card className="border-amber-200 bg-amber-50 md:col-span-3">
+              <CardContent className="flex items-center justify-between pt-4 pb-4">
+                <div>
+                  <span className="text-sm font-medium text-amber-800">Alimento en uso</span>
+                  <p className="text-xs text-amber-700">
+                    Lo que queda de los alimentos que los lotes están consumiendo hoy: entradas menos consumo.
+                  </p>
+                </div>
+                <span className="text-2xl font-semibold text-amber-900 tabular-nums">
+                  {bultosEnUso.toLocaleString('es-CO', { maximumFractionDigits: 1 })}
+                  <span className="ml-1 text-sm font-medium text-amber-700">bultos</span>
+                </span>
+              </CardContent>
+            </Card>
+          )}
           <Card className="border-blue-200 bg-blue-50">
             <CardContent className="pt-4 pb-4 flex justify-between items-center">
               <span className="text-sm text-blue-700 font-medium">Total Ítems</span>

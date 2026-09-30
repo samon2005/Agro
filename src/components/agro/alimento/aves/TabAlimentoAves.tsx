@@ -18,7 +18,7 @@ import HorariosAlimentacion from './HorariosAlimentacion'
 import RegistrarEntradaAlimentoModal from './RegistrarEntradaAlimentoModal'
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
-import { aplicarConsumoAlimentoAves } from '@/lib/inventario'
+import { recalcularStockAlimentoAves, leerStockAlimentoAves, type StockAlimentoAves } from '@/lib/inventario'
 import { Indicador } from '@/components/ui/indicador'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { useRouter } from 'next/navigation'
@@ -88,8 +88,10 @@ export default function TabAlimentoAves({ lotes, loteInicialId }: Props) {
   const [sinHorarios, setSinHorarios] = useState(false)
   // Lo repartido en horarios, al momento: el aviso de "falta repartir" lo usa sin recargar
   const [repartidoKg, setRepartidoKg] = useState<number | null>(null)
-  // Stock actual (en bultos) de cada alimento, que baja solo cada día según el consumo
-  const [stock, setStock] = useState<Record<string, { cantidad: number; vence: string | null }>>({})
+  // Lo que hay de cada alimento: entradas menos lo consumido, calculado en la base
+  const [stockAlimento, setStockAlimento] = useState<StockAlimentoAves[]>([])
+  // Vencimiento más cercano de cada alimento, que vive en sus entradas
+  const [vencePorTipo, setVencePorTipo] = useState<Record<string, string>>({})
   // Tras el primer consumo de un galpón nuevo, se ofrece volver a él
   const [ofrecerVolver, setOfrecerVolver] = useState(false)
   const [modalEntrada, setModalEntrada] = useState(false)
@@ -101,7 +103,7 @@ export default function TabAlimentoAves({ lotes, loteInicialId }: Props) {
   const fetchAll = useCallback(async () => {
     if (!lote) { setLoading(false); return }
     setLoading(true)
-    await aplicarConsumoAlimentoAves(supabase, lote.finca_id)
+    await recalcularStockAlimentoAves(supabase, lote.finca_id)
     const [prod, consumosRes, tiposRes, reqRes, loteRes, entradasRes, horariosRes] = await Promise.all([
       supabase.from('produccion_diaria_aves').select('*').eq('lote_id', lote.id).order('fecha', { ascending: false }).limit(1).maybeSingle(),
       supabase.from('produccion_diaria_aves').select('*').eq('lote_id', lote.id).gt('alimento_kg', 0).order('fecha', { ascending: false }).limit(30),
@@ -111,15 +113,23 @@ export default function TabAlimentoAves({ lotes, loteInicialId }: Props) {
       supabase.from('entradas_alimento_aves').select('*').eq('finca_id', lote.finca_id).order('fecha', { ascending: false }).limit(50),
       supabase.from('horarios_alimentacion_aves').select('id', { count: 'exact', head: true }).eq('lote_id', lote.id).eq('activo', true),
     ])
-    const { data: inventarioRes } = await supabase
-      .from('inventario').select('nombre, cantidad_actual, fecha_vencimiento').eq('finca_id', lote.finca_id)
-    setStock(Object.fromEntries((inventarioRes ?? []).map(i => [i.nombre, { cantidad: Number(i.cantidad_actual), vence: i.fecha_vencimiento }])))
+    setStockAlimento(await leerStockAlimentoAves(supabase, lote.finca_id))
     setHoy(prod.data ?? null)
     setConsumos(consumosRes.data ?? [])
     setTipos(tiposRes.data ?? [])
     setRequerimientosHistorial(reqRes.data ?? [])
     setAlimentoActivo(loteRes.data ?? null)
-    setEntradas(entradasRes.data ?? [])
+    const listaEntradas = entradasRes.data ?? []
+    setEntradas(listaEntradas)
+    // De cada alimento se avisa el vencimiento más cercano que todavía no pasó
+    const hoyStr = hoyLocal()
+    const vencimientos: Record<string, string> = {}
+    for (const e of listaEntradas) {
+      if (!e.fecha_vencimiento || e.fecha_vencimiento < hoyStr) continue
+      const actual = vencimientos[e.tipo_alimento_id]
+      if (!actual || e.fecha_vencimiento < actual) vencimientos[e.tipo_alimento_id] = e.fecha_vencimiento
+    }
+    setVencePorTipo(vencimientos)
     setSinHorarios((horariosRes.count ?? 0) === 0)
     setLoading(false)
   }, [lote, supabase])
@@ -208,6 +218,16 @@ export default function TabAlimentoAves({ lotes, loteInicialId }: Props) {
   if (loading) return <div className="space-y-3">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-lg" />)}</div>
 
   const tiposActivos = tipos.filter(t => t.activo)
+  // El alimento que este galpón está consumiendo hoy, con su stock y sus entradas
+  const stockActivo = stockAlimento.find(s => s.tipo_alimento_id === alimentoActivo?.alimento_activo_id) ?? null
+  const venceActivo = stockActivo ? vencePorTipo[stockActivo.tipo_alimento_id] ?? null : null
+  const consumoDelGalpon = Number(alimentoActivo?.consumo_activo_kg ?? 0)
+  const diasQueAlcanza = stockActivo && consumoDelGalpon > 0 && stockActivo.bultos_disponibles > 0
+    ? Math.floor((stockActivo.bultos_disponibles * stockActivo.peso_bulto_kg) / consumoDelGalpon)
+    : null
+  const entradasVisibles = stockActivo
+    ? entradas.filter(e => e.tipo_alimento_id === stockActivo.tipo_alimento_id)
+    : entradas
   const hoyStr = hoyLocal()
   const requerimientos = requerimientosHistorial.find(r => r.vigente_desde <= hoyStr) ?? null
   const req = requerimientos ?? { ...DEFAULTS, lote_id: lote!.id, finca_id: lote!.finca_id, id: '', vigente_desde: '', created_at: '' }
@@ -446,47 +466,64 @@ export default function TabAlimentoAves({ lotes, loteInicialId }: Props) {
             </div>
           )}
 
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(13rem,1fr))] gap-3">
-            {tiposActivos.map(t => {
-              const enBodega = stock[t.nombre]?.cantidad ?? 0
-              const vence = stock[t.nombre]?.vence ?? null
-              // Cuántos días alcanza, con lo que consumen hoy los galpones que usan este alimento
-              const kgDia = lotes
-                .filter(l => l.alimento_activo_id === t.id && l.consumo_activo_kg)
-                .reduce((acc, l) => acc + Number(l.consumo_activo_kg), 0)
-              const dias = kgDia > 0 ? Math.floor((enBodega * (t.peso_bulto_kg ?? 40)) / kgDia) : null
-              return (
-                <Indicador
-                  key={t.id}
-                  tono={dias != null && dias <= 7 ? 'red' : 'amber'}
-                  icono="alimento"
-                  etiqueta={t.nombre}
-                  valor={<>{enBodega.toLocaleString('es-CO', { maximumFractionDigits: 1 })} <span className="text-base font-medium text-gray-500">bultos</span></>}
-                  detalle={
-                    <>
-                      {dias != null
-                        ? <span className={dias <= 7 ? 'font-medium text-red-700' : undefined}>Alcanza para {dias} día{dias === 1 ? '' : 's'} ({kgDia.toFixed(1)} kg/día)</span>
-                        : 'Ningún galpón lo está consumiendo'}
-                      {vence && <span className="block">Vence el {fmt(vence)}</span>}
-                    </>
-                  }
-                />
-              )
-            })}
-          </div>
+          {/* Solo el alimento que este galpón está consumiendo: el resto vive en Inventario */}
+          {stockActivo ? (
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(13rem,1fr))] gap-3">
+              <Indicador
+                tono={diasQueAlcanza != null && diasQueAlcanza <= 7 ? 'red' : 'amber'}
+                icono="alimento"
+                etiqueta={stockActivo.nombre}
+                valor={<>{stockActivo.bultos_disponibles.toLocaleString('es-CO', { maximumFractionDigits: 1 })} <span className="text-base font-medium text-gray-500">bultos</span></>}
+                detalle={
+                  <>
+                    {stockActivo.bultos_disponibles <= 0
+                      ? <span className="font-medium text-red-700">Se consumió más de lo que entró: registra la entrada que falta</span>
+                      : diasQueAlcanza != null
+                        ? <span className={diasQueAlcanza <= 7 ? 'font-medium text-red-700' : undefined}>
+                            Alcanza para {diasQueAlcanza} día{diasQueAlcanza === 1 ? '' : 's'} en este galpón
+                          </span>
+                        : 'Este galpón todavía no registra consumo'}
+                    {venceActivo && <span className="block">Vence el {fmt(venceActivo)}</span>}
+                  </>
+                }
+              />
+              <Indicador
+                tono="gray"
+                icono="caja"
+                etiqueta="Entró en total"
+                valor={<>{stockActivo.bultos_entrados.toLocaleString('es-CO', { maximumFractionDigits: 1 })} <span className="text-base font-medium text-gray-500">bultos</span></>}
+                detalle={stockActivo.ultima_entrada ? `Última entrada el ${fmt(stockActivo.ultima_entrada)}` : 'Sin entradas registradas'}
+              />
+              <Indicador
+                tono="orange"
+                icono="alimento"
+                etiqueta="Ya se consumió"
+                valor={<>{stockActivo.bultos_consumidos.toLocaleString('es-CO', { maximumFractionDigits: 1 })} <span className="text-base font-medium text-gray-500">bultos</span></>}
+                detalle={`${stockActivo.kg_consumidos.toLocaleString('es-CO', { maximumFractionDigits: 0 })} kg en todos los galpones que lo usan`}
+              />
+            </div>
+          ) : tiposActivos.length > 0 ? (
+            <div className="rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-600">
+              Este galpón todavía no tiene alimento en uso. Registra su consumo y aquí aparecerá su stock.
+            </div>
+          ) : null}
           <p className="-mt-1 text-xs text-gray-400">
-            El inventario baja solo cada día según el consumo registrado de cada galpón, y sube con cada entrada.
+            El stock se calcula solo: bultos que entraron menos lo que se consumió día a día, según lo registrado.
           </p>
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold text-gray-700">Entradas de alimento</CardTitle>
+              <CardTitle className="text-sm font-semibold text-gray-700">
+                Entradas de {stockActivo ? stockActivo.nombre : 'alimento'}
+              </CardTitle>
               <p className="text-xs text-gray-400">
-                Cada entrada suma al inventario de la finca y queda registrada como costo en Finanzas.
+                {stockActivo
+                  ? 'Solo las entradas del alimento que este galpón está consumiendo. Cada una suma al stock y queda como costo en Finanzas.'
+                  : 'Cada entrada suma al stock de la finca y queda registrada como costo en Finanzas.'}
               </p>
             </CardHeader>
             <CardContent className="p-0">
-              {entradas.length === 0 ? (
+              {entradasVisibles.length === 0 ? (
                 <p className="text-sm text-gray-400 p-4">Sin entradas registradas. Usa &quot;+ Registrar entrada&quot; arriba.</p>
               ) : (
                 <div className="overflow-x-auto">
@@ -504,7 +541,7 @@ export default function TabAlimentoAves({ lotes, loteInicialId }: Props) {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {entradas.map(e => {
+                      {entradasVisibles.map(e => {
                         const t = tipos.find(x => x.id === e.tipo_alimento_id)
                         const precio = e.precio_bulto ?? t?.precio_bulto ?? 0
                         return (

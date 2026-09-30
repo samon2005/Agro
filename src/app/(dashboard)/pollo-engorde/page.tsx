@@ -17,6 +17,7 @@ import TabCostosGenerico from '@/components/agro/comun/TabCostosGenerico'
 import { CONFIG_ESPECIES } from '@/lib/especiesConfig'
 import type { Database } from '@/types/database'
 import { Ic, type NombreIcono } from '@/components/ui/icon'
+import { nombreSeccion } from '@/lib/especies'
 
 type LotePollo = Database['public']['Tables']['lotes_pollo']['Row']
 type Tab = 'produccion' | 'ambiental' | 'sanitario' | 'ventas' | 'costos' | 'equipos'
@@ -80,7 +81,7 @@ export default function PolloEngordePage() {
   return (
     <div className="flex-1 overflow-auto p-6 space-y-5">
       <div>
-        <h1 className="text-3xl font-medium text-gray-900">Pollo de Engorde</h1>
+        <h1 className="text-3xl font-medium text-gray-900">{nombreSeccion('pollo_engorde', fincaActual.tipo_produccion)}</h1>
         <p className="text-sm text-gray-500">{fincaActual.nombre} · Gestión integral de lotes broiler</p>
       </div>
 

@@ -8,7 +8,7 @@ import TabAlimentoAves from '@/components/agro/alimento/aves/TabAlimentoAves'
 import TabAlimentoGenerico from '@/components/agro/comun/TabAlimentoGenerico'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ESPECIES_FINCA, type EspecieFinca } from '@/lib/especies'
+import { ESPECIES_FINCA, unaSolaEspecie, type EspecieFinca } from '@/lib/especies'
 import { CONFIG_ESPECIES } from '@/lib/especiesConfig'
 import type { Database } from '@/types/database'
 import { Ic } from '@/components/ui/icon'
@@ -84,10 +84,13 @@ export default function AlimentoPage() {
       <div className="mb-6">
         <h2 className="font-heading text-3xl font-medium text-gray-900">Alimento
         </h2>
-        <p className="text-gray-500 mt-1">Consumo, costos y balance nutricional por especie</p>
+        <p className="text-gray-500 mt-1">
+          {especies.length > 1 ? 'Consumo, costos y balance nutricional por especie' : 'Consumo, costos y balance nutricional'}
+        </p>
       </div>
 
-      <div className="flex gap-2 border-b border-gray-200 mb-6">
+      {/* Con una sola especie no hay entre qué elegir: la barra sobra */}
+      <div className={cn('flex gap-2 border-b border-gray-200 mb-6', unaSolaEspecie(fincaActual.tipo_produccion) && 'hidden')}>
         {ESPECIES_FINCA.filter(e => especies.includes(e.value)).map(esp => (
           <button
             key={esp.value}

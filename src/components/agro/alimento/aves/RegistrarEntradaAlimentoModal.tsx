@@ -11,6 +11,7 @@ import { CurrencyInput } from '@/components/ui/currency-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
+import { recalcularStockAlimentoAves } from '@/lib/inventario'
 
 type TipoAlimento = Database['public']['Tables']['tipos_alimento_aves']['Row']
 type Entrada = Database['public']['Tables']['entradas_alimento_aves']['Row']
@@ -102,8 +103,13 @@ export default function RegistrarEntradaAlimentoModal({ open, onClose, loteId, f
         })
       }
 
-      // Y suma al inventario general de la finca, bajo la categoría Alimento
-      await sumarAInventario()
+    }
+
+    // El stock del alimento es una cuenta (entradas menos consumo): se rehace al
+    // crear, editar o corregir una entrada, y de paso se anota el vencimiento.
+    if (!error) {
+      await recalcularStockAlimentoAves(supabase, fincaId)
+      await anotarVencimiento()
     }
 
     setLoading(false)
@@ -113,56 +119,25 @@ export default function RegistrarEntradaAlimentoModal({ open, onClose, loteId, f
     onClose()
   }
 
-  /** Mantiene sincronizado el ítem de inventario general con lo que entra de alimento. */
-  async function sumarAInventario() {
-    if (!tipo) return
-    const { data: categoria } = await supabase
-      .from('inventario_categorias')
-      .select('id')
-      .eq('finca_id', fincaId)
-      .ilike('nombre', 'alimento')
-      .maybeSingle()
-
-    let categoriaId = categoria?.id ?? null
-    if (!categoriaId) {
-      const { data: nueva } = await supabase
-        .from('inventario_categorias')
-        .insert({ finca_id: fincaId, nombre: 'Alimento', color: '#F59E0B' })
-        .select('id').single()
-      categoriaId = nueva?.id ?? null
-    }
-
+  /**
+   * En el inventario queda a la vista el vencimiento más próximo que todavía no
+   * pasó: es el que hay que vigilar. El stock en sí lo calcula la base.
+   */
+  async function anotarVencimiento() {
+    if (!tipo || !form.fecha_vencimiento) return
     const { data: item } = await supabase
       .from('inventario')
-      .select('id, cantidad_actual, fecha_vencimiento')
+      .select('id, fecha_vencimiento')
       .eq('finca_id', fincaId)
-      .eq('nombre', tipo.nombre)
+      .eq('tipo_alimento_aves_id', tipo.id)
       .maybeSingle()
+    if (!item) return
 
-    // En el inventario queda el vencimiento más próximo que todavía no pasó:
-    // es el que hay que vigilar.
     const hoy = hoyLocal()
-    const vence = form.fecha_vencimiento || null
-    const vigente = item?.fecha_vencimiento && item.fecha_vencimiento >= hoy ? item.fecha_vencimiento : null
-    const venceFinal = vence && vigente ? (vence < vigente ? vence : vigente) : (vence ?? vigente)
-
-    if (item) {
-      await supabase.from('inventario')
-        .update({ cantidad_actual: Number(item.cantidad_actual) + bultos, fecha_vencimiento: venceFinal })
-        .eq('id', item.id)
-    } else {
-      await supabase.from('inventario').insert({
-        finca_id: fincaId,
-        categoria_id: categoriaId,
-        nombre: tipo.nombre,
-        unidad_medida: 'bultos',
-        cantidad_actual: bultos,
-        cantidad_minima: 0,
-        precio_unitario: precio || null,
-        proveedor: form.proveedor || null,
-        fecha_vencimiento: venceFinal,
-      })
-    }
+    const vigente = item.fecha_vencimiento && item.fecha_vencimiento >= hoy ? item.fecha_vencimiento : null
+    const venceFinal = vigente && vigente < form.fecha_vencimiento ? vigente : form.fecha_vencimiento
+    if (venceFinal === item.fecha_vencimiento) return
+    await supabase.from('inventario').update({ fecha_vencimiento: venceFinal }).eq('id', item.id)
   }
 
   return (

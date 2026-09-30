@@ -22,6 +22,7 @@ import { Badge } from '@/components/ui/badge'
 import { edadTexto } from '@/lib/cerdos'
 import type { Database } from '@/types/database'
 import { Ic, type NombreIcono } from '@/components/ui/icon'
+import { nombreSeccion } from '@/lib/especies'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
 type Tab = 'diario' | 'crecimiento' | 'reproduccion' | 'nutricion' | 'sanitario' | 'ambiental' | 'ventas' | 'costos' | 'equipos'
@@ -96,7 +97,7 @@ export default function CerdosPage() {
   return (
     <div className="flex-1 overflow-auto p-6 space-y-5">
       <div>
-        <h1 className="text-3xl font-medium text-gray-900">Cerdos</h1>
+        <h1 className="text-3xl font-medium text-gray-900">{nombreSeccion('cerdos', fincaActual.tipo_produccion)}</h1>
         <p className="text-sm text-gray-500">{fincaActual.nombre} · Gestión integral de lotes porcinos</p>
       </div>
 

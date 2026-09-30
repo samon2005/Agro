@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
-import { ajustarHuevos } from '@/lib/inventario'
+import { ajustarHuevos, recalcularStockAlimentoAves } from '@/lib/inventario'
 import { Ic } from '@/components/ui/icon'
 
 type ProduccionDiaria = Database['public']['Tables']['produccion_diaria_aves']['Row']
@@ -248,6 +248,9 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
     if (!error && huevosDelta !== 0 && nombreLote) {
       await ajustarHuevos(supabase, fincaId, nombreLote, huevosDelta)
     }
+
+    // El alimento del día sale del stock: se rehace la cuenta del inventario
+    if (!error) await recalcularStockAlimentoAves(supabase, fincaId)
 
     setLoading(false)
     if (error) { toast.error('Error al guardar el registro'); return }

@@ -110,7 +110,7 @@ export default function ResumenFinanciero({ fincaId, especies }: Props) {
   return (
     <div className="mb-8">
       <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-        <h3 className="text-sm font-semibold text-gray-800">Finanzas de todas las especies</h3>
+        <h3 className="text-sm font-semibold text-gray-800">{porEspecie.length > 1 ? 'Finanzas de todas las especies' : 'Finanzas de la finca'}</h3>
         <div className="flex items-center gap-2">
           <Select
             value={anioFiltro}

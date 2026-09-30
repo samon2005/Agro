@@ -9,7 +9,7 @@ import type { User } from '@supabase/supabase-js'
 import { useFinca } from './FincaProvider'
 import { useRol } from './RolProvider'
 import NotificacionesPanel from './NotificacionesPanel'
-import { ESPECIES_FINCA, type EspecieFinca } from '@/lib/especies'
+import { ESPECIES_FINCA, nombreSeccion, type EspecieFinca } from '@/lib/especies'
 
 interface Item { href: string; label: string; icon: NombreIcono }
 
@@ -32,7 +32,9 @@ export default function DashboardSidebar({ user }: { user: User }) {
     ...(especiesFinca.length > 0 ? [{ href: '/alimento', label: 'Alimento', icon: 'alimento' as const }] : []),
     ...ESPECIES_FINCA
       .filter(esp => especiesFinca.includes(esp.value))
-      .map(esp => ({ href: esp.href, icon: esp.icon, label: esp.labelNav ?? esp.label })),
+      // Con una sola especie el menú dice el lugar ("Galpones", "Corrales"):
+      // nombrar la especie sobra cuando la finca solo trabaja esa.
+      .map(esp => ({ href: esp.href, icon: esp.icon, label: nombreSeccion(esp.value, fincaActual?.tipo_produccion) })),
     ...(rol !== 'trabajador' ? [{ href: '/operarios', label: 'Operarios', icon: 'operario' as const }] : []),
   ]
 

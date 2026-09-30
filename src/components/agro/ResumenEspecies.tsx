@@ -4,7 +4,7 @@ import { Ic } from '@/components/ui/icon'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { ESPECIES_FINCA, type EspecieFinca } from '@/lib/especies'
+import { ESPECIES_FINCA, nombreSeccion, type EspecieFinca } from '@/lib/especies'
 
 type ResumenEspecie = {
   lotesActivos: number
@@ -57,7 +57,7 @@ export default function ResumenEspecies({ fincaId, especies }: { fincaId: string
 
   return (
     <div className="mb-8">
-      <h3 className="mb-3 text-sm font-semibold text-gray-800">Resumen por especie</h3>
+      <h3 className="mb-3 text-sm font-semibold text-gray-800">{especies.length > 1 ? 'Resumen por especie' : 'Resumen'}</h3>
       <div className="grid grid-cols-[repeat(auto-fit,minmax(15rem,1fr))] gap-3">
         {ESPECIES_FINCA.filter(e => especies.includes(e.value)).map(esp => {
           const r = resumen[esp.value]
@@ -71,7 +71,7 @@ export default function ResumenEspecies({ fincaId, especies }: { fincaId: string
                   <Ic n={esp.icon} className="size-5" strokeWidth={1.9} />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[0.8125rem] font-medium text-gray-600">{esp.labelNav ?? esp.label}</p>
+                  <p className="text-[0.8125rem] font-medium text-gray-600">{nombreSeccion(esp.value, especies)}</p>
                   {loading ? (
                     <p className="mt-1 text-xs text-gray-400">Cargando…</p>
                   ) : (

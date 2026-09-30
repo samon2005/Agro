@@ -18,7 +18,8 @@ import TabEquipos from '@/components/agro/aves/equipos/TabEquipos'
 import { calcularFechaLiberacion } from '@/lib/sanitario'
 import type { Database } from '@/types/database'
 import { Ic, type NombreIcono } from '@/components/ui/icon'
-import { aplicarConsumoAlimentoAves } from '@/lib/inventario'
+import { nombreSeccion } from '@/lib/especies'
+import { recalcularStockAlimentoAves } from '@/lib/inventario'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 type Medicacion = Database['public']['Tables']['medicaciones_aves']['Row']
@@ -59,7 +60,7 @@ export default function AvesPonedorasPage() {
   const fetchLotes = useCallback(async () => {
     if (!fincaActual) return
     setLoadingLotes(true)
-    await aplicarConsumoAlimentoAves(supabase, fincaActual.id)
+    await recalcularStockAlimentoAves(supabase, fincaActual.id)
     const { data } = await supabase
       .from('lotes_aves')
       .select('*')
@@ -145,7 +146,7 @@ export default function AvesPonedorasPage() {
       {/* Encabezado */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-medium text-gray-900">Galpones</h1>
+          <h1 className="text-3xl font-medium text-gray-900">{nombreSeccion('aves_ponedoras', fincaActual.tipo_produccion)}</h1>
           <p className="text-sm text-gray-500">{fincaActual.nombre} · Gestión integral de lotes</p>
         </div>
         <button
