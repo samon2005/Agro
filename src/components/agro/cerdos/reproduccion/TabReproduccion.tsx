@@ -14,9 +14,10 @@ import RegistrarReproductoraModal from './RegistrarReproductoraModal'
 import RegistrarServicioModal from './RegistrarServicioModal'
 import RegistrarPartoModal from './RegistrarPartoModal'
 import RegistrarDesteteModal from './RegistrarDesteteModal'
+import FichaCerdaModal from './FichaCerdaModal'
 import type { Database } from '@/types/database'
 import {
-  ESTADOS_REPRODUCTORA, DIAS_GESTACION, DIAS_LACTANCIA_MIN, DIAS_LACTANCIA_MAX,
+  ESTADOS_REPRODUCTORA, ESTADOS_LECHON, DIAS_GESTACION, DIAS_LACTANCIA_MIN, DIAS_LACTANCIA_MAX,
   diaDeGestacion, diasDesde, edadTexto, fechaRepeticionCelo,
 } from '@/lib/cerdos'
 import { hoyLocal } from '@/lib/fechas'
@@ -30,7 +31,9 @@ type Destete = Database['public']['Tables']['destetes_cerdos']['Row']
 
 type Aplicacion = Database['public']['Tables']['inseminaciones_cerdos']['Row']
 
-type SubTab = 'hembras' | 'servicios' | 'partos' | 'destetes'
+type Lechon = Database['public']['Tables']['lechones_cerdos']['Row']
+
+type SubTab = 'hembras' | 'servicios' | 'partos' | 'destetes' | 'lechones'
 
 interface Props {
   loteActual: LoteCerdos
@@ -54,6 +57,8 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
   const [partoEditar, setPartoEditar] = useState<Parto | null>(null)
   const [desteteEditar, setDesteteEditar] = useState<Destete | null>(null)
   const [confirmandoPrenez, setConfirmandoPrenez] = useState<string | null>(null)
+  const [lechones, setLechones] = useState<Lechon[]>([])
+  const [fichaCerda, setFichaCerda] = useState<Reproductora | null>(null)
   const [servicioParaParto, setServicioParaParto] = useState<Servicio | null>(null)
   const [modalDestete, setModalDestete] = useState(false)
   const [partoParaDestete, setPartoParaDestete] = useState<Parto | null>(null)
@@ -73,6 +78,8 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
       ? await supabase.from('inseminaciones_cerdos').select('*').in('servicio_id', ids).order('fecha')
       : { data: [] }
     setAplicaciones(ap.data ?? [])
+    const lech = await supabase.from('lechones_cerdos').select('*').eq('lote_id', loteActual.id).order('codigo')
+    setLechones(lech.data ?? [])
     setHembras(h.data ?? [])
     setServicios(s.data ?? [])
     setPartos(p.data ?? [])
@@ -126,6 +133,9 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
     .filter(s => s.estado !== 'parido' && s.fecha_probable_parto)
     .map(s => s.fecha_probable_parto!)
     .sort()[0] ?? null
+
+  // Lechones que siguen en la finca: los vendidos y los muertos ya no cuentan
+  const lechonesEnPie = lechones.filter(l => l.estado !== 'vendido' && l.estado !== 'muerto')
 
   const destetesListos = camadasLactando.filter(p => {
     const d = diasDesde(p.fecha_parto)
@@ -206,6 +216,7 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
     { id: 'servicios', label: 'Servicios', count: servicios.length },
     { id: 'partos', label: 'Partos', count: partos.length },
     { id: 'destetes', label: 'Destetes', count: destetes.length },
+    { id: 'lechones', label: 'Lechones', count: lechonesEnPie.length },
   ]
 
   return (
@@ -350,7 +361,20 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
                       const estado = ESTADOS_REPRODUCTORA[h.estado] ?? { label: h.estado, clase: 'bg-gray-100 text-gray-700 border-gray-300' }
                       return (
                         <TableRow key={h.id}>
-                          <TableCell className="font-medium text-sm">{h.codigo}</TableCell>
+                          <TableCell className="text-sm font-medium">
+                            <button
+                              type="button"
+                              className="text-left text-pink-700 underline-offset-2 hover:underline"
+                              onClick={() => setFichaCerda(h)}
+                            >
+                              {h.codigo}
+                            </button>
+                            {h.identificacion && (
+                              <span className="block text-[0.6875rem] font-normal text-gray-400">
+                                {h.tipo_identificacion ?? 'arete'} {h.identificacion}
+                              </span>
+                            )}
+                          </TableCell>
                           <TableCell className="text-sm text-gray-600">{h.nombre ?? '—'}</TableCell>
                           <TableCell className="text-sm text-gray-500">{edadTexto(h.fecha_nacimiento)}</TableCell>
                           <TableCell className="text-right text-sm">{h.numero_partos}</TableCell>
@@ -475,6 +499,47 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
                                 {confirmandoEliminar === `servicios_cerdos-${s.id}` ? '¿Confirmar?' : <Ic n="borrar" />}
                               </Button>
                             </div>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )
+          ) : subTab === 'lechones' ? (
+            lechones.length === 0 ? (
+              <Vacio emoji="" texto="Todavía no hay lechones identificados" accion={() => setSubTab('partos')} etiqueta="Ver partos" />
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Código</TableHead>
+                      <TableHead>Madre</TableHead>
+                      <TableHead>Nació</TableHead>
+                      <TableHead className="text-right">Peso al nacer</TableHead>
+                      <TableHead className="text-right">Peso al destete</TableHead>
+                      <TableHead>Estado</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {lechones.map(l => {
+                      const estadoLechon = ESTADOS_LECHON[l.estado] ?? { label: l.estado, clase: 'bg-gray-100 text-gray-600' }
+                      return (
+                        <TableRow key={l.id}>
+                          <TableCell className="py-2 text-sm font-medium">{l.codigo}</TableCell>
+                          <TableCell className="py-2 text-sm text-gray-600">{hembraPorId.get(l.madre_id ?? '')?.codigo ?? '—'}</TableCell>
+                          <TableCell className="py-2 text-sm text-gray-600">{l.fecha_nacimiento ? fmt(l.fecha_nacimiento) : '—'}</TableCell>
+                          <TableCell className="py-2 text-right text-sm">
+                            {l.peso_nacimiento_kg != null ? `${Number(l.peso_nacimiento_kg).toFixed(2)} kg` : '—'}
+                          </TableCell>
+                          <TableCell className="py-2 text-right text-sm">
+                            {l.peso_destete_kg != null ? `${Number(l.peso_destete_kg).toFixed(2)} kg` : '—'}
+                          </TableCell>
+                          <TableCell className="py-2">
+                            <Badge className={`text-[10px] ${estadoLechon.clase}`}>{estadoLechon.label}</Badge>
+                            {l.causa_salida && <span className="block text-[0.6875rem] text-gray-400">{l.causa_salida}</span>}
                           </TableCell>
                         </TableRow>
                       )
@@ -646,6 +711,12 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
         partoExistente={partoEditar}
         onCreated={fetchAll}
       />
+      <FichaCerdaModal
+        open={fichaCerda != null}
+        onClose={() => setFichaCerda(null)}
+        cerda={fichaCerda}
+      />
+
       <RegistrarDesteteModal
         open={modalDestete}
         onClose={() => { setModalDestete(false); setPartoParaDestete(null); setDesteteEditar(null) }}

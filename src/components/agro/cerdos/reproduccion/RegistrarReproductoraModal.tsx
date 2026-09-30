@@ -29,6 +29,8 @@ function defaultForm(lote: LoteCerdos, r?: Reproductora | null) {
   return {
     codigo: r?.codigo ?? '',
     nombre: r?.nombre ?? '',
+    tipo_identificacion: r?.tipo_identificacion ?? 'arete',
+    identificacion: r?.identificacion ?? '',
     linea_genetica: r?.linea_genetica ?? lote.linea_genetica ?? '',
     fecha_nacimiento: r?.fecha_nacimiento ?? '',
     fecha_ingreso: r?.fecha_ingreso ?? hoyLocal(),
@@ -58,6 +60,8 @@ export default function RegistrarReproductoraModal({ open, onClose, lote, reprod
     const payload = {
       codigo: form.codigo.trim(),
       nombre: form.nombre || null,
+      tipo_identificacion: form.identificacion.trim() ? form.tipo_identificacion : null,
+      identificacion: form.identificacion.trim() || null,
       linea_genetica: form.linea_genetica || null,
       fecha_nacimiento: form.fecha_nacimiento || null,
       fecha_ingreso: form.fecha_ingreso,
@@ -95,6 +99,30 @@ export default function RegistrarReproductoraModal({ open, onClose, lote, reprod
             <div className="space-y-1">
               <Label>Nombre</Label>
               <Input placeholder="Opcional" value={form.nombre} onChange={e => set('nombre', e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label>Marca con la que se identifica</Label>
+              <Select
+                value={form.tipo_identificacion}
+                onValueChange={v => set('tipo_identificacion', v)}
+                items={{ arete: 'Arete', tatuaje: 'Tatuaje', muesca: 'Muesca', chip: 'Chip' }}
+              >
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="arete">Arete</SelectItem>
+                  <SelectItem value="tatuaje">Tatuaje</SelectItem>
+                  <SelectItem value="muesca">Muesca</SelectItem>
+                  <SelectItem value="chip">Chip</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>Número de esa marca</Label>
+              <Input
+                placeholder="El que lleva puesto el animal"
+                value={form.identificacion}
+                onChange={e => set('identificacion', e.target.value)}
+              />
             </div>
             <div className="space-y-1">
               <Label>Línea genética</Label>

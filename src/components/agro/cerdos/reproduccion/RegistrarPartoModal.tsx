@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
 import { Ic } from '@/components/ui/icon'
+import { codigoLechon } from '@/lib/cerdos'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
 type Reproductora = Database['public']['Tables']['reproductoras_cerdos']['Row']
@@ -100,6 +101,15 @@ export default function RegistrarPartoModal({ open, onClose, lote, hembras, serv
     ? (pesoCamada / vivos).toFixed(2)
     : null
 
+  // Los códigos que llevarán los lechones de esta camada, para avisarlo antes
+  const madreElegida = hembras.find(h => h.id === form.reproductora_id) ?? null
+  const primerNumero = (madreElegida?.numero_partos ?? 0) > 0 ? null : 1
+  const codigosPrevistos = madreElegida && vivos > 0
+    ? primerNumero != null
+      ? `${codigoLechon(madreElegida.codigo, 1)} a ${codigoLechon(madreElegida.codigo, vivos)}`
+      : `${madreElegida.codigo}-… (siguen la numeración de sus camadas anteriores)`
+    : null
+
   // Servicios abiertos de la hembra elegida, para vincular el parto con el que corresponde
   const serviciosDeHembra = servicios.filter(s => s.reproductora_id === form.reproductora_id)
 
@@ -123,9 +133,13 @@ export default function RegistrarPartoModal({ open, onClose, lote, hembras, serv
       observaciones: form.observaciones || null,
     }
 
-    const { error } = partoExistente
-      ? await supabase.from('partos_cerdos').update(datos).eq('id', partoExistente.id)
-      : await supabase.from('partos_cerdos').insert({ ...datos, lote_id: lote.id, finca_id: lote.finca_id })
+    const { data: parto, error } = partoExistente
+      ? await supabase.from('partos_cerdos').update(datos).eq('id', partoExistente.id).select('id').single()
+      : await supabase.from('partos_cerdos').insert({ ...datos, lote_id: lote.id, finca_id: lote.finca_id }).select('id').single()
+
+    // Cada lechón nacido vivo queda identificado con su código (205-01) para
+    // poder seguirle el peso y la salud durante todo el ciclo.
+    if (!error && parto) await sincronizarLechones(parto.id)
 
     // Al corregir un parto no se vuelve a contar: la hembra ya quedó lactante
     if (!error && !partoExistente) {
@@ -145,6 +159,58 @@ export default function RegistrarPartoModal({ open, onClose, lote, hembras, serv
     toast.success(partoExistente ? 'Parto actualizado' : `Parto registrado: ${vivos} nacidos vivos`)
     onCreated()
     onClose()
+  }
+
+  /**
+   * Deja la camada con un lechón por nacido vivo. Los que ya existen conservan su
+   * código; si el parto se corrige hacia abajo, se quitan los últimos que no
+   * tengan nada registrado todavía.
+   */
+  async function sincronizarLechones(partoId: string) {
+    const madre = hembras.find(h => h.id === form.reproductora_id)
+    if (!madre) return
+
+    const [{ data: existentes }, { data: deLaMadre }] = await Promise.all([
+      supabase.from('lechones_cerdos').select('*').eq('parto_id', partoId).order('numero'),
+      supabase.from('lechones_cerdos').select('numero').eq('madre_id', madre.id).order('numero', { ascending: false }).limit(1),
+    ])
+    const lechones = existentes ?? []
+
+    // Los pesos que se escribieron se guardan en el lechón que corresponde
+    for (let i = 0; i < Math.min(lechones.length, vivos); i++) {
+      const peso = pesos[i] ? Number(pesos[i]) : null
+      if (peso !== (lechones[i].peso_nacimiento_kg != null ? Number(lechones[i].peso_nacimiento_kg) : null)) {
+        await supabase.from('lechones_cerdos')
+          .update({ peso_nacimiento_kg: peso, fecha_nacimiento: form.fecha_parto })
+          .eq('id', lechones[i].id)
+      }
+    }
+
+    if (vivos > lechones.length) {
+      let siguiente = Math.max(deLaMadre?.[0]?.numero ?? 0, ...lechones.map(l => l.numero), 0) + 1
+      const nuevos = []
+      for (let i = lechones.length; i < vivos; i++) {
+        nuevos.push({
+          finca_id: lote.finca_id,
+          lote_id: lote.id,
+          parto_id: partoId,
+          madre_id: madre.id,
+          codigo: codigoLechon(madre.codigo, siguiente),
+          numero: siguiente,
+          peso_nacimiento_kg: pesos[i] ? Number(pesos[i]) : null,
+          fecha_nacimiento: form.fecha_parto,
+          estado: 'lactante',
+        })
+        siguiente += 1
+      }
+      await supabase.from('lechones_cerdos').insert(nuevos)
+    } else if (vivos < lechones.length) {
+      // Solo se quitan los últimos, y únicamente si no tienen historia propia
+      const sobran = lechones.slice(vivos).filter(l => l.estado === 'lactante' && l.peso_destete_kg == null)
+      if (sobran.length > 0) {
+        await supabase.from('lechones_cerdos').delete().in('id', sobran.map(l => l.id))
+      }
+    }
   }
 
   return (
@@ -264,6 +330,12 @@ export default function RegistrarPartoModal({ open, onClose, lote, hembras, serv
               </div>
             )}
 
+            {vivos > 0 && codigosPrevistos && (
+              <p className="rounded-lg bg-white px-3 py-2 text-xs text-gray-600 ring-1 ring-pink-200">
+                <Ic n="cerdo" /> Cada lechón queda identificado: <strong>{codigosPrevistos}</strong>.
+                Con ese código se le sigue el peso y la salud durante todo el ciclo.
+              </p>
+            )}
             <p className="border-t border-pink-200 pt-2 text-xs text-pink-800">
               Nacidos totales: <strong>{totales}</strong>
               {pesoCamada != null && ` · camada de ${pesoCamada.toFixed(2)} kg`}

@@ -100,3 +100,23 @@ export function fincaCria(etapas: string[] | null | undefined): boolean {
 export function etapasEngordeDeFinca(etapas: string[] | null | undefined) {
   return ETAPAS_CERDOS.filter(e => e.value !== 'cria' && e.value !== 'lactancia' && etapasDeFinca(etapas).includes(e.value))
 }
+
+/**
+ * El código con el que se identifica un lechón: el de su madre y su número
+ * corrido (205-01). El número sigue de camada en camada, así una cerda no
+ * repite el mismo código en su segundo parto.
+ */
+export function codigoLechon(codigoMadre: string, numero: number): string {
+  return `${codigoMadre}-${String(numero).padStart(2, '0')}`
+}
+
+/** Cómo se llama cada estado de un lechón en la pantalla. */
+export const ESTADOS_LECHON: Record<string, { label: string; clase: string }> = {
+  lactante: { label: 'Lactante', clase: 'bg-pink-100 text-pink-700' },
+  destetado: { label: 'Destetado', clase: 'bg-green-100 text-green-700' },
+  precebo: { label: 'Precebo', clase: 'bg-blue-100 text-blue-700' },
+  levante: { label: 'Levante', clase: 'bg-indigo-100 text-indigo-700' },
+  ceba: { label: 'Ceba', clase: 'bg-orange-100 text-orange-700' },
+  vendido: { label: 'Vendido', clase: 'bg-gray-100 text-gray-600' },
+  muerto: { label: 'Muerto', clase: 'bg-red-100 text-red-700' },
+}

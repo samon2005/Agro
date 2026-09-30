@@ -17,6 +17,7 @@ type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
 type Reproductora = Database['public']['Tables']['reproductoras_cerdos']['Row']
 type Parto = Database['public']['Tables']['partos_cerdos']['Row']
 type Destete = Database['public']['Tables']['destetes_cerdos']['Row']
+type Lechon = Database['public']['Tables']['lechones_cerdos']['Row']
 
 interface Props {
   open: boolean
@@ -54,10 +55,28 @@ export default function RegistrarDesteteModal({ open, onClose, lote, hembras, pa
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState(() => defaultForm(partoPreseleccionado, desteteExistente))
+  // Los lechones de la camada: se marca cuáles salen y con qué peso
+  const [lechones, setLechones] = useState<Lechon[]>([])
+  const [salen, setSalen] = useState<Record<string, boolean>>({})
+  const [pesosLechon, setPesosLechon] = useState<Record<string, string>>({})
 
   useEffect(() => {
     if (open) setForm(defaultForm(partoPreseleccionado, desteteExistente))
   }, [open, partoPreseleccionado, desteteExistente])
+
+  // Al elegir la camada se traen sus lechones, cada uno con su código
+  useEffect(() => {
+    if (!open || !form.parto_id) { setLechones([]); return }
+    supabase.from('lechones_cerdos').select('*').eq('parto_id', form.parto_id).order('numero')
+      .then(({ data }) => {
+        const lista = data ?? []
+        setLechones(lista)
+        setSalen(Object.fromEntries(lista.map(l => [l.id, l.estado !== 'muerto'])))
+        setPesosLechon(Object.fromEntries(lista.map(l => [
+          l.id, l.peso_destete_kg != null ? String(l.peso_destete_kg) : '',
+        ])))
+      })
+  }, [open, form.parto_id, supabase])
 
   function set(field: string, value: string | null) {
     setForm(prev => ({ ...prev, [field]: value ?? '' }))
@@ -66,7 +85,12 @@ export default function RegistrarDesteteModal({ open, onClose, lote, hembras, pa
   const parto = partos.find(p => p.id === form.parto_id) ?? partoPreseleccionado ?? null
   const hembra = parto ? hembras.find(h => h.id === parto.reproductora_id) : null
   const diasLactancia = parto ? diasDesde(parto.fecha_parto, form.fecha_destete) : null
-  const destetados = Number(form.lechones_destetados) || 0
+  const marcados = lechones.filter(l => salen[l.id]).length
+  const destetados = lechones.length > 0 ? marcados : (Number(form.lechones_destetados) || 0)
+  const pesosMarcados = lechones.filter(l => salen[l.id] && pesosLechon[l.id]).map(l => Number(pesosLechon[l.id]))
+  const promedioLechones = pesosMarcados.length > 0
+    ? pesosMarcados.reduce((s, x) => s + x, 0) / pesosMarcados.length
+    : null
   // Sobrevivencia de la camada: de los que nacieron vivos, cuántos llegaron al destete
   const sobrevivencia = parto && parto.nacidos_vivos > 0
     ? ((destetados / parto.nacidos_vivos) * 100).toFixed(1)
@@ -92,7 +116,7 @@ export default function RegistrarDesteteModal({ open, onClose, lote, hembras, pa
       reproductora_id: parto.reproductora_id,
       fecha_destete: form.fecha_destete,
       lechones_destetados: destetados,
-      peso_promedio_kg: form.peso_promedio_kg ? Number(form.peso_promedio_kg) : null,
+      peso_promedio_kg: promedioLechones ?? (form.peso_promedio_kg ? Number(form.peso_promedio_kg) : null),
       observaciones: form.observaciones || null,
     }
     const { error } = desteteExistente
@@ -102,6 +126,26 @@ export default function RegistrarDesteteModal({ open, onClose, lote, hembras, pa
     // Destetada la camada, la cerda queda vacía y lista para volver a servicio
     if (!error) {
       await supabase.from('reproductoras_cerdos').update({ estado: 'vacia' }).eq('id', parto.reproductora_id)
+
+      // Cada lechón queda como destetado con su peso, o marcado como muerto en
+      // lactancia: así el código deja de aparecer en el ciclo.
+      for (const l of lechones) {
+        const sale = salen[l.id]
+        await supabase.from('lechones_cerdos').update(
+          sale
+            ? {
+                estado: 'destetado',
+                peso_destete_kg: pesosLechon[l.id] ? Number(pesosLechon[l.id]) : null,
+                fecha_salida: null,
+                causa_salida: null,
+              }
+            : {
+                estado: 'muerto',
+                fecha_salida: form.fecha_destete,
+                causa_salida: l.causa_salida ?? 'Murió en lactancia',
+              },
+        ).eq('id', l.id)
+      }
     }
 
     setLoading(false)
@@ -167,6 +211,47 @@ export default function RegistrarDesteteModal({ open, onClose, lote, hembras, pa
               )}
               {sobrevivencia && <p><Ic n="grafica" /> Sobrevivencia de la camada: <strong>{sobrevivencia}%</strong></p>}
               <p><Ic n="repetir" /> La cerda debería volver a celo unos {DIAS_DESTETE_SERVICIO} días después del destete.</p>
+            </div>
+          )}
+
+          {lechones.length > 0 && (
+            <div className="space-y-2 rounded-xl bg-gray-50 p-3">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <p className="text-xs font-semibold text-gray-700">Lechones de la camada</p>
+                <p className="text-[0.6875rem] text-gray-500">
+                  Desmarca el que no llegó al destete · {marcados} de {lechones.length} salen
+                </p>
+              </div>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {lechones.map(l => (
+                  <div key={l.id} className="flex items-center gap-2 rounded-lg bg-white px-2 py-1.5 ring-1 ring-gray-200">
+                    <input
+                      type="checkbox"
+                      className="size-4 accent-pink-600"
+                      checked={salen[l.id] ?? true}
+                      onChange={e => setSalen(prev => ({ ...prev, [l.id]: e.target.checked }))}
+                    />
+                    <span className={`w-16 shrink-0 text-xs font-medium ${salen[l.id] ? 'text-gray-700' : 'text-gray-400 line-through'}`}>
+                      {l.codigo}
+                    </span>
+                    <div className="relative flex-1">
+                      <Input
+                        type="number" min="0" step="0.01" placeholder="Peso"
+                        className="h-8 w-full pr-8 text-sm"
+                        disabled={!salen[l.id]}
+                        value={pesosLechon[l.id] ?? ''}
+                        onChange={e => setPesosLechon(prev => ({ ...prev, [l.id]: e.target.value }))}
+                      />
+                      <span className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-[0.6875rem] text-gray-400">kg</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {promedioLechones != null && (
+                <p className="text-[0.6875rem] text-gray-600">
+                  Peso promedio al destete: <strong>{promedioLechones.toFixed(2)} kg</strong>
+                </p>
+              )}
             </div>
           )}
 
