@@ -108,6 +108,7 @@ export default function InventarioAlimentoGenerico({
   useEffect(() => { fetchTodo() }, [fetchTodo])
 
   const stockActivo = stock.find(s => s.tipo_alimento_id === alimentoActivoId) ?? null
+  const sinEntradas = stockActivo != null && stockActivo.bultos_entrados === 0
   const entradasVisibles = stockActivo
     ? entradas.filter(e => e.tipo_alimento_id === stockActivo.tipo_alimento_id)
     : entradas
@@ -188,25 +189,39 @@ export default function InventarioAlimentoGenerico({
       {stockActivo ? (
         <div className="grid grid-cols-[repeat(auto-fit,minmax(13rem,1fr))] gap-3">
           <Indicador
-            tono={diasQueAlcanza != null && diasQueAlcanza <= 7 ? 'red' : 'amber'}
+            tono="green"
             icono="alimento"
-            etiqueta={stockActivo.nombre}
-            valor={<>{stockActivo.bultos_disponibles.toLocaleString('es-CO', { maximumFractionDigits: 1 })} <span className="text-base font-medium text-gray-500">bultos</span></>}
+            etiqueta="Consume al día"
+            valor={<>{consumoDiarioKg.toLocaleString('es-CO', { maximumFractionDigits: 1 })} <span className="text-base font-medium text-gray-500">kg</span></>}
             detalle={
-              stockActivo.bultos_disponibles <= 0
-                ? <span className="font-medium text-red-700">Se consumió más de lo que entró: registra la entrada que falta</span>
-                : diasQueAlcanza != null
-                  ? <span className={diasQueAlcanza <= 7 ? 'font-medium text-red-700' : undefined}>Alcanza para {diasQueAlcanza} día{diasQueAlcanza === 1 ? '' : 's'} en este lote</span>
-                  : 'Este lote todavía no registra consumo'
+              consumoDiarioKg > 0
+                ? `${(consumoDiarioKg / stockActivo.peso_bulto_kg).toFixed(2)} bultos al día · ${stockActivo.nombre}`
+                : 'Registra el consumo del lote'
             }
           />
           <Indicador
-            tono="gray" icono="caja" etiqueta="Entró en total"
-            valor={<>{stockActivo.bultos_entrados.toLocaleString('es-CO', { maximumFractionDigits: 1 })} <span className="text-base font-medium text-gray-500">bultos</span></>}
-            detalle={stockActivo.ultima_entrada ? `Última entrada el ${fmt(stockActivo.ultima_entrada)}` : 'Sin entradas registradas'}
+            tono={sinEntradas || (diasQueAlcanza != null && diasQueAlcanza <= 7) ? 'red' : 'amber'}
+            icono="caja"
+            etiqueta="Queda en bodega"
+            valor={
+              sinEntradas
+                ? <span className="text-xl text-red-700">Sin entradas</span>
+                : <>{Math.max(0, stockActivo.bultos_disponibles).toLocaleString('es-CO', { maximumFractionDigits: 1 })} <span className="text-base font-medium text-gray-500">bultos</span></>
+            }
+            detalle={
+              sinEntradas
+                ? <span className="font-medium text-red-700">
+                    Ya se consumieron {stockActivo.bultos_consumidos.toLocaleString('es-CO', { maximumFractionDigits: 1 })} bultos que nadie registró como entrada
+                  </span>
+                : stockActivo.bultos_disponibles <= 0
+                  ? <span className="font-medium text-red-700">Se consumió más de lo que entró: registra la entrada que falta</span>
+                  : diasQueAlcanza != null
+                    ? <span className={diasQueAlcanza <= 7 ? 'font-medium text-red-700' : undefined}>Alcanza para {diasQueAlcanza} día{diasQueAlcanza === 1 ? '' : 's'} en este lote</span>
+                    : `Entraron ${stockActivo.bultos_entrados.toLocaleString('es-CO', { maximumFractionDigits: 1 })} bultos en total`
+            }
           />
           <Indicador
-            tono="orange" icono="alimento" etiqueta="Ya se consumió"
+            tono="orange" icono="ciclo" etiqueta="Consumido hasta hoy"
             valor={<>{stockActivo.bultos_consumidos.toLocaleString('es-CO', { maximumFractionDigits: 1 })} <span className="text-base font-medium text-gray-500">bultos</span></>}
             detalle={`${stockActivo.kg_consumidos.toLocaleString('es-CO', { maximumFractionDigits: 0 })} kg en todos los lotes que lo usan`}
           />

@@ -18,7 +18,7 @@ import HorariosAlimentacion from './HorariosAlimentacion'
 import RegistrarEntradaAlimentoModal from './RegistrarEntradaAlimentoModal'
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
-import { recalcularStockAlimentoAves, leerStockAlimentoAves, type StockAlimentoAves } from '@/lib/inventario'
+import { recalcularStockAlimentoAves, leerStockAlimentoAves, tramosDeConsumo, type StockAlimentoAves } from '@/lib/inventario'
 import { Indicador } from '@/components/ui/indicador'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { useRouter } from 'next/navigation'
@@ -228,6 +228,10 @@ export default function TabAlimentoAves({ lotes, loteInicialId }: Props) {
   const entradasVisibles = stockActivo
     ? entradas.filter(e => e.tipo_alimento_id === stockActivo.tipo_alimento_id)
     : entradas
+  // De dónde sale cada kilo descontado: cada consumo rige hasta que se registre otro
+  const tramos = tramosDeConsumo(consumos, hoyLocal(), lote?.estado !== 'finalizado')
+  const bultosDia = stockActivo && consumoDelGalpon > 0 ? consumoDelGalpon / stockActivo.peso_bulto_kg : null
+  const sinEntradas = stockActivo != null && stockActivo.bultos_entrados === 0
   const hoyStr = hoyLocal()
   const requerimientos = requerimientosHistorial.find(r => r.vigente_desde <= hoyStr) ?? null
   const req = requerimientos ?? { ...DEFAULTS, lote_id: lote!.id, finca_id: lote!.finca_id, id: '', vigente_desde: '', created_at: '' }
@@ -469,37 +473,52 @@ export default function TabAlimentoAves({ lotes, loteInicialId }: Props) {
           {/* Solo el alimento que este galpón está consumiendo: el resto vive en Inventario */}
           {stockActivo ? (
             <div className="grid grid-cols-[repeat(auto-fit,minmax(13rem,1fr))] gap-3">
+              {/* Lo que manda día a día: lo que come el galpón hoy */}
               <Indicador
-                tono={diasQueAlcanza != null && diasQueAlcanza <= 7 ? 'red' : 'amber'}
+                tono="green"
                 icono="alimento"
-                etiqueta={stockActivo.nombre}
-                valor={<>{stockActivo.bultos_disponibles.toLocaleString('es-CO', { maximumFractionDigits: 1 })} <span className="text-base font-medium text-gray-500">bultos</span></>}
+                etiqueta="Consume al día"
+                valor={<>{consumoDelGalpon.toLocaleString('es-CO', { maximumFractionDigits: 1 })} <span className="text-base font-medium text-gray-500">kg</span></>}
                 detalle={
-                  <>
-                    {stockActivo.bultos_disponibles <= 0
-                      ? <span className="font-medium text-red-700">Se consumió más de lo que entró: registra la entrada que falta</span>
-                      : diasQueAlcanza != null
-                        ? <span className={diasQueAlcanza <= 7 ? 'font-medium text-red-700' : undefined}>
-                            Alcanza para {diasQueAlcanza} día{diasQueAlcanza === 1 ? '' : 's'} en este galpón
-                          </span>
-                        : 'Este galpón todavía no registra consumo'}
-                    {venceActivo && <span className="block">Vence el {fmt(venceActivo)}</span>}
-                  </>
+                  bultosDia != null && bultosDia > 0
+                    ? `${bultosDia.toFixed(2)} bultos al día · ${stockActivo.nombre}`
+                    : 'Registra el consumo del galpón'
                 }
               />
               <Indicador
-                tono="gray"
+                tono={sinEntradas ? 'red' : diasQueAlcanza != null && diasQueAlcanza <= 7 ? 'red' : 'amber'}
                 icono="caja"
-                etiqueta="Entró en total"
-                valor={<>{stockActivo.bultos_entrados.toLocaleString('es-CO', { maximumFractionDigits: 1 })} <span className="text-base font-medium text-gray-500">bultos</span></>}
-                detalle={stockActivo.ultima_entrada ? `Última entrada el ${fmt(stockActivo.ultima_entrada)}` : 'Sin entradas registradas'}
+                etiqueta="Queda en bodega"
+                valor={
+                  sinEntradas
+                    ? <span className="text-xl text-red-700">Sin entradas</span>
+                    : <>{Math.max(0, stockActivo.bultos_disponibles).toLocaleString('es-CO', { maximumFractionDigits: 1 })} <span className="text-base font-medium text-gray-500">bultos</span></>
+                }
+                detalle={
+                  sinEntradas
+                    ? <span className="font-medium text-red-700">
+                        Ya se consumieron {stockActivo.bultos_consumidos.toLocaleString('es-CO', { maximumFractionDigits: 1 })} bultos que nadie registró como entrada
+                      </span>
+                    : stockActivo.bultos_disponibles <= 0
+                      ? <span className="font-medium text-red-700">Se consumió más de lo que entró: registra la entrada que falta</span>
+                      : diasQueAlcanza != null
+                        ? <span className={diasQueAlcanza <= 7 ? 'font-medium text-red-700' : undefined}>
+                            Alcanza para {diasQueAlcanza} día{diasQueAlcanza === 1 ? '' : 's'}
+                            {venceActivo ? ` · vence el ${fmt(venceActivo)}` : ''}
+                          </span>
+                        : `Entraron ${stockActivo.bultos_entrados.toLocaleString('es-CO', { maximumFractionDigits: 1 })} bultos en total`
+                }
               />
               <Indicador
                 tono="orange"
-                icono="alimento"
-                etiqueta="Ya se consumió"
+                icono="ciclo"
+                etiqueta="Consumido hasta hoy"
                 valor={<>{stockActivo.bultos_consumidos.toLocaleString('es-CO', { maximumFractionDigits: 1 })} <span className="text-base font-medium text-gray-500">bultos</span></>}
-                detalle={`${stockActivo.kg_consumidos.toLocaleString('es-CO', { maximumFractionDigits: 0 })} kg en todos los galpones que lo usan`}
+                detalle={
+                  tramos.length > 0
+                    ? `${stockActivo.kg_consumidos.toLocaleString('es-CO', { maximumFractionDigits: 0 })} kg desde el ${fmt(tramos[tramos.length - 1].desde)}`
+                    : 'Todavía sin consumo registrado'
+                }
               />
             </div>
           ) : tiposActivos.length > 0 ? (
@@ -507,6 +526,54 @@ export default function TabAlimentoAves({ lotes, loteInicialId }: Props) {
               Este galpón todavía no tiene alimento en uso. Registra su consumo y aquí aparecerá su stock.
             </div>
           ) : null}
+
+          {/* El historial: de dónde sale cada kilo que se descontó */}
+          {tramos.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold text-gray-700">Historial de consumo</CardTitle>
+                <p className="text-xs text-gray-400">
+                  Cada consumo registrado rige día a día hasta que se registre otro. Así se descuenta del stock.
+                </p>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Desde</TableHead>
+                        <TableHead>Hasta</TableHead>
+                        <TableHead className="text-right">Kg por día</TableHead>
+                        <TableHead className="text-right">Días</TableHead>
+                        <TableHead className="text-right">Total consumido</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {tramos.map((tramo, i) => (
+                        <TableRow key={tramo.desde}>
+                          <TableCell className="py-2 text-sm">{fmt(tramo.desde)}</TableCell>
+                          <TableCell className="py-2 text-sm text-gray-600">
+                            {i === 0 && lote?.estado !== 'finalizado' ? 'Hoy' : fmt(tramo.hasta)}
+                          </TableCell>
+                          <TableCell className="py-2 text-right text-sm">{tramo.kgDia.toLocaleString('es-CO', { maximumFractionDigits: 1 })} kg</TableCell>
+                          <TableCell className="py-2 text-right text-sm">{tramo.dias}</TableCell>
+                          <TableCell className="py-2 text-right text-sm font-medium">
+                            {tramo.kgTotal.toLocaleString('es-CO', { maximumFractionDigits: 0 })} kg
+                            {stockActivo && (
+                              <span className="block text-[0.6875rem] font-normal text-gray-400">
+                                {(tramo.kgTotal / stockActivo.peso_bulto_kg).toLocaleString('es-CO', { maximumFractionDigits: 2 })} bultos
+                              </span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <p className="-mt-1 text-xs text-gray-400">
             El stock se calcula solo: bultos que entraron menos lo que se consumió día a día, según lo registrado.
           </p>

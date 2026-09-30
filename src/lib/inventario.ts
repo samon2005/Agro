@@ -134,3 +134,54 @@ export async function leerStockAlimentoAves(
     bultos_disponibles: Number(s.bultos_disponibles),
   }))
 }
+
+/** Un tramo de consumo: lo que rigió desde un día hasta que se registró otro. */
+export interface TramoConsumo {
+  desde: string
+  hasta: string
+  kgDia: number
+  dias: number
+  kgTotal: number
+}
+
+/**
+ * El historial de consumo de un galpón. Cada consumo registrado rige desde su
+ * día hasta que se registre otro, y el último sigue rigiendo hasta hoy mientras
+ * el galpón esté en pie. Sirve para ver de dónde sale cada kilo descontado.
+ */
+export function tramosDeConsumo(
+  registros: { fecha: string; alimento_kg: number | string }[],
+  hoy: string,
+  sigueActivo = true,
+): TramoConsumo[] {
+  const conConsumo = registros
+    .map(r => ({ fecha: r.fecha, kg: Number(r.alimento_kg) || 0 }))
+    .filter(r => r.kg > 0)
+    .sort((a, b) => a.fecha.localeCompare(b.fecha))
+
+  return conConsumo.map((r, i) => {
+    const siguiente = conConsumo[i + 1]?.fecha
+    // El último tramo llega hasta hoy si el galpón sigue comiendo
+    const finExclusivo = siguiente ?? (sigueActivo ? sumarDias(hoy, 1) : sumarDias(r.fecha, 1))
+    const dias = Math.max(0, diasEntre(r.fecha, finExclusivo))
+    return {
+      desde: r.fecha,
+      hasta: sumarDias(finExclusivo, -1),
+      kgDia: r.kg,
+      dias,
+      kgTotal: r.kg * dias,
+    }
+  }).reverse()
+}
+
+function sumarDias(fecha: string, dias: number): string {
+  const d = new Date(fecha + 'T00:00:00')
+  d.setDate(d.getDate() + dias)
+  return d.toISOString().slice(0, 10)
+}
+
+function diasEntre(desde: string, hasta: string): number {
+  return Math.round(
+    (new Date(hasta + 'T00:00:00').getTime() - new Date(desde + 'T00:00:00').getTime()) / 86400000,
+  )
+}
