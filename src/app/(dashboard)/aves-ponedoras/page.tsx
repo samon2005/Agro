@@ -13,6 +13,7 @@ import TabSanitario from '@/components/agro/aves/sanitario/TabSanitario'
 import TabEquipos from '@/components/agro/aves/equipos/TabEquipos'
 import TabAlimentoAves from '@/components/agro/alimento/aves/TabAlimentoAves'
 import TabPesajes from '@/components/agro/aves/pesajes/TabPesajes'
+import TabResumenSemanal from '@/components/agro/aves/resumen/TabResumenSemanal'
 import { calcularFechaLiberacion } from '@/lib/sanitario'
 import type { Database } from '@/types/database'
 import { Ic, type NombreIcono } from '@/components/ui/icon'
@@ -26,7 +27,7 @@ type Equipo = Database['public']['Tables']['equipos_aves']['Row']
 type Ambiental = Database['public']['Tables']['parametros_ambientales_aves']['Row']
 type Produccion = Database['public']['Tables']['produccion_diaria_aves']['Row']
 
-type Tab = 'produccion' | 'alimento' | 'ambiental' | 'sanitario' | 'equipos' | 'pesajes'
+type Tab = 'produccion' | 'alimento' | 'ambiental' | 'sanitario' | 'equipos' | 'pesajes' | 'semanal'
 
 const TABS: { id: Tab; label: string; icon: NombreIcono }[] = [
   { id: 'produccion', label: 'Producción', icon: 'tendencia' },
@@ -35,6 +36,7 @@ const TABS: { id: Tab; label: string; icon: NombreIcono }[] = [
   { id: 'sanitario', label: 'Sanitario', icon: 'vacuna' },
   { id: 'equipos', label: 'Equipos', icon: 'ajustes' },
   { id: 'pesajes', label: 'Pesajes', icon: 'bascula' },
+  { id: 'semanal', label: 'Resumen semanal', icon: 'resumen' },
 ]
 
 interface Alerta { tipo: 'danger' | 'warning'; mensaje: string }
@@ -283,6 +285,7 @@ export default function AvesPonedorasPage() {
               {activeTab === 'sanitario' && <TabSanitario loteActual={loteActual} onChange={bumpAlertas} />}
               {activeTab === 'equipos' && <TabEquipos loteActual={loteActual} />}
               {activeTab === 'pesajes' && <TabPesajes key={loteActual.id} loteActual={loteActual} />}
+              {activeTab === 'semanal' && <TabResumenSemanal key={loteActual.id} loteActual={loteActual} />}
             </div>
           </div>
         </>

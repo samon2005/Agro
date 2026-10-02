@@ -12,7 +12,7 @@ import RegistrarProduccionModal from './RegistrarProduccionModal'
 import ConfigurarGalponModal from './ConfigurarGalponModal'
 import HorariosRecoleccion from './HorariosRecoleccion'
 import RevisionCalidadHuevo from './RevisionCalidadHuevo'
-import GraficaCurvaPostura from './GraficaCurvaPostura'
+import GraficasPostura from './GraficasPostura'
 import ConfigurarRecoleccionModal from './ConfigurarRecoleccionModal'
 import IniciarPosturaModal, { type ConfigPostura } from './IniciarPosturaModal'
 import { toast } from 'sonner'
@@ -72,8 +72,9 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
   const [hayAlimentoRegistrado, setHayAlimentoRegistrado] = useState(true)
   const [guardandoSinNovedades, setGuardandoSinNovedades] = useState(false)
   const [modalRecoleccionObligatoria, setModalRecoleccionObligatoria] = useState(false)
-  // Huevos de toda la vida del lote, para el HAA (huevos por ave alojada)
+  // Huevos y muertes de toda la vida del lote (el historial solo trae los últimos 60 días)
   const [huevosAcumulados, setHuevosAcumulados] = useState(0)
+  const [mortAcum, setMortAcum] = useState(0)
 
   const fetchRegistros = useCallback(async () => {
     setLoading(true)
@@ -84,9 +85,16 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
       .order('fecha', { ascending: false })
       .limit(60)
     setRegistros(data ?? [])
-    const { data: todos } = await supabase
-      .from('produccion_diaria_aves').select('huevos_totales').eq('lote_id', loteActual.id)
+    const [{ data: todos }, { data: eventos }] = await Promise.all([
+      supabase.from('produccion_diaria_aves').select('huevos_totales, muertes').eq('lote_id', loteActual.id),
+      supabase.from('eventos_clinicos_aves').select('aves_muertas, origen').eq('lote_id', loteActual.id),
+    ])
     setHuevosAcumulados((todos ?? []).reduce((s, r) => s + (r.huevos_totales ?? 0), 0))
+    // La mortalidad acumulada cuenta las muertes del día y las de los eventos clínicos:
+    // ambas descuentan aves del galpón. Los de origen "mortalidad" son el reflejo de
+    // las del día, así que no se cuentan dos veces.
+    setMortAcum((todos ?? []).reduce((s, r) => s + (r.muertes ?? 0), 0)
+      + (eventos ?? []).filter(ev => ev.origen !== 'mortalidad').reduce((s, ev) => s + (ev.aves_muertas ?? 0), 0))
     setLoading(false)
   }, [loteActual.id, supabase])
 
@@ -181,10 +189,6 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
     : null
   void totalAlimento30
 
-  // La mortalidad acumulada cuenta las muertes del día y las de los eventos clínicos:
-  // ambas descuentan aves del galpón, así que ambas suman aquí.
-  const mortAcum = registros.reduce((s, r) => s + r.muertes, 0)
-    + eventosClinicos.filter(ev => ev.origen !== 'mortalidad').reduce((s, ev) => s + (ev.aves_muertas ?? 0), 0)
   const mortPct = loteActual.aves_iniciales > 0
     ? ((mortAcum / loteActual.aves_iniciales) * 100).toFixed(1)
     : '0.0'
@@ -889,10 +893,12 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
 
       {enPostura && (
         <>
-          <GraficaCurvaPostura
-            fechaInicioLote={loteActual.fecha_inicio}
+          <GraficasPostura
+            loteId={loteActual.id}
+            fechaInicioPostura={loteActual.fecha_inicio_postura}
+            fechaInicio={loteActual.fecha_inicio}
             metaPosturaPct={loteActual.meta_postura_pct}
-            registros={registros}
+            version={`${registros.length}-${registros[0]?.id ?? ''}-${huevosAcumulados}`}
           />
         </>
       )}
