@@ -392,6 +392,12 @@ export interface Database {
         Update: { id?: string; lote_id?: string; finca_id?: string; fecha?: string; alimento_kg?: number; agua_litros?: number | null; muertes?: number; causa_muerte?: string | null; observaciones?: string | null; tipo_alimento_id?: string | null; registrado_por?: string | null; created_at?: string }
         Relationships: []
       }
+      pesos_lote_aves: {
+        Row: { id: string; lote_id: string; finca_id: string; fecha: string; aves_pesadas: number; peso_promedio_g: number; peso_minimo_g: number | null; peso_maximo_g: number | null; uniformidad_pct: number | null; observaciones: string | null; registrado_por: string | null; created_at: string }
+        Insert: { id?: string; lote_id: string; finca_id: string; fecha?: string; aves_pesadas: number; peso_promedio_g: number; peso_minimo_g?: number | null; peso_maximo_g?: number | null; uniformidad_pct?: number | null; observaciones?: string | null; registrado_por?: string | null; created_at?: string }
+        Update: { id?: string; lote_id?: string; finca_id?: string; fecha?: string; aves_pesadas?: number; peso_promedio_g?: number; peso_minimo_g?: number | null; peso_maximo_g?: number | null; uniformidad_pct?: number | null; observaciones?: string | null; registrado_por?: string | null; created_at?: string }
+        Relationships: []
+      }
       pesos_lote_pollo: {
         Row: { id: string; lote_id: string; finca_id: string; fecha: string; peso_promedio: number; peso_minimo: number | null; peso_maximo: number | null; numero_pesados: number | null; dia_vida: number | null; metodo: string | null; observaciones: string | null; registrado_por: string | null; created_at: string }
         Insert: { id?: string; lote_id: string; finca_id: string; fecha?: string; peso_promedio: number; peso_minimo?: number | null; peso_maximo?: number | null; numero_pesados?: number | null; dia_vida?: number | null; metodo?: string | null; observaciones?: string | null; registrado_por?: string | null; created_at?: string }

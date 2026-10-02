@@ -8,6 +8,21 @@ export function semanaDePostura(fechaInicioPostura: string | null, fecha: string
   return Math.max(1, Math.floor((d.getTime() - inicio.getTime()) / (7 * MS_DIA)) + 1)
 }
 
+/**
+ * La semana que lleva el lote en una fecha: en levante se cuenta desde que entró
+ * al galpón; ya en postura, desde que empezó a poner. `fecha_inicio_postura` de
+ * un lote en levante es solo lo esperado, así que no cuenta hasta que sea activo.
+ */
+export function semanaDelLote(
+  lote: { estado: string; fecha_inicio: string; fecha_inicio_postura: string | null },
+  fecha: string,
+): { etapa: 'levante' | 'postura'; semana: number } {
+  const enPostura = lote.estado !== 'preparacion' && lote.fecha_inicio_postura != null && fecha >= lote.fecha_inicio_postura
+  const origen = enPostura ? lote.fecha_inicio_postura as string : lote.fecha_inicio
+  const dias = (new Date(fecha + 'T00:00:00').getTime() - new Date(origen + 'T00:00:00').getTime()) / MS_DIA
+  return { etapa: enPostura ? 'postura' : 'levante', semana: Math.max(1, Math.floor(dias / 7) + 1) }
+}
+
 export type EstadoPostura =
   | { iniciada: true; semana: number; inicioSemana: Date; finSemana: Date }
   | { iniciada: false; semanasFaltantes: number | null }
