@@ -1,112 +1,110 @@
 'use client'
 
 import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
 import type { Database } from '@/types/database'
-import { Ic, type NombreIcono } from '@/components/ui/icon'
+import { Ic } from '@/components/ui/icon'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
+type Instalacion = Database['public']['Tables']['instalaciones']['Row']
 
 const ESTADO_LABEL: Record<string, string> = {
-  preparacion: 'en preparación',
-  activo: 'activo',
-  finalizado: 'finalizado',
-  vendido: 'vendido',
+  preparacion: 'levante',
+  activo: 'en postura',
 }
-
-const ESTADO_BADGE_CLASS: Record<string, string> = {
-  preparacion: 'bg-amber-100 text-amber-900 border-amber-300',
-  finalizado: 'bg-gray-200 text-gray-800 border-gray-300',
-  vendido: 'bg-blue-100 text-blue-900 border-blue-300',
-}
-
-/** Vistas que abarcan toda la finca en vez de un galpón concreto. */
-export type VistaGlobal = 'huevos' | 'ventas'
-
-const VISTAS_GLOBALES: { id: VistaGlobal; label: string; icono: NombreIcono }[] = [
-  { id: 'huevos', label: 'Huevos de la finca', icono: 'huevo' },
-  { id: 'ventas', label: 'Ventas de la finca', icono: 'recibo' },
-]
 
 interface Props {
+  /** Todos los galpones de la finca, tengan aves o no */
+  galpones: Instalacion[]
+  /** Lotes vivos: cada uno ocupa un galpón */
   lotes: LoteAves[]
   loteActual: LoteAves | null
-  /** Si hay una vista global activa, ningún galpón está seleccionado */
-  vistaGlobal: VistaGlobal | null
   onSelect: (lote: LoteAves) => void
-  onSelectVistaGlobal: (vista: VistaGlobal) => void
-  onNuevoLote: () => void
+  /** Abre el registro de aves; con un galpón vacío, ya elegido */
+  onRegistrarAves: (galponId: string | null) => void
+  onDatosFinca: () => void
   loading: boolean
 }
 
-export default function LoteSelector({ lotes, loteActual, vistaGlobal, onSelect, onSelectVistaGlobal, onNuevoLote, loading }: Props) {
+/**
+ * Los galpones de la finca, uno junto al otro. El que tiene aves se abre; el que
+ * está vacío ofrece registrar las que entran. Los lotes que quedaron sin galpón
+ * (anteriores a esta forma de trabajar) se muestran igual para no perderlos.
+ */
+export default function LoteSelector({ galpones, lotes, loteActual, onSelect, onRegistrarAves, onDatosFinca, loading }: Props) {
   if (loading) {
     return (
-      <div className="flex gap-2 flex-wrap">
-        {[...Array(3)].map((_, i) => (
-          <div key={i} data-slot="skeleton" className="h-9 w-36 rounded-xl" />
-        ))}
+      <div className="flex flex-wrap gap-2">
+        {[...Array(3)].map((_, i) => <div key={i} data-slot="skeleton" className="h-9 w-36 rounded-xl" />)}
       </div>
+    )
+  }
+
+  const lotePorGalpon = new Map(lotes.filter(l => l.instalacion_id).map(l => [l.instalacion_id as string, l]))
+  const lotesSueltos = lotes.filter(l => !l.instalacion_id || !galpones.some(g => g.id === l.instalacion_id))
+  const vacios = galpones.filter(g => !lotePorGalpon.has(g.id)).length
+
+  function BotonLote({ lote }: { lote: LoteAves }) {
+    const activo = loteActual?.id === lote.id
+    return (
+      <button
+        onClick={() => onSelect(lote)}
+        className={cn(
+          'inline-flex h-9 items-center gap-2 rounded-xl px-3.5 text-sm font-medium transition-colors',
+          activo
+            ? 'bg-green-700 text-white shadow-[0_6px_16px_-10px_rgb(42_93_34/70%)]'
+            : 'bg-gray-100 text-gray-700 hover:bg-gray-200/70',
+        )}
+      >
+        <Ic n="gallina" className={cn('size-4', activo ? 'text-white' : 'text-gray-500')} />
+        {lote.nombre}
+        <span className={cn('text-xs font-normal', activo ? 'text-green-100' : 'text-gray-500')}>
+          · {ESTADO_LABEL[lote.estado] ?? lote.estado}
+        </span>
+      </button>
     )
   }
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="flex flex-wrap items-center gap-2">
-        {lotes.length === 0 && (
-          <span className="text-sm text-gray-500">No hay lotes activos.</span>
+        {galpones.length === 0 && lotes.length === 0 && (
+          <span className="text-sm text-gray-500">La finca todavía no tiene galpones.</span>
         )}
-        {lotes.map(lote => {
-          const activo = !vistaGlobal && loteActual?.id === lote.id
+        {galpones.map(g => {
+          const lote = lotePorGalpon.get(g.id)
+          if (lote) return <BotonLote key={g.id} lote={lote} />
           return (
             <button
-              key={lote.id}
-              onClick={() => onSelect(lote)}
-              className={cn(
-                'inline-flex h-9 items-center gap-2 rounded-xl px-3.5 text-sm font-medium transition-colors',
-                activo
-                  ? 'bg-green-700 text-white shadow-[0_6px_16px_-10px_rgb(42_93_34/70%)]'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200/70'
-              )}
+              key={g.id}
+              onClick={() => onRegistrarAves(g.id)}
+              title="Galpón sin aves: registrar las que entran"
+              className="inline-flex h-9 items-center gap-2 rounded-xl border border-dashed border-gray-300 px-3.5 text-sm text-gray-500 transition-colors hover:border-green-500 hover:text-green-800"
             >
-              <Ic n="gallina" className={cn('size-4', activo ? 'text-white' : 'text-gray-500')} />
-              {lote.nombre}
-              {lote.estado !== 'activo' && (
-                <span className={cn('text-xs font-normal', activo ? 'text-green-100' : 'text-gray-500')}>
-                  · {ESTADO_LABEL[lote.estado] ?? lote.estado}
-                </span>
-              )}
+              <Ic n="casa" className="size-4" />
+              {g.nombre}
+              <span className="text-xs">· vacío</span>
             </button>
           )
         })}
-        <button
-          onClick={onNuevoLote}
-          className="inline-flex h-9 items-center gap-1.5 rounded-xl px-3 text-sm font-medium text-green-800 transition-colors hover:bg-green-50"
-        >
-          <Ic n="mas" className="size-4" /> Nuevo lote
-        </button>
+        {lotesSueltos.map(l => <BotonLote key={l.id} lote={l} />)}
       </div>
 
-      {/* El huevo y las ventas no son de un galpón: son de la finca entera */}
-      {lotes.length > 0 && (
-        <div className="inline-flex items-center gap-1 rounded-xl bg-gray-100 p-1">
-          {VISTAS_GLOBALES.map(v => (
-            <button
-              key={v.id}
-              onClick={() => onSelectVistaGlobal(v.id)}
-              className={cn(
-                'inline-flex h-7 items-center gap-1.5 rounded-lg px-3 text-[0.8125rem] font-medium transition-colors',
-                vistaGlobal === v.id
-                  ? 'bg-white text-gray-900 shadow-[0_1px_2px_rgb(22_35_26/10%)]'
-                  : 'text-gray-500 hover:text-gray-800'
-              )}
-            >
-              <Ic n={v.icono} className="size-3.5" />
-              {v.label}
-            </button>
-          ))}
-        </div>
-      )}
+      <div className="flex items-center gap-1">
+        {vacios > 0 && (
+          <button
+            onClick={() => onRegistrarAves(null)}
+            className="inline-flex h-9 items-center gap-1.5 rounded-xl px-3 text-sm font-medium text-green-800 transition-colors hover:bg-green-50"
+          >
+            <Ic n="mas" className="size-4" /> Registrar aves
+          </button>
+        )}
+        <button
+          onClick={onDatosFinca}
+          className="inline-flex h-9 items-center gap-1.5 rounded-xl px-3 text-sm text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-800"
+        >
+          <Ic n="ajustes" className="size-4" /> Galpones
+        </button>
+      </div>
     </div>
   )
 }

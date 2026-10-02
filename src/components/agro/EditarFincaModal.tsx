@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ESPECIES_FINCA, type EspecieFinca } from '@/lib/especies'
 import { ETAPAS_CERDOS, etapasDeFinca, type EtapaCerdos } from '@/lib/cerdos'
 import { Ic } from '@/components/ui/icon'
+import GalponesFinca from './GalponesFinca'
 
 type Finca = {
   id: string
@@ -38,10 +39,11 @@ interface Props {
   onDeleted?: () => void
 }
 
-const TABLA_POR_ESPECIE: Record<EspecieFinca, string> = {
-  aves_ponedoras: 'lotes_aves',
-  cerdos: 'lotes_cerdos',
-  pollo_engorde: 'lotes_pollo',
+/** Cómo se nombra cada especie al mostrar lo que produce la finca. */
+const NOMBRE_ESPECIE: Record<EspecieFinca, string> = {
+  aves_ponedoras: 'Aves ponedoras',
+  cerdos: 'Cerdos',
+  pollo_engorde: 'Pollo de engorde',
 }
 
 const CLIMAS = [
@@ -62,10 +64,10 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated, onDe
     latitud: '',
     longitud: '',
   })
-  const [especies, setEspecies] = useState<EspecieFinca[]>([])
+  // Una finca produce una sola especie. Solo se elige si todavía no tiene.
+  const [especie, setEspecie] = useState<EspecieFinca | null>(null)
   const [etapasCerdos, setEtapasCerdos] = useState<EtapaCerdos[]>([])
   const [buscandoUbicacion, setBuscandoUbicacion] = useState(false)
-  const [conteos, setConteos] = useState<Record<string, number>>({})
   const [areaValor, setAreaValor] = useState('')
   const [areaUnidad, setAreaUnidad] = useState('ha')
   const [unidadOtra, setUnidadOtra] = useState('')
@@ -83,7 +85,7 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated, onDe
       latitud: finca.latitud != null ? String(finca.latitud) : '',
       longitud: finca.longitud != null ? String(finca.longitud) : '',
     })
-    setEspecies((finca.tipo_produccion ?? []) as EspecieFinca[])
+    setEspecie(((finca.tipo_produccion ?? [])[0] as EspecieFinca | undefined) ?? null)
     setEtapasCerdos(etapasDeFinca(finca.etapas_cerdos))
     setAreaValor(finca.area_valor != null ? String(finca.area_valor) : '')
     const unidadActual = finca.area_unidad ?? 'ha'
@@ -100,15 +102,6 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated, onDe
       setUnidadesGuardadas((data ?? []).map(d => d.nombre))
     })
 
-    Promise.all(
-      ESPECIES_FINCA.map(async esp => {
-        const { count } = await supabase
-          .from(TABLA_POR_ESPECIE[esp.value])
-          .select('id', { count: 'exact', head: true })
-          .eq('finca_id', finca.id)
-        return [esp.value, count ?? 0] as const
-      })
-    ).then(entries => setConteos(Object.fromEntries(entries)))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [finca, open])
 
@@ -123,21 +116,6 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated, onDe
       },
       () => { setBuscandoUbicacion(false); toast.error('No se pudo obtener tu ubicación') }
     )
-  }
-
-  function toggleEspecie(value: EspecieFinca) {
-    const yaSeleccionada = especies.includes(value)
-    if (yaSeleccionada) {
-      const count = conteos[value] ?? 0
-      if (count > 0) {
-        const esp = ESPECIES_FINCA.find(e => e.value === value)
-        toast.error(
-          `No puedes quitar "${esp?.label}": tiene ${count} ${count === 1 ? 'lote/galpón registrado' : 'lotes/galpones registrados'}. Elimínalos primero desde su sección.`
-        )
-        return
-      }
-    }
-    setEspecies(prev => yaSeleccionada ? prev.filter(e => e !== value) : [...prev, value])
   }
 
   function set(field: string, value: string | null) {
@@ -160,8 +138,8 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated, onDe
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (especies.length === 0) { toast.error('Selecciona al menos una especie con la que trabaja la finca'); return }
-    if (especies.includes('cerdos') && etapasCerdos.length === 0) {
+    if (!especie) { toast.error('Elige qué produce la finca'); return }
+    if (especie === 'cerdos' && etapasCerdos.length === 0) {
       toast.error('Marca al menos una etapa de cerdos que maneje la finca'); return
     }
     setLoading(true)
@@ -178,8 +156,8 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated, onDe
         velocidad_viento_kmh: form.velocidad_viento_kmh ? Number(form.velocidad_viento_kmh) : null,
         clima_predominante: form.clima_predominante || null,
         temperatura_promedio_ext: form.temperatura_promedio_ext ? Number(form.temperatura_promedio_ext) : null,
-        tipo_produccion: especies,
-        etapas_cerdos: especies.includes('cerdos') ? etapasCerdos : null,
+        tipo_produccion: [especie],
+        etapas_cerdos: especie === 'cerdos' ? etapasCerdos : null,
         latitud: form.latitud ? Number(form.latitud) : null,
         longitud: form.longitud ? Number(form.longitud) : null,
         area_valor: areaNum,
@@ -204,9 +182,9 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated, onDe
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
         <DialogHeader>
-          <DialogTitle><Ic n="ubicacion" /> Información Geográfica y Ambiental</DialogTitle>
+          <DialogTitle><Ic n="ubicacion" /> Datos de la finca</DialogTitle>
           <p className="text-sm text-gray-500">Datos de referencia de la finca — se usan para contextualizar las lecturas de cada galpón/corral</p>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -273,37 +251,49 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated, onDe
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label>Especies con las que trabaja la finca *</Label>
-            <div className="grid grid-cols-3 gap-2">
-              {ESPECIES_FINCA.map(esp => {
-                const selected = especies.includes(esp.value)
-                const count = conteos[esp.value] ?? 0
-                const bloqueada = selected && count > 0
-                return (
-                  <button
-                    key={esp.value}
-                    type="button"
-                    onClick={() => toggleEspecie(esp.value)}
-                    title={bloqueada ? `Tiene ${count} registrado(s) — elimínalos primero para poder quitar esta especie` : undefined}
-                    className={`flex flex-col items-center gap-1 rounded-lg border px-2 py-3 text-xs font-medium transition-colors ${
-                      selected ? 'border-green-600 bg-green-50 text-green-800' : 'border-gray-200 text-gray-500 hover:border-gray-300'
-                    }`}
-                  >
-                    <Ic n={esp.icon} className="size-5" />
-                    {esp.label}
-                    {selected && (
-                      bloqueada ? (
-                        <span className="text-[10px] font-normal text-amber-600"><Ic n="bloqueado" /> {count} registrado(s)</span>
-                      ) : (
-                        <span className="text-[10px] font-normal text-gray-400">Sin registros — se puede quitar</span>
-                      )
-                    )}
-                  </button>
-                )
-              })}
-            </div>
+            <Label>Lo que produce la finca</Label>
+            {finca.tipo_produccion && finca.tipo_produccion.length > 0 && especie ? (
+              <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm font-medium text-green-900">
+                <Ic n={ESPECIES_FINCA.find(e => e.value === especie)?.icon ?? 'hoja'} className="size-5" />
+                {NOMBRE_ESPECIE[especie]}
+                <span className="ml-auto text-[0.6875rem] font-normal text-green-700">
+                  Una finca trabaja una sola especie
+                </span>
+              </div>
+            ) : (
+              <>
+                <p className="text-xs text-amber-700">
+                  Esta finca todavía no tiene especie. Elige la que produce: el panel solo mostrará lo de esa producción.
+                </p>
+                <div className="grid grid-cols-3 gap-2">
+                  {ESPECIES_FINCA.map(esp => (
+                    <button
+                      key={esp.value}
+                      type="button"
+                      onClick={() => setEspecie(esp.value)}
+                      aria-pressed={especie === esp.value}
+                      className={`flex flex-col items-center gap-1 rounded-lg border px-2 py-3 text-xs font-medium transition-colors ${
+                        especie === esp.value ? 'border-green-600 bg-green-50 text-green-800' : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                      }`}
+                    >
+                      <Ic n={esp.icon} className="size-5" />
+                      {NOMBRE_ESPECIE[esp.value]}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
-          {especies.includes('cerdos') && (
+          {especie === 'aves_ponedoras' && (
+            <div className="space-y-1.5">
+              <Label>Galpones de la finca</Label>
+              <p className="text-xs text-gray-500">
+                Los lugares fijos donde entran las aves. Agrega uno cuando se construya, o corrige su nombre o su medida.
+              </p>
+              <GalponesFinca fincaId={finca.id} onCambio={onUpdated} />
+            </div>
+          )}
+          {especie === 'cerdos' && (
             <div className="space-y-1.5">
               <Label>Etapas de cerdos que maneja la finca *</Label>
               <p className="text-xs text-gray-500">

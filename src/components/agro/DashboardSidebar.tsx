@@ -35,6 +35,13 @@ export default function DashboardSidebar({ user }: { user: User }) {
       // Con una sola especie el menú dice el lugar ("Galpones", "Corrales"):
       // nombrar la especie sobra cuando la finca solo trabaja esa.
       .map(esp => ({ href: esp.href, icon: esp.icon, label: nombreSeccion(esp.value, fincaActual?.tipo_produccion) })),
+    // Huevos y ventas son de la finca entera, no de un galpón: van debajo de Galpones
+    ...(especiesFinca.includes('aves_ponedoras')
+      ? [
+          { href: '/huevos', label: 'Huevos de la finca', icon: 'huevo' as const },
+          ...(rol !== 'trabajador' ? [{ href: '/ventas', label: 'Ventas de la finca', icon: 'recibo' as const }] : []),
+        ]
+      : []),
     ...(rol !== 'trabajador' ? [{ href: '/operarios', label: 'Operarios', icon: 'operario' as const }] : []),
   ]
 

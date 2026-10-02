@@ -4,6 +4,7 @@ import DashboardSidebar from '@/components/agro/DashboardSidebar'
 import FincaProvider from '@/components/agro/FincaProvider'
 import RolProvider from '@/components/agro/RolProvider'
 import PaginaEntra from '@/components/agro/PaginaEntra'
+import ElegirEspecieFinca from '@/components/agro/ElegirEspecieFinca'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -21,6 +22,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <main className="flex-1 overflow-auto">
             <PaginaEntra>{children}</PaginaEntra>
           </main>
+          {/* La finca sin especie elige la suya antes de seguir */}
+          <ElegirEspecieFinca />
         </div>
       </FincaProvider>
     </RolProvider>

@@ -107,7 +107,7 @@ export default function NotificacionesPanel() {
         notifs.push({
           tipo: 'ventas',
           mensaje: `${sinVender.toLocaleString('es-CO')} huevos producidos sin vender en los últimos 7 días`,
-          href: '/aves-ponedoras',
+          href: '/ventas',
         })
       }
     }

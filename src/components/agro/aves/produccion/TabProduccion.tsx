@@ -14,6 +14,7 @@ import HorariosRecoleccion from './HorariosRecoleccion'
 import RevisionCalidadHuevo from './RevisionCalidadHuevo'
 import GraficaCurvaPostura from './GraficaCurvaPostura'
 import ConfigurarRecoleccionModal from './ConfigurarRecoleccionModal'
+import IniciarPosturaModal, { type ConfigPostura } from './IniciarPosturaModal'
 import { toast } from 'sonner'
 import Link from 'next/link'
 import { estadoPostura } from '@/lib/postura'
@@ -61,6 +62,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
   const [configOpen, setConfigOpen] = useState(false)
+  const [iniciarPosturaOpen, setIniciarPosturaOpen] = useState(false)
   const [registroEditar, setRegistroEditar] = useState<ProduccionDiaria | null>(null)
   const [confirmandoEliminar, setConfirmandoEliminar] = useState<string | null>(null)
   const [tipoAlimentoActivo, setTipoAlimentoActivo] = useState<TipoAlimento | null>(null)
@@ -322,15 +324,27 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
    * Arranque de postura: activa el lote, deja puestos los requerimientos de
    * producción y encadena los horarios de recolección con el registro del día.
    */
-  async function marcarInicioPostura() {
+  function abrirInicioPostura() {
     if (!listoParaRegistrar) { toast.error(faltaParaRegistrar); return }
+    setIniciarPosturaOpen(true)
+  }
+
+  async function marcarInicioPostura(config: ConfigPostura) {
     const { data, error } = await supabase
       .from('lotes_aves')
-      .update({ estado: 'activo', fecha_inicio_postura: hoyStr })
+      .update({
+        estado: 'activo',
+        fecha_inicio_postura: config.fecha_inicio_postura,
+        semanas_ciclo_postura: config.semanas_ciclo_postura,
+        meta_postura_pct: config.meta_postura_pct,
+        meta_huevos_diaria: config.meta_huevos_diaria,
+        fecha_salida_programada: config.fecha_salida_programada,
+      })
       .eq('id', loteActual.id)
       .select()
       .single()
     if (error) { toast.error('Error al actualizar el lote'); return }
+    setIniciarPosturaOpen(false)
 
     // Los requerimientos de producción se ponen solos: en preparación estaban en
     // cero porque el ave no ponía; al arrancar la postura ya necesita el aporte
@@ -492,7 +506,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
           </Button>
           {!enPostura && (
             <Button
-              onClick={marcarInicioPostura}
+              onClick={abrirInicioPostura}
               disabled={!listoParaRegistrar}
               title={!listoParaRegistrar ? faltaParaRegistrar : undefined}
               variant="outline"
@@ -885,6 +899,20 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
         estadoLote={loteActual.estado}
         registroExistente={registroEditar}
         onCreated={() => { fetchRegistros(); fetchEventosClinicos(); onLoteUpdated() }}
+      />
+
+      <IniciarPosturaModal
+        open={iniciarPosturaOpen}
+        onClose={() => setIniciarPosturaOpen(false)}
+        nombreGalpon={loteActual.nombre}
+        avesActuales={loteActual.aves_actuales}
+        inicial={{
+          semanas_ciclo_postura: loteActual.semanas_ciclo_postura ?? undefined,
+          meta_postura_pct: loteActual.meta_postura_pct ?? undefined,
+          meta_huevos_diaria: loteActual.meta_huevos_diaria,
+          fecha_salida_programada: loteActual.fecha_salida_programada,
+        }}
+        onConfirmar={marcarInicioPostura}
       />
 
       <ConfigurarGalponModal

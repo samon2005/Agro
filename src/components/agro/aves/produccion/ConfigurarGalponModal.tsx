@@ -29,6 +29,7 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, 
     area_galpon_m2: '',
     fecha_inicio: '',
     fecha_inicio_postura: '',
+    fecha_salida_programada: '',
     semanas_ciclo_postura: '',
     meta_postura_pct: '',
     meta_huevos_diaria: '',
@@ -41,6 +42,7 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, 
       area_galpon_m2: lote.area_galpon_m2 != null ? String(lote.area_galpon_m2) : '',
       fecha_inicio: lote.fecha_inicio ?? '',
       fecha_inicio_postura: lote.fecha_inicio_postura ?? '',
+      fecha_salida_programada: lote.fecha_salida_programada ?? '',
       semanas_ciclo_postura: lote.semanas_ciclo_postura != null ? String(lote.semanas_ciclo_postura) : '60',
       meta_postura_pct: lote.meta_postura_pct != null ? String(lote.meta_postura_pct) : '90',
       meta_huevos_diaria: lote.meta_huevos_diaria != null ? String(lote.meta_huevos_diaria) : '',
@@ -65,6 +67,9 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, 
     setForm(prev => ({ ...prev, [field]: value ?? '' }))
   }
 
+  // En levante la postura todavía no existe: sus campos se configuran al marcar el inicio
+  const enLevante = lote.estado === 'preparacion'
+
   const densidad = form.area_galpon_m2 && Number(form.area_galpon_m2) > 0
     ? (lote.aves_actuales / Number(form.area_galpon_m2)).toFixed(1)
     : null
@@ -77,6 +82,7 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, 
       // La fecha de entrada se puede corregir: de ella cuelgan la edad y las semanas
       ...(form.fecha_inicio ? { fecha_inicio: form.fecha_inicio } : {}),
       fecha_inicio_postura: form.fecha_inicio_postura || null,
+      fecha_salida_programada: form.fecha_salida_programada || null,
       semanas_ciclo_postura: form.semanas_ciclo_postura ? Number(form.semanas_ciclo_postura) : null,
       meta_postura_pct: form.meta_postura_pct ? Number(form.meta_postura_pct) : null,
       meta_huevos_diaria: form.meta_huevos_diaria ? Number(form.meta_huevos_diaria) : null,
@@ -90,6 +96,11 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, 
       .select()
       .single()
 
+    // La medida es del galpón (el lugar), no solo del lote que lo ocupa
+    if (!error && lote.instalacion_id && payload.area_galpon_m2 != null) {
+      await supabase.from('instalaciones').update({ area_m2: payload.area_galpon_m2 }).eq('id', lote.instalacion_id)
+    }
+
     setLoading(false)
     if (error) { toast.error('Error al guardar la configuración'); return }
     toast.success('Configuración del galpón actualizada')
@@ -102,7 +113,11 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, 
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle><Ic n="ajustes" /> Configuración del Galpón</DialogTitle>
-          <p className="text-sm text-gray-500">Define el tamaño, la meta de postura y los costos de referencia para calcular indicadores</p>
+          <p className="text-sm text-gray-500">
+            {enLevante
+              ? 'El galpón está en levante: la postura se configura al marcar su inicio.'
+              : 'Define el tamaño, la meta de postura y los costos de referencia para calcular indicadores'}
+          </p>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -121,26 +136,47 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, 
                 De esta fecha salen la edad del lote y las semanas de preparación: corrígela si se digitó mal.
               </p>
             </div>
+            {enLevante ? (
+              <div className="space-y-1">
+                <Label>¿Cuándo se espera que pongan?</Label>
+                <Input type="date" value={form.fecha_inicio_postura} onChange={e => set('fecha_inicio_postura', e.target.value)} />
+                <p className="text-xs text-gray-400">Estimado: si pasa la fecha sin postura, avisa que va atrasada</p>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <Label>Fecha de inicio real de postura</Label>
+                <Input type="date" value={form.fecha_inicio_postura} onChange={e => set('fecha_inicio_postura', e.target.value)} />
+                <p className="text-xs text-gray-400">Se usa para contar la semana de postura del lote</p>
+              </div>
+            )}
             <div className="space-y-1">
-              <Label>Fecha de inicio real de postura</Label>
-              <Input type="date" value={form.fecha_inicio_postura} onChange={e => set('fecha_inicio_postura', e.target.value)} />
-              <p className="text-xs text-gray-400">Se usa para contar la semana de postura del lote</p>
+              <Label>Salida programada del lote</Label>
+              <Input type="date" value={form.fecha_salida_programada} onChange={e => set('fecha_salida_programada', e.target.value)} />
+              <p className="text-xs text-gray-400">
+                {enLevante ? 'Si las pollas se van a vender (hacia las 14–15 semanas)' : 'Cuándo se piensa sacar el lote'}
+              </p>
             </div>
-            <div className="space-y-1">
-              <Label>Duración del ciclo (semanas)</Label>
-              <Input type="number" min="1" placeholder="Ej: 60" value={form.semanas_ciclo_postura} onChange={e => set('semanas_ciclo_postura', e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>Meta de postura / pico (%)</Label>
-              <Input type="number" min="0" max="100" step="0.1" placeholder="Ej: 90" value={form.meta_postura_pct} onChange={e => set('meta_postura_pct', e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>Meta de huevos puestos por día</Label>
-              <Input type="number" min="0" placeholder="Ej: 4500" value={form.meta_huevos_diaria} onChange={e => set('meta_huevos_diaria', e.target.value)} />
-            </div>
+            {!enLevante && (
+              <>
+                <div className="space-y-1">
+                  <Label>Duración del ciclo (semanas)</Label>
+                  <Input type="number" min="1" placeholder="Ej: 60" value={form.semanas_ciclo_postura} onChange={e => set('semanas_ciclo_postura', e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Meta de postura / pico (%)</Label>
+                  <Input type="number" min="0" max="100" step="0.1" placeholder="Ej: 90" value={form.meta_postura_pct} onChange={e => set('meta_postura_pct', e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Meta de huevos puestos por día</Label>
+                  <Input type="number" min="0" placeholder="Ej: 4500" value={form.meta_huevos_diaria} onChange={e => set('meta_huevos_diaria', e.target.value)} />
+                </div>
+              </>
+            )}
           </div>
 
-          <p className="text-xs text-gray-400">El precio de venta por tamaño de huevo se configura ahora en la pestaña "Ventas".</p>
+          {!enLevante && (
+            <p className="text-xs text-gray-400">El precio de venta por tamaño de huevo se define en Ventas de la finca.</p>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
@@ -155,7 +191,8 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, 
           <div className="border border-red-200 bg-red-50 rounded-lg p-3 space-y-2">
             <p className="text-sm font-semibold text-red-800"><Ic n="alerta" /> Zona de peligro</p>
             <p className="text-xs text-red-600">
-              Eliminar este galpón borra permanentemente todo su historial (producción, sanitario, costos, equipos). Esta acción no se puede deshacer.
+              Eliminar este lote borra para siempre sus aves y todo su historial (producción, sanidad, costos, equipos).
+              El galpón sigue en la finca, vacío. No se puede deshacer.
             </p>
             <div className="flex items-center gap-2">
               <Input
@@ -170,7 +207,7 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, 
                 disabled={deleting || confirmarNombre.trim() !== lote.nombre}
                 onClick={handleDelete}
               >
-                {deleting ? 'Eliminando...' : 'Eliminar galpón'}
+                {deleting ? 'Eliminando...' : 'Eliminar lote'}
               </Button>
             </div>
           </div>

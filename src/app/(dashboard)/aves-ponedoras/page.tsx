@@ -3,12 +3,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useFinca } from '@/components/agro/FincaProvider'
-import { useRol } from '@/components/agro/RolProvider'
-import AccesoRestringido from '@/components/agro/AccesoRestringido'
 import { cn } from '@/lib/utils'
-import LoteSelector, { type VistaGlobal } from '@/components/agro/aves/LoteSelector'
-import HuevosFinca from '@/components/agro/aves/global/HuevosFinca'
-import VentasFinca from '@/components/agro/aves/global/VentasFinca'
+import LoteSelector from '@/components/agro/aves/LoteSelector'
 import CrearLoteModal from '@/components/agro/aves/CrearLoteModal'
 import EditarFincaModal from '@/components/agro/EditarFincaModal'
 import TabProduccion from '@/components/agro/aves/produccion/TabProduccion'
@@ -22,6 +18,7 @@ import { nombreSeccion } from '@/lib/especies'
 import { recalcularStockAlimentoAves } from '@/lib/inventario'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
+type Instalacion = Database['public']['Tables']['instalaciones']['Row']
 type Medicacion = Database['public']['Tables']['medicaciones_aves']['Row']
 type Equipo = Database['public']['Tables']['equipos_aves']['Row']
 type Ambiental = Database['public']['Tables']['parametros_ambientales_aves']['Row']
@@ -40,7 +37,6 @@ interface Alerta { tipo: 'danger' | 'warning'; mensaje: string }
 
 export default function AvesPonedorasPage() {
   const { fincaActual, loading: fincaLoading, refetch: refetchFinca } = useFinca()
-  const rol = useRol()
   const supabase = createClient()
 
   const [lotes, setLotes] = useState<LoteAves[]>([])
@@ -48,8 +44,9 @@ export default function AvesPonedorasPage() {
   const [loadingLotes, setLoadingLotes] = useState(true)
   const [activeTab, setActiveTab] = useState<Tab>('produccion')
   const [modalNuevoLote, setModalNuevoLote] = useState(false)
-  // Huevos y ventas de toda la finca: no cuelgan de un galpón concreto
-  const [vistaGlobal, setVistaGlobal] = useState<VistaGlobal | null>(null)
+  // Los galpones son lugares fijos de la finca: se muestran todos, con aves o vacíos
+  const [galpones, setGalpones] = useState<Instalacion[]>([])
+  const [galponParaRegistrar, setGalponParaRegistrar] = useState<string | null>(null)
   const [modalFinca, setModalFinca] = useState(false)
 
   // Alertas cross-módulo
@@ -61,13 +58,22 @@ export default function AvesPonedorasPage() {
     if (!fincaActual) return
     setLoadingLotes(true)
     await recalcularStockAlimentoAves(supabase, fincaActual.id)
-    const { data } = await supabase
-      .from('lotes_aves')
-      .select('*')
-      .eq('finca_id', fincaActual.id)
-      .in('estado', ['activo', 'preparacion'])
-      .order('created_at', { ascending: false })
+    const [{ data }, { data: inst }] = await Promise.all([
+      supabase
+        .from('lotes_aves')
+        .select('*')
+        .eq('finca_id', fincaActual.id)
+        .in('estado', ['activo', 'preparacion'])
+        .order('nombre'),
+      supabase
+        .from('instalaciones')
+        .select('*')
+        .eq('finca_id', fincaActual.id)
+        .eq('especie', 'aves_ponedoras')
+        .order('nombre'),
+    ])
     setLotes(data ?? [])
+    setGalpones(inst ?? [])
     if (data && data.length > 0) {
       if (!loteActual) {
         // Al volver desde Alimento (?lote=), se abre el galpón del que se venía
@@ -153,7 +159,7 @@ export default function AvesPonedorasPage() {
           onClick={() => setModalFinca(true)}
           className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors"
         >
-          <Ic n="ubicacion" /> Datos geográficos de la finca
+          <Ic n="ubicacion" /> Datos de la finca
         </button>
       </div>
 
@@ -176,15 +182,15 @@ export default function AvesPonedorasPage() {
       {/* Selector de lote */}
       <div className="superficie space-y-3 rounded-2xl p-4">
         <LoteSelector
+          galpones={galpones}
           lotes={lotes}
           loteActual={loteActual}
-          vistaGlobal={vistaGlobal}
-          onSelect={l => { setLoteActual(l); setVistaGlobal(null); setAlertas([]) }}
-          onSelectVistaGlobal={v => setVistaGlobal(v)}
-          onNuevoLote={() => setModalNuevoLote(true)}
+          onSelect={l => { setLoteActual(l); setAlertas([]) }}
+          onRegistrarAves={galponId => { setGalponParaRegistrar(galponId); setModalNuevoLote(true) }}
+          onDatosFinca={() => setModalFinca(true)}
           loading={loadingLotes}
         />
-        {!vistaGlobal && loteActual && (
+        {loteActual && (
           <p className="text-xs text-gray-500">
             {loteActual.linea_genetica && `${loteActual.linea_genetica} · `}
             {loteActual.aves_actuales.toLocaleString('es-CO')} aves activas
@@ -193,26 +199,36 @@ export default function AvesPonedorasPage() {
         )}
       </div>
 
-      {vistaGlobal === 'huevos' && <HuevosFinca fincaId={fincaActual.id} lotes={lotes} />}
-      {vistaGlobal === 'ventas' && (
-        rol === 'trabajador' ? <AccesoRestringido /> : <VentasFinca fincaId={fincaActual.id} lotes={lotes} />
-      )}
-
-      {!vistaGlobal && !loteActual && !loadingLotes && (
+      {!loteActual && !loadingLotes && (
         <div className="py-16 text-center">
           <p className="mb-3 text-5xl text-gray-300"><Ic n="gallina" /></p>
-          <p className="text-xl font-semibold text-gray-700 mb-1">Sin lotes activos</p>
-          <p className="text-gray-400 mb-5">Crea tu primer lote para comenzar el seguimiento</p>
-          <button
-            onClick={() => setModalNuevoLote(true)}
-            className="px-6 py-2.5 bg-green-700 text-white rounded-lg font-medium hover:bg-green-800 transition-colors"
-          >
-            + Crear primer lote
-          </button>
+          {galpones.length === 0 ? (
+            <>
+              <p className="mb-1 text-xl font-semibold text-gray-700">La finca no tiene galpones</p>
+              <p className="mb-5 text-gray-400">Registra tus galpones con su medida y luego las aves que entran a cada uno</p>
+              <button
+                onClick={() => setModalFinca(true)}
+                className="rounded-lg bg-green-700 px-6 py-2.5 font-medium text-white transition-colors hover:bg-green-800"
+              >
+                Registrar galpones
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="mb-1 text-xl font-semibold text-gray-700">Ningún galpón tiene aves</p>
+              <p className="mb-5 text-gray-400">Registra las aves que entran a uno de tus galpones</p>
+              <button
+                onClick={() => { setGalponParaRegistrar(null); setModalNuevoLote(true) }}
+                className="rounded-lg bg-green-700 px-6 py-2.5 font-medium text-white transition-colors hover:bg-green-800"
+              >
+                Registrar aves
+              </button>
+            </>
+          )}
         </div>
       )}
 
-      {!vistaGlobal && loteActual && (
+      {loteActual && (
         <>
           {/* Tab bar */}
           <div className="space-y-5">
@@ -258,10 +274,13 @@ export default function AvesPonedorasPage() {
 
       <CrearLoteModal
         open={modalNuevoLote}
-        onClose={() => setModalNuevoLote(false)}
+        onClose={() => { setModalNuevoLote(false); setGalponParaRegistrar(null) }}
         fincaId={fincaActual.id}
+        galpones={galpones}
+        ocupados={new Set(lotes.map(l => l.instalacion_id).filter((x): x is string => Boolean(x)))}
+        galponInicialId={galponParaRegistrar}
         onCreated={lote => {
-          setLotes(prev => [lote, ...prev])
+          setLotes(prev => [...prev, lote].sort((a, b) => a.nombre.localeCompare(b.nombre)))
           setLoteActual(lote)
         }}
       />
@@ -270,7 +289,7 @@ export default function AvesPonedorasPage() {
         open={modalFinca}
         onClose={() => setModalFinca(false)}
         finca={fincaActual}
-        onUpdated={refetchFinca}
+        onUpdated={() => { refetchFinca(); fetchLotes() }}
       />
     </div>
   )
