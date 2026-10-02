@@ -7,6 +7,7 @@ import CrearFincaModal from '@/components/agro/CrearFincaModal'
 import ResumenEspecies from '@/components/agro/ResumenEspecies'
 import ResumenFinanciero from '@/components/agro/ResumenFinanciero'
 import ResumenAlimentoGalpones from '@/components/agro/ResumenAlimentoGalpones'
+import ResumenGalponesFinca from '@/components/agro/ResumenGalponesFinca'
 import EditarFincaModal from '@/components/agro/EditarFincaModal'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -34,35 +35,6 @@ export default function DashboardPage() {
       setUserName(name)
     })
   }, [])
-
-  useEffect(() => {
-    if (!fincaActual) return
-    const supabase = createClient()
-
-    Promise.all([
-      supabase.from('animales').select('id', { count: 'exact' }).eq('finca_id', fincaActual.id).eq('estado', 'activo'),
-      supabase.from('inventario').select('id', { count: 'exact' }).eq('finca_id', fincaActual.id),
-      supabase.from('inventario').select('id', { count: 'exact' }).eq('finca_id', fincaActual.id)
-        .lte('cantidad_actual', supabase.rpc as unknown as number),
-    ]).then(async () => {
-      const [animalesRes, inventarioRes] = await Promise.all([
-        supabase.from('animales').select('id', { count: 'exact', head: true }).eq('finca_id', fincaActual.id).eq('estado', 'activo'),
-        supabase.from('inventario').select('id', { count: 'exact', head: true }).eq('finca_id', fincaActual.id),
-      ])
-
-      const { count: bajos } = await supabase
-        .from('inventario')
-        .select('id', { count: 'exact', head: true })
-        .eq('finca_id', fincaActual.id)
-        .filter('cantidad_actual', 'lte', 'cantidad_minima')
-
-      setStats({
-        totalAnimales: animalesRes.count ?? 0,
-        totalInventario: inventarioRes.count ?? 0,
-        animalesBajos: bajos ?? 0,
-      })
-    })
-  }, [fincaActual])
 
   useEffect(() => {
     if (!fincaActual) return
@@ -112,6 +84,11 @@ export default function DashboardPage() {
           )}
         </div>
 
+        {/* La finca tal como se registró: sus datos y cada galpón, con aves o vacío */}
+        {fincaActual && (
+          <ResumenGalponesFinca finca={fincaActual} onEditar={() => setFincaAEditar(fincaActual)} />
+        )}
+
         {fincaActual && (
           <ResumenEspecies fincaId={fincaActual.id} especies={(fincaActual.tipo_produccion ?? []) as EspecieFinca[]} />
         )}
@@ -127,7 +104,7 @@ export default function DashboardPage() {
 
         <div className="mb-8 grid grid-cols-[repeat(auto-fit,minmax(13rem,1fr))] gap-3">
           <StatCard title="Total Animales" value={stats?.totalAnimales ?? '—'} icon="ganado" description="Animales activos" color="green" />
-          <StatCard title="Ítems en Inventario" value={stats?.totalInventario ?? '—'} icon="caja" description="Insumos registrados" color="blue" />
+          <StatCard title="Ítems en Inventario" value={stats?.totalInventario ?? '—'} icon="caja" description="Alimento, huevos, fármacos y otros" color="blue" />
           <StatCard title="Fincas" value={fincas.length} icon="hoja" description="Registradas" color="yellow" />
           <StatCard title="Alertas Stock" value={stats?.animalesBajos ?? '—'} icon="alerta" description="Por debajo del mínimo" color="red" />
         </div>

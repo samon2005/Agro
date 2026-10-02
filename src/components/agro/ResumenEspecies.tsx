@@ -32,7 +32,8 @@ export default function ResumenEspecies({ fincaId, especies }: { fincaId: string
 
       if (especies.includes('aves_ponedoras')) {
         const { data } = await supabase.from('lotes_aves').select('aves_actuales, estado').eq('finca_id', fincaId)
-        const activos = (data ?? []).filter(l => l.estado === 'activo')
+        // Las pollas en levante también son aves de la finca
+        const activos = (data ?? []).filter(l => l.estado === 'activo' || l.estado === 'preparacion')
         resultados.aves_ponedoras = { lotesActivos: activos.length, animalesActuales: activos.reduce((s, l) => s + (l.aves_actuales ?? 0), 0) }
       }
       if (especies.includes('cerdos')) {
