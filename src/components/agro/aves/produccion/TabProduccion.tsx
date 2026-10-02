@@ -34,6 +34,8 @@ interface Props {
   loteActual: LoteAves
   onLoteUpdated: (lote?: LoteAves) => void
   onLoteDeleted: () => void
+  /** Lleva a la pestaña Alimento del galpón, donde se registra su consumo */
+  onIrAlimento?: () => void
 }
 
 const MS_DIA = 24 * 60 * 60 * 1000
@@ -55,7 +57,7 @@ const TIPO_EVENTO_LABEL: Record<string, string> = {
   otro: 'Otro',
 }
 
-export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted }: Props) {
+export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted, onIrAlimento }: Props) {
   const { fincaActual } = useFinca()
   const supabase = createClient()
   const [registros, setRegistros] = useState<ProduccionDiaria[]>([])
@@ -191,6 +193,8 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
     : '0.0'
 
   // ── Ciclo de postura ──
+  // Sin meta definida no hay contra qué medir: las pérdidas no se inventan con un 90 % supuesto
+  const hayMetaPostura = loteActual.meta_postura_pct != null
   const metaPostura = loteActual.meta_postura_pct ?? 90
   const estadoPosturaHoy = estadoPostura(loteActual.fecha_inicio_postura, hoyStr)
   const semanaPostura = estadoPosturaHoy.iniciada ? estadoPosturaHoy.semana : null
@@ -211,12 +215,13 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
 
   // Un galpón nuevo no puede registrar días hasta tener alimento y consumo definidos.
   const tieneAlimento = loteActual.alimento_activo_id != null
-  const tieneConsumo = loteActual.consumo_activo_kg != null
+  // Un consumo en cero no cuenta: el galpón tiene que tener lo que come al día
+  const tieneConsumo = Number(loteActual.consumo_activo_kg ?? 0) > 0
   const listoParaRegistrar = tieneAlimento && tieneConsumo
   const faltaParaRegistrar = !tieneAlimento
-    ? 'Primero registra un tipo de alimento y el consumo del galpón en la sección Alimento.'
+    ? 'Primero registra el alimento y el consumo del galpón en su pestaña Alimento.'
     : !tieneConsumo
-      ? 'Falta registrar el consumo diario del galpón en la sección Alimento.'
+      ? 'Falta registrar el consumo diario del galpón en su pestaña Alimento.'
       : ''
   let fechaFinEstimada: Date | null = null
   if (loteActual.fecha_inicio_postura && loteActual.semanas_ciclo_postura) {
@@ -247,19 +252,19 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
   // ── Huevos perdidos por postura bajo la meta (últimos 30 días) ──
   let huevosPerdidos30 = 0
   for (const r of ultimos30) {
-    if (!r.aves_en_dia) continue
+    if (!r.aves_en_dia || !hayMetaPostura) continue
     const esperados = r.aves_en_dia * (metaPostura / 100)
     huevosPerdidos30 += Math.max(0, esperados - r.huevos_totales)
   }
   const valorPerdido30 = huevosPerdidos30 * precioPromedio
-  const perdidaHoy = hoy && hoy.aves_en_dia
+  const perdidaHoy = hayMetaPostura && hoy && hoy.aves_en_dia
     ? Math.max(0, hoy.aves_en_dia * (metaPostura / 100) - hoy.huevos_totales)
     : 0
   const valorPerdidoHoy = perdidaHoy * precioPromedio
-  const excedenteHoy = hoy && hoy.aves_en_dia
+  const excedenteHoy = hayMetaPostura && hoy && hoy.aves_en_dia
     ? Math.max(0, hoy.huevos_totales - hoy.aves_en_dia * (metaPostura / 100))
     : 0
-  const diffPuntosHoy = posturaHoy ? Number(posturaHoy) - metaPostura : null
+  const diffPuntosHoy = hayMetaPostura && posturaHoy ? Number(posturaHoy) - metaPostura : null
 
   // ── Alimento: costo y bultos del consumo activo (persiste hasta que se cambie) ──
   const precioGramo = loteActual.precio_gramo_alimento ?? 0
@@ -545,9 +550,13 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
               <p className="mt-0.5 text-xs text-gray-600">{faltaParaRegistrar}</p>
             </div>
           </div>
-          <Link href={`/alimento?lote=${loteActual.id}`}>
-            <Button size="sm">Registrar alimento</Button>
-          </Link>
+          {onIrAlimento ? (
+            <Button size="sm" onClick={onIrAlimento}>Registrar alimento</Button>
+          ) : (
+            <Link href={`/alimento?lote=${loteActual.id}`}>
+              <Button size="sm">Registrar alimento</Button>
+            </Link>
+          )}
         </div>
       )}
 
@@ -567,7 +576,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
           )}
         />
         <Indicador
-          tono={posturaHoy && Number(posturaHoy) < metaPostura ? 'red' : 'green'}
+          tono={hayMetaPostura && posturaHoy && Number(posturaHoy) < metaPostura ? 'red' : 'green'}
           icono="huevo"
           etiqueta="% Postura hoy"
           valor={posturaHoy ? `${posturaHoy}%` : '—'}
@@ -621,6 +630,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
         )}
         {enPostura && (<>
         <Indicador tono="green" icono="dinero" etiqueta="Ingreso por venta (hoy)" valor={ingresoHoy > 0 ? cop(ingresoHoy) : '—'} detalle={precioPromedio > 0 ? 'Según precio por tamaño configurado' : 'Define el precio del huevo en Ventas de la finca'} />
+        {hayMetaPostura ? (<>
         <Indicador
           tono={perdidaHoy > 0 ? 'red' : 'gray'}
           icono="tendencia"
@@ -643,6 +653,19 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
             ? `${Math.round(huevosPerdidos30).toLocaleString('es-CO')} huevos bajo la meta`
             : 'huevos bajo la meta · pon el precio en Ventas de la finca para verlo en pesos'}
         />
+        </>) : (
+        <Indicador
+          tono="gray"
+          icono="tendencia"
+          etiqueta="Pérdida por baja postura"
+          valor="—"
+          detalle={(
+            <button type="button" onClick={() => setConfigOpen(true)} className="font-medium text-green-700 hover:underline">
+              Define la meta de % postura para medirla →
+            </button>
+          )}
+        />
+        )}
         </>)}
         {!enPostura && (
           <Indicador tono="blue" icono="calendario" etiqueta="Semana de preparación" valor={semanasEnGalpon + 1} detalle={diasAtraso > 0

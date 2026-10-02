@@ -236,7 +236,8 @@ export function dbGenerico(supabase: SupabaseClient<Database>): SupabaseClient {
 /** Forma común de una fila de costos en cualquier especie. */
 export interface CostoGenerico {
   id: string
-  lote_id: string
+  /** Sin galpón cuando el gasto es de toda la finca */
+  lote_id: string | null
   finca_id: string
   fecha: string
   categoria: string

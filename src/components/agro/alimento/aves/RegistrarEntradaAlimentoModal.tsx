@@ -19,7 +19,8 @@ type Entrada = Database['public']['Tables']['entradas_alimento_aves']['Row']
 interface Props {
   open: boolean
   onClose: () => void
-  loteId: string
+  /** El alimento llega a la finca, no a un galpón: de una entrada comen varios */
+  loteId?: string | null
   fincaId: string
   tiposAlimento: TipoAlimento[]
   entradaExistente?: Entrada | null
@@ -86,13 +87,13 @@ export default function RegistrarEntradaAlimentoModal({ open, onClose, loteId, f
 
     const { data: entrada, error } = entradaExistente
       ? await supabase.from('entradas_alimento_aves').update(payload).eq('id', entradaExistente.id).select().single()
-      : await supabase.from('entradas_alimento_aves').insert({ ...payload, finca_id: fincaId, lote_id: loteId }).select().single()
+      : await supabase.from('entradas_alimento_aves').insert({ ...payload, finca_id: fincaId, lote_id: loteId ?? null }).select().single()
 
     if (!error && entrada && !entradaExistente) {
       // Queda como costo del lote, igual que antes se hacía desde el catálogo
       if (costoTotal > 0) {
         await supabase.from('costos_lote_aves').insert({
-          lote_id: loteId,
+          lote_id: loteId ?? null,
           finca_id: fincaId,
           fecha: form.fecha,
           categoria: 'alimento',

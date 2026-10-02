@@ -11,6 +11,7 @@ import TabProduccion from '@/components/agro/aves/produccion/TabProduccion'
 import TabAmbiental from '@/components/agro/aves/ambiental/TabAmbiental'
 import TabSanitario from '@/components/agro/aves/sanitario/TabSanitario'
 import TabEquipos from '@/components/agro/aves/equipos/TabEquipos'
+import TabAlimentoAves from '@/components/agro/alimento/aves/TabAlimentoAves'
 import { calcularFechaLiberacion } from '@/lib/sanitario'
 import type { Database } from '@/types/database'
 import { Ic, type NombreIcono } from '@/components/ui/icon'
@@ -24,10 +25,11 @@ type Equipo = Database['public']['Tables']['equipos_aves']['Row']
 type Ambiental = Database['public']['Tables']['parametros_ambientales_aves']['Row']
 type Produccion = Database['public']['Tables']['produccion_diaria_aves']['Row']
 
-type Tab = 'produccion' | 'ambiental' | 'sanitario' | 'equipos'
+type Tab = 'produccion' | 'alimento' | 'ambiental' | 'sanitario' | 'equipos'
 
 const TABS: { id: Tab; label: string; icon: NombreIcono }[] = [
   { id: 'produccion', label: 'Producción', icon: 'tendencia' },
+  { id: 'alimento', label: 'Alimento', icon: 'alimento' },
   { id: 'ambiental', label: 'Ambiental', icon: 'termometro' },
   { id: 'sanitario', label: 'Sanitario', icon: 'vacuna' },
   { id: 'equipos', label: 'Equipos', icon: 'ajustes' },
@@ -262,6 +264,17 @@ export default function AvesPonedorasPage() {
                     setLoteActual(null)
                     fetchLotes()
                   }}
+                  onIrAlimento={() => setActiveTab('alimento')}
+                />
+              )}
+              {/* El alimento de este galpón: su consumo, horarios y balance, sin inventario */}
+              {activeTab === 'alimento' && (
+                <TabAlimentoAves
+                  key={loteActual.id}
+                  modo="galpon"
+                  lotes={[loteActual]}
+                  loteInicialId={loteActual.id}
+                  onLoteCambiado={fetchLotes}
                 />
               )}
               {activeTab === 'ambiental' && <TabAmbiental loteActual={loteActual} finca={fincaActual} />}

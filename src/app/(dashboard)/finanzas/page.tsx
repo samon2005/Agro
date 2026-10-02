@@ -116,7 +116,7 @@ export default function FinanzasPage() {
   const lotesDeEspecie = especieFiltro === 'todas' ? lotes : lotes.filter(l => l.especie === especieFiltro)
 
   // ── Filtros: animal → galpón → año → mes (la categoría solo aplica a costos) ──
-  function pasaFiltros<T extends { fecha: string; lote_id: string; especie: EspecieFinca }>(x: T) {
+  function pasaFiltros<T extends { fecha: string; lote_id: string | null; especie: EspecieFinca }>(x: T) {
     if (especieFiltro !== 'todas' && x.especie !== especieFiltro) return false
     if (loteFiltro !== 'todos' && x.lote_id !== loteFiltro) return false
     if (anioFiltro !== 'todos' && x.fecha.slice(0, 4) !== anioFiltro) return false
@@ -298,7 +298,7 @@ export default function FinanzasPage() {
                           <TableRow key={c.id}>
                             <TableCell className="text-sm">{fmt(c.fecha)}</TableCell>
                             <TableCell className="text-sm">
-                              <span className="font-medium text-gray-800">{nombreLote.get(c.lote_id) ?? '—'}</span>
+                              <span className="font-medium text-gray-800">{c.lote_id ? nombreLote.get(c.lote_id) ?? '—' : 'Toda la finca'}</span>
                               {especieFiltro === 'todas' && especiesFinca.length > 1 && (
                                 <span className="block text-[0.6875rem] text-gray-500">{CONFIG_ESPECIES[c.especie].label}</span>
                               )}
@@ -406,7 +406,7 @@ export default function FinanzasPage() {
                       <div key={c.id} className="flex items-center justify-between border-b border-gray-100 pb-1.5 text-sm">
                         <div>
                           <p className="font-medium">{c.descripcion}</p>
-                          <p className="text-xs text-gray-400">{fmt(c.fecha)} · {nombreLote.get(c.lote_id) ?? '—'}{c.proveedor ? ` · ${c.proveedor}` : ''}</p>
+                          <p className="text-xs text-gray-400">{fmt(c.fecha)} · {c.lote_id ? nombreLote.get(c.lote_id) ?? '—' : 'Toda la finca'}{c.proveedor ? ` · ${c.proveedor}` : ''}</p>
                         </div>
                         <span className="font-semibold tabular-nums">{cop(Number(c.monto))}</span>
                       </div>

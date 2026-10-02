@@ -109,7 +109,7 @@ export default function AlimentoPage() {
         loadingLotes ? (
           <div className="space-y-3">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-lg" />)}</div>
         ) : (
-          <TabAlimentoAves key={loteInicial ?? 'todos'} lotes={lotesAves} loteInicialId={loteInicial} />
+          <TabAlimentoAves key={loteInicial ?? 'todos'} modo="finca" lotes={lotesAves} loteInicialId={loteInicial} />
         )
       )}
 
