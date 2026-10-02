@@ -42,6 +42,8 @@ export default function DashboardSidebar({ user }: { user: User }) {
           ...(rol !== 'trabajador' ? [{ href: '/ventas', label: 'Ventas de la finca', icon: 'recibo' as const }] : []),
         ]
       : []),
+    // La historia de la cría (servicios, partos, destetes y lechones) va debajo de Corrales
+    ...(especiesFinca.includes('cerdos') ? [{ href: '/historial', label: 'Historial', icon: 'agenda' as const }] : []),
     ...(rol !== 'trabajador' ? [{ href: '/operarios', label: 'Operarios', icon: 'operario' as const }] : []),
   ]
 

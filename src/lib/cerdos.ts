@@ -110,6 +110,44 @@ export function codigoLechon(codigoMadre: string, numero: number): string {
   return `${codigoMadre}-${String(numero).padStart(2, '0')}`
 }
 
+/**
+ * Las tallas con que la granja clasifica a los lechones al destete. Cada una va
+ * desde su peso (incluido) hasta el de la siguiente; la última no tiene tope.
+ * Si la finca no ha puesto las suyas: S menos de 7 kg, M de 7 a 8, L de 8 en adelante.
+ */
+export interface TallaDestete { nombre: string; desde: number }
+
+export const TALLAS_DESTETE_DEFECTO: TallaDestete[] = [
+  { nombre: 'S', desde: 0 },
+  { nombre: 'M', desde: 7 },
+  { nombre: 'L', desde: 8 },
+]
+
+export function tallasDeFinca(tallas: TallaDestete[] | null | undefined): TallaDestete[] {
+  const validas = (tallas ?? []).filter(t => t && t.nombre?.trim() && Number.isFinite(Number(t.desde)))
+  const lista = validas.length > 0 ? validas : TALLAS_DESTETE_DEFECTO
+  return [...lista].map(t => ({ nombre: t.nombre.trim(), desde: Number(t.desde) })).sort((a, b) => a.desde - b.desde)
+}
+
+/** La talla que le toca a un peso, o null si no hay peso. */
+export function tallaDePeso(peso: number | null | undefined, tallas: TallaDestete[]): string | null {
+  if (peso == null || !Number.isFinite(peso) || peso <= 0) return null
+  let talla = tallas[0]?.nombre ?? null
+  for (const t of tallas) if (peso >= t.desde) talla = t.nombre
+  return talla
+}
+
+/** "S: menos de 7 kg · M: 7 a 8 kg · L: 8 kg o más" */
+export function describirTallas(tallas: TallaDestete[]): string {
+  const kg = (n: number) => n.toLocaleString('es-CO', { maximumFractionDigits: 2 })
+  return tallas.map((t, i) => {
+    const siguiente = tallas[i + 1]
+    if (i === 0 && siguiente) return `${t.nombre}: menos de ${kg(siguiente.desde)} kg`
+    if (siguiente) return `${t.nombre}: ${kg(t.desde)} a ${kg(siguiente.desde)} kg`
+    return `${t.nombre}: ${kg(t.desde)} kg o más`
+  }).join(' · ')
+}
+
 /** Cómo se llama cada estado de un lechón en la pantalla. */
 export const ESTADOS_LECHON: Record<string, { label: string; clase: string }> = {
   lactante: { label: 'Lactante', clase: 'bg-pink-100 text-pink-700' },

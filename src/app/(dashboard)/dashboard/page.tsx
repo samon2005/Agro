@@ -44,12 +44,24 @@ export default function DashboardPage() {
   async function fetchStats() {
     if (!fincaActual) return
     const supabase = createClient()
-    const [animalesRes, inventarioRes] = await Promise.all([
-      supabase.from('animales').select('id', { count: 'exact', head: true }).eq('finca_id', fincaActual.id).eq('estado', 'activo'),
+    // Los animales de la finca son los de sus lotes vivos (galpones o corrales)
+    const especie = fincaActual.tipo_produccion?.[0]
+    const [aves, cerdos, pollos, inventarioRes] = await Promise.all([
+      especie === 'aves_ponedoras'
+        ? supabase.from('lotes_aves').select('aves_actuales').eq('finca_id', fincaActual.id).in('estado', ['activo', 'preparacion'])
+        : Promise.resolve({ data: [] as { aves_actuales: number }[] }),
+      especie === 'cerdos'
+        ? supabase.from('lotes_cerdos').select('animales_actuales').eq('finca_id', fincaActual.id).eq('estado', 'activo')
+        : Promise.resolve({ data: [] as { animales_actuales: number }[] }),
+      especie === 'pollo_engorde'
+        ? supabase.from('lotes_pollo').select('pollos_actuales').eq('finca_id', fincaActual.id).eq('estado', 'activo')
+        : Promise.resolve({ data: [] as { pollos_actuales: number }[] }),
       supabase.from('inventario').select('id', { count: 'exact', head: true }).eq('finca_id', fincaActual.id),
     ])
     setStats({
-      totalAnimales: animalesRes.count ?? 0,
+      totalAnimales: (aves.data ?? []).reduce((s, l) => s + (l.aves_actuales ?? 0), 0)
+        + (cerdos.data ?? []).reduce((s, l) => s + (l.animales_actuales ?? 0), 0)
+        + (pollos.data ?? []).reduce((s, l) => s + (l.pollos_actuales ?? 0), 0),
       totalInventario: inventarioRes.count ?? 0,
       animalesBajos: 0,
     })

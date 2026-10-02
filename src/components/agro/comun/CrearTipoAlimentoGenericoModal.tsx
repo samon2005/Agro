@@ -128,17 +128,30 @@ export default function CrearTipoAlimentoGenericoModal({ open, onClose, fincaId,
           fecha_entrada: form.cantidad_entrada ? form.fecha_entrada : null,
         }).select().single()
 
-    // La entrada de alimento se registra como costo del lote
-    if (!error && !tipoExistente && tipo && costoTotal > 0 && loteId) {
-      await db.from(config.tablas.costos).insert({
-        lote_id: loteId,
+    // Los bultos con que llega el alimento entran a la bodega de la finca: sin esta
+    // entrada el stock no los contaría. Su compra es un costo de toda la finca.
+    const bultosEntrada = Number(form.cantidad_entrada) || 0
+    if (!error && !tipoExistente && tipo && bultosEntrada > 0) {
+      await db.from('entradas_alimento_lote').insert({
         finca_id: fincaId,
-        fecha: form.fecha_entrada,
-        categoria: 'alimento',
-        descripcion: `Compra de alimento: ${form.marca ? form.marca + ' - ' : ''}${form.nombre.trim()} (${form.cantidad_entrada} bultos)`,
-        monto: costoTotal,
+        especie: config.especie,
         tipo_alimento_id: tipo.id,
+        lote_id: null,
+        fecha: form.fecha_entrada,
+        cantidad_bultos: bultosEntrada,
+        precio_bulto: form.precio_bulto ? Number(form.precio_bulto) : null,
       })
+      if (costoTotal > 0) {
+        await db.from(config.tablas.costos).insert({
+          lote_id: null,
+          finca_id: fincaId,
+          fecha: form.fecha_entrada,
+          categoria: 'alimento',
+          descripcion: `Compra de alimento: ${form.marca ? form.marca + ' - ' : ''}${form.nombre.trim()} (${bultosEntrada} bultos)`,
+          monto: costoTotal,
+          tipo_alimento_id: tipo.id,
+        })
+      }
     }
 
     setLoading(false)

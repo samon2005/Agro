@@ -62,12 +62,18 @@ export default function RegistrarConsumoGenericoModal({ open, onClose, loteId, f
       ? await db.from(config.tablas.registroDiario).update(payload).eq('id', existente.id)
       : await db.from(config.tablas.registroDiario).insert({ ...payload, lote_id: loteId, finca_id: fincaId, fecha: form.fecha })
 
-    // El alimento activo del lote es lo que alimenta el balance nutricional del día
+    // El consumo activo del lote es el de su último registro por fecha: un consumo
+    // anotado para un día anterior no reemplaza al más reciente.
     if (!error) {
-      await db.from(config.tablas.lotes).update({
-        alimento_activo_id: form.tipo_alimento_id,
-        consumo_activo_kg: Number(form.alimento_kg),
-      }).eq('id', loteId)
+      const { data: ultimo } = await db.from(config.tablas.registroDiario)
+        .select('tipo_alimento_id, alimento_kg').eq('lote_id', loteId).gt('alimento_kg', 0)
+        .order('fecha', { ascending: false }).limit(1).maybeSingle()
+      if (ultimo) {
+        await db.from(config.tablas.lotes).update({
+          alimento_activo_id: ultimo.tipo_alimento_id ?? form.tipo_alimento_id,
+          consumo_activo_kg: Number(ultimo.alimento_kg),
+        }).eq('id', loteId)
+      }
     }
 
     setLoading(false)

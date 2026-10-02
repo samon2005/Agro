@@ -13,6 +13,8 @@ type Finca = {
   area_unidad: string | null
   tipo_produccion: string[] | null
   etapas_cerdos: string[] | null
+  /** Rangos de peso con que la granja clasifica los lechones al destete */
+  tallas_destete?: { nombre: string; desde: number }[] | null
   altitud_msnm: number | null
   velocidad_viento_kmh: number | null
   clima_predominante: string | null

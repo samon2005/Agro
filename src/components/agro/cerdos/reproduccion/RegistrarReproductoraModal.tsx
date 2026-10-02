@@ -14,19 +14,25 @@ import { ESTADOS_REPRODUCTORA } from '@/lib/cerdos'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
 type Reproductora = Database['public']['Tables']['reproductoras_cerdos']['Row']
+type Nave = Database['public']['Tables']['naves_cerdos']['Row']
 
 interface Props {
   open: boolean
   onClose: () => void
   lote: LoteCerdos
+  /** La nave en la que se registra la cerda */
+  naveId: string
+  /** Las naves del corral: al editar, la cerda se puede pasar a otra */
+  naves: Nave[]
   reproductoraExistente?: Reproductora | null
   onCreated: () => void
 }
 
 const LINEAS = ['Landrace', 'Yorkshire (Large White)', 'Duroc', 'Pietrain', 'Hampshire', 'PIC', 'Topigs', 'Otra']
 
-function defaultForm(lote: LoteCerdos, r?: Reproductora | null) {
+function defaultForm(lote: LoteCerdos, naveId: string, r?: Reproductora | null) {
   return {
+    nave_id: r?.nave_id ?? naveId,
     codigo: r?.codigo ?? '',
     nombre: r?.nombre ?? '',
     tipo_identificacion: r?.tipo_identificacion ?? 'arete',
@@ -41,12 +47,12 @@ function defaultForm(lote: LoteCerdos, r?: Reproductora | null) {
   }
 }
 
-export default function RegistrarReproductoraModal({ open, onClose, lote, reproductoraExistente, onCreated }: Props) {
+export default function RegistrarReproductoraModal({ open, onClose, lote, naveId, naves, reproductoraExistente, onCreated }: Props) {
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
-  const [form, setForm] = useState(() => defaultForm(lote, reproductoraExistente))
+  const [form, setForm] = useState(() => defaultForm(lote, naveId, reproductoraExistente))
 
-  useEffect(() => { if (open) setForm(defaultForm(lote, reproductoraExistente)) }, [open, lote, reproductoraExistente])
+  useEffect(() => { if (open) setForm(defaultForm(lote, naveId, reproductoraExistente)) }, [open, lote, naveId, reproductoraExistente])
 
   function set(field: string, value: string | null) {
     setForm(prev => ({ ...prev, [field]: value ?? '' }))
@@ -57,7 +63,9 @@ export default function RegistrarReproductoraModal({ open, onClose, lote, reprod
     if (!form.codigo.trim()) { toast.error('El código o número de arete es obligatorio'); return }
 
     setLoading(true)
+    if (!form.nave_id) { toast.error('Elige la nave de la cerda'); return }
     const payload = {
+      nave_id: form.nave_id,
       codigo: form.codigo.trim(),
       nombre: form.nombre || null,
       tipo_identificacion: form.identificacion.trim() ? form.tipo_identificacion : null,
@@ -76,7 +84,7 @@ export default function RegistrarReproductoraModal({ open, onClose, lote, reprod
 
     setLoading(false)
     if (error) {
-      toast.error(error.code === '23505' ? 'Ya hay una hembra con ese código en el lote' : 'Error al guardar la hembra')
+      toast.error(error.code === '23505' ? 'Ya hay una hembra con ese código en este corral (en esta u otra nave)' : 'Error al guardar la hembra')
       return
     }
     toast.success(reproductoraExistente ? 'Hembra actualizada' : 'Hembra registrada')
@@ -91,6 +99,19 @@ export default function RegistrarReproductoraModal({ open, onClose, lote, reprod
           <DialogTitle>{reproductoraExistente ? 'Editar Hembra' : 'Registrar Hembra Reproductora'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
+          {reproductoraExistente && naves.length > 1 && (
+            <div className="space-y-1">
+              <Label>Nave</Label>
+              <Select
+                value={form.nave_id}
+                onValueChange={v => set('nave_id', v)}
+                items={Object.fromEntries(naves.map(n => [n.id, n.nombre]))}
+              >
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>{naves.map(n => <SelectItem key={n.id} value={n.id}>{n.nombre}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <Label>Código / arete *</Label>

@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ESPECIES_FINCA, type EspecieFinca } from '@/lib/especies'
-import { ETAPAS_CERDOS, etapasDeFinca, type EtapaCerdos } from '@/lib/cerdos'
+import { LUGAR } from '@/lib/instalaciones'
 import { Ic } from '@/components/ui/icon'
 import GalponesFinca from './GalponesFinca'
 
@@ -66,7 +66,6 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated, onDe
   })
   // Una finca produce una sola especie. Solo se elige si todavía no tiene.
   const [especie, setEspecie] = useState<EspecieFinca | null>(null)
-  const [etapasCerdos, setEtapasCerdos] = useState<EtapaCerdos[]>([])
   const [buscandoUbicacion, setBuscandoUbicacion] = useState(false)
   const [areaValor, setAreaValor] = useState('')
   const [areaUnidad, setAreaUnidad] = useState('ha')
@@ -86,7 +85,6 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated, onDe
       longitud: finca.longitud != null ? String(finca.longitud) : '',
     })
     setEspecie(((finca.tipo_produccion ?? [])[0] as EspecieFinca | undefined) ?? null)
-    setEtapasCerdos(etapasDeFinca(finca.etapas_cerdos))
     setAreaValor(finca.area_valor != null ? String(finca.area_valor) : '')
     const unidadActual = finca.area_unidad ?? 'ha'
     setAreaUnidad(unidadActual === 'ha' || unidadActual === 'm2' ? unidadActual : (unidadActual ? UNIDAD_OTRA : 'ha'))
@@ -139,9 +137,6 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated, onDe
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!especie) { toast.error('Elige qué produce la finca'); return }
-    if (especie === 'cerdos' && etapasCerdos.length === 0) {
-      toast.error('Marca al menos una etapa de cerdos que maneje la finca'); return
-    }
     setLoading(true)
 
     const areaNum = areaValor ? Number(areaValor) : null
@@ -157,7 +152,6 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated, onDe
         clima_predominante: form.clima_predominante || null,
         temperatura_promedio_ext: form.temperatura_promedio_ext ? Number(form.temperatura_promedio_ext) : null,
         tipo_produccion: [especie],
-        etapas_cerdos: especie === 'cerdos' ? etapasCerdos : null,
         latitud: form.latitud ? Number(form.latitud) : null,
         longitud: form.longitud ? Number(form.longitud) : null,
         area_valor: areaNum,
@@ -284,40 +278,16 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated, onDe
               </>
             )}
           </div>
-          {especie === 'aves_ponedoras' && (
+          {/* Los lugares fijos de la finca: galpones de aves o corrales de cerdos */}
+          {especie && LUGAR[especie] && (
             <div className="space-y-1.5">
-              <Label>Galpones de la finca</Label>
+              <Label>{LUGAR[especie]!.plural.charAt(0).toUpperCase() + LUGAR[especie]!.plural.slice(1)} de la finca</Label>
               <p className="text-xs text-gray-500">
-                Los lugares fijos donde entran las aves. Agrega uno cuando se construya, o corrige su nombre o su medida.
+                {especie === 'cerdos'
+                  ? 'Los corrales son lugares fijos: cada uno con su medida y para qué es (cría o precebo). Agrega uno cuando se construya, o corrige sus datos.'
+                  : 'Los lugares fijos donde entran las aves. Agrega uno cuando se construya, o corrige su nombre o su medida.'}
               </p>
-              <GalponesFinca fincaId={finca.id} onCambio={onUpdated} />
-            </div>
-          )}
-          {especie === 'cerdos' && (
-            <div className="space-y-1.5">
-              <Label>Etapas de cerdos que maneja la finca *</Label>
-              <p className="text-xs text-gray-500">
-                No todas las granjas hacen el ciclo completo. Marca las suyas y el módulo de
-                cerdos solo mostrará esas.
-              </p>
-              <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
-                {ETAPAS_CERDOS.map(etapa => {
-                  const marcada = etapasCerdos.includes(etapa.value)
-                  return (
-                    <button
-                      key={etapa.value}
-                      type="button"
-                      onClick={() => setEtapasCerdos(prev => marcada ? prev.filter(e => e !== etapa.value) : [...prev, etapa.value])}
-                      className={`rounded-lg border px-2 py-2.5 text-xs font-medium transition-colors ${
-                        marcada ? 'border-green-600 bg-green-50 text-green-800' : 'border-gray-200 text-gray-500 hover:border-gray-300'
-                      }`}
-                    >
-                      {etapa.label}
-                      <span className="mt-0.5 block text-[10px] font-normal text-gray-400">{etapa.detalle}</span>
-                    </button>
-                  )
-                })}
-              </div>
+              <GalponesFinca fincaId={finca.id} especie={especie} onCambio={onUpdated} />
             </div>
           )}
           <div className="border border-red-200 bg-red-50 rounded-lg p-3 space-y-2">

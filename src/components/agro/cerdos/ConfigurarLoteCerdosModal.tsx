@@ -59,6 +59,8 @@ export default function ConfigurarLoteCerdosModal({ open, onClose, lote, onUpdat
   }
 
   const esCria = lote.sistema === 'cria'
+  // El corral es un lugar fijo de la finca: su nombre y medida se cambian en Datos de la finca
+  const conCorral = lote.instalacion_id != null
 
   const densidad = form.area_corral_m2 && Number(form.area_corral_m2) > 0
     ? (lote.animales_actuales / Number(form.area_corral_m2)).toFixed(2)
@@ -83,8 +85,10 @@ export default function ConfigurarLoteCerdosModal({ open, onClose, lote, onUpdat
       .from('lotes_cerdos')
       .update({
         nombre: form.nombre.trim(),
-        corral: form.corral || null,
-        area_corral_m2: form.area_corral_m2 ? Number(form.area_corral_m2) : null,
+        ...(conCorral ? {} : {
+          corral: form.corral || null,
+          area_corral_m2: form.area_corral_m2 ? Number(form.area_corral_m2) : null,
+        }),
         fecha_nacimiento: form.fecha_nacimiento || null,
         peso_objetivo_kg: form.peso_objetivo_kg ? Number(form.peso_objetivo_kg) : null,
         fecha_salida_estimada: form.fecha_salida_estimada || null,
@@ -122,11 +126,12 @@ export default function ConfigurarLoteCerdosModal({ open, onClose, lote, onUpdat
             </div>
             <div className="space-y-1">
               <Label>Corral / Instalación</Label>
-              <Input placeholder="Ej: Corral A-3" value={form.corral} onChange={e => set('corral', e.target.value)} />
+              <Input placeholder="Ej: Corral A-3" value={form.corral} disabled={conCorral} onChange={e => set('corral', e.target.value)} />
+              {conCorral && <p className="text-xs text-gray-400">Se cambia en Datos de la finca</p>}
             </div>
             <div className="space-y-1">
               <Label>Área del corral (m²)</Label>
-              <Input type="number" min="0" step="0.1" placeholder="Ej: 120" value={form.area_corral_m2} onChange={e => set('area_corral_m2', e.target.value)} />
+              <Input type="number" min="0" step="0.1" placeholder="Ej: 120" value={form.area_corral_m2} disabled={conCorral} onChange={e => set('area_corral_m2', e.target.value)} />
             </div>
             <div className="space-y-1">
               <Label>Densidad estimada</Label>
@@ -173,9 +178,9 @@ export default function ConfigurarLoteCerdosModal({ open, onClose, lote, onUpdat
           <div className="border border-red-200 bg-red-50 rounded-lg p-3 space-y-2">
             <p className="text-sm font-semibold text-red-800"><Ic n="alerta" /> Zona de peligro</p>
             <p className="text-xs text-red-600">
-              Eliminar este lote borra permanentemente todo su historial: pesajes, mortalidad,
-              nutrición, sanidad, costos, ventas y equipos{esCria ? ', además de las hembras, servicios, partos y destetes' : ''}.
-              Esta acción no se puede deshacer.
+              Eliminar este lote borra permanentemente todo su historial: diario, alimento, costos y
+              ventas{esCria ? ', además de las naves, hembras, servicios, partos y destetes' : ''}.
+              {conCorral && ' El corral sigue en la finca, vacío.'} Esta acción no se puede deshacer.
             </p>
             <div className="flex items-center gap-2">
               <Input

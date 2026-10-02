@@ -78,7 +78,8 @@ function SelectContent({
         align={align}
         alignOffset={alignOffset}
         alignItemWithTrigger={alignItemWithTrigger}
-        className="isolate z-50"
+        // Por encima de los diálogos (z-50): una lista abierta dentro de uno no puede quedar detrás
+        className="isolate z-[60]"
       >
         <SelectPrimitive.Popup
           data-slot="select-content"

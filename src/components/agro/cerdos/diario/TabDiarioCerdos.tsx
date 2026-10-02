@@ -21,13 +21,15 @@ type Mortalidad = Database['public']['Tables']['mortalidad_cerdos']['Row']
 interface Props {
   loteActual: LoteCerdos
   onLoteUpdated: () => void
+  /** Lleva a la pestaña Alimento del corral, donde se registra el consumo */
+  onIrAlimento?: () => void
 }
 
 /**
  * El día a día del lote en un solo lugar: lo que hay que anotar cada jornada
  * (alimento, agua y mortalidad) y el historial de lo anotado.
  */
-export default function TabDiarioCerdos({ loteActual, onLoteUpdated }: Props) {
+export default function TabDiarioCerdos({ loteActual, onLoteUpdated, onIrAlimento }: Props) {
   const supabase = createClient()
   const [registros, setRegistros] = useState<NutricionDiaria[]>([])
   const [mortalidad, setMortalidad] = useState<Mortalidad[]>([])
@@ -64,7 +66,8 @@ export default function TabDiarioCerdos({ loteActual, onLoteUpdated }: Props) {
 
   const hoyStr = hoyLocal()
   const registroHoy = registros.find(r => r.fecha === hoyStr)
-  const sinAlimento = loteActual.alimento_activo_id == null
+  // Como en las aves: sin consumo registrado no se lleva el día (no habría con qué descontar el alimento)
+  const sinAlimento = !(Number(loteActual.consumo_activo_kg ?? 0) > 0) || loteActual.alimento_activo_id == null
 
   // Mortalidad indexada por fecha, para verla junto al día que le corresponde
   const mortPorFecha = new Map<string, Mortalidad[]>()
@@ -95,8 +98,10 @@ export default function TabDiarioCerdos({ loteActual, onLoteUpdated }: Props) {
 
       {sinAlimento && (
         <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg text-sm text-amber-800">
-          <Ic n="alerta" /> Este lote no tiene alimento asignado. Regístralo en la pestaña Nutrición para poder
-          llevar el diario.
+          <Ic n="alerta" /> Falta registrar el consumo de alimento del corral. Sin él no se puede llevar el diario.
+          {onIrAlimento && (
+            <button type="button" onClick={onIrAlimento} className="ml-2 font-medium underline">Ir a Alimento</button>
+          )}
         </div>
       )}
 

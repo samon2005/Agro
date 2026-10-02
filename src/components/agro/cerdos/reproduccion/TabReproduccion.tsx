@@ -3,7 +3,7 @@
 import { Indicador } from '@/components/ui/indicador'
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -17,7 +17,7 @@ import RegistrarDesteteModal from './RegistrarDesteteModal'
 import FichaCerdaModal from './FichaCerdaModal'
 import type { Database } from '@/types/database'
 import {
-  ESTADOS_REPRODUCTORA, ESTADOS_LECHON, DIAS_GESTACION, DIAS_LACTANCIA_MIN, DIAS_LACTANCIA_MAX,
+  ESTADOS_REPRODUCTORA, DIAS_GESTACION, DIAS_LACTANCIA_MIN, DIAS_LACTANCIA_MAX,
   diaDeGestacion, diasDesde, edadTexto, fechaRepeticionCelo,
 } from '@/lib/cerdos'
 import { hoyLocal } from '@/lib/fechas'
@@ -33,14 +33,24 @@ type Aplicacion = Database['public']['Tables']['inseminaciones_cerdos']['Row']
 
 type Lechon = Database['public']['Tables']['lechones_cerdos']['Row']
 
-type SubTab = 'hembras' | 'servicios' | 'partos' | 'destetes' | 'lechones'
+type SubTab = 'hembras' | 'servicios' | 'partos' | 'lechones' | 'destetes'
+type Nave = Database['public']['Tables']['naves_cerdos']['Row']
 
 interface Props {
   loteActual: LoteCerdos
   onLoteUpdated: () => void
+  /** La nave que se está viendo: solo sus cerdas y lo de ellas */
+  nave: Nave
+  /** Todas las naves del corral, para pasar una cerda de una a otra */
+  naves: Nave[]
 }
 
-export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
+/**
+ * Las cerdas de una nave y su ciclo: hembras, servicios, partos, lechones y
+ * destetes. Lo que ya terminó (camadas destetadas y sus lechones) sale de aquí y
+ * queda en el Historial.
+ */
+export default function TabReproduccion({ loteActual, onLoteUpdated, nave, naves }: Props) {
   const supabase = createClient()
   const [subTab, setSubTab] = useState<SubTab>('hembras')
   const [hembras, setHembras] = useState<Reproductora[]>([])
@@ -55,13 +65,11 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
   const [servicioEditar, setServicioEditar] = useState<Servicio | null>(null)
   const [modalParto, setModalParto] = useState(false)
   const [partoEditar, setPartoEditar] = useState<Parto | null>(null)
-  const [desteteEditar, setDesteteEditar] = useState<Destete | null>(null)
   const [confirmandoPrenez, setConfirmandoPrenez] = useState<string | null>(null)
   const [lechones, setLechones] = useState<Lechon[]>([])
   const [fichaCerda, setFichaCerda] = useState<Reproductora | null>(null)
   // Un plantel grande no se lee como lista: primero los grupos, y al abrir uno su detalle
   const [grupoHembras, setGrupoHembras] = useState<string | null>(null)
-  const [grupoLechones, setGrupoLechones] = useState<string | null>(null)
   const [servicioParaParto, setServicioParaParto] = useState<Servicio | null>(null)
   const [modalDestete, setModalDestete] = useState(false)
   const [partoParaDestete, setPartoParaDestete] = useState<Parto | null>(null)
@@ -70,25 +78,28 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
   const fetchAll = useCallback(async () => {
     setLoading(true)
     const [h, s, p, d] = await Promise.all([
-      supabase.from('reproductoras_cerdos').select('*').eq('lote_id', loteActual.id).order('codigo'),
+      supabase.from('reproductoras_cerdos').select('*').eq('lote_id', loteActual.id).eq('nave_id', nave.id).order('codigo'),
       supabase.from('servicios_cerdos').select('*').eq('lote_id', loteActual.id).order('fecha_servicio', { ascending: false }),
       supabase.from('partos_cerdos').select('*').eq('lote_id', loteActual.id).order('fecha_parto', { ascending: false }),
       supabase.from('destetes_cerdos').select('*').eq('lote_id', loteActual.id).order('fecha_destete', { ascending: false }),
     ])
+    // Lo de la nave: los registros de sus cerdas
+    const deLaNave = new Set((h.data ?? []).map(x => x.id))
+    const serviciosNave = (s.data ?? []).filter(x => deLaNave.has(x.reproductora_id))
     // Las aplicaciones de cada servicio: van aparte porque son varias por servicio
-    const ids = (s.data ?? []).map(x => x.id)
+    const ids = serviciosNave.map(x => x.id)
     const ap = ids.length > 0
       ? await supabase.from('inseminaciones_cerdos').select('*').in('servicio_id', ids).order('fecha')
       : { data: [] }
     setAplicaciones(ap.data ?? [])
     const lech = await supabase.from('lechones_cerdos').select('*').eq('lote_id', loteActual.id).order('codigo')
-    setLechones(lech.data ?? [])
+    setLechones((lech.data ?? []).filter(x => x.madre_id && deLaNave.has(x.madre_id)))
     setHembras(h.data ?? [])
-    setServicios(s.data ?? [])
-    setPartos(p.data ?? [])
-    setDestetes(d.data ?? [])
+    setServicios(serviciosNave)
+    setPartos((p.data ?? []).filter(x => deLaNave.has(x.reproductora_id)))
+    setDestetes((d.data ?? []).filter(x => deLaNave.has(x.reproductora_id)))
     setLoading(false)
-  }, [loteActual.id, supabase])
+  }, [loteActual.id, nave.id, supabase])
 
   useEffect(() => { fetchAll() }, [fetchAll])
 
@@ -137,8 +148,8 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
     .map(s => s.fecha_probable_parto!)
     .sort()[0] ?? null
 
-  // Lechones que siguen en la finca: los vendidos y los muertos ya no cuentan
-  const lechonesEnPie = lechones.filter(l => l.estado !== 'vendido' && l.estado !== 'muerto')
+  // Lechones que siguen con la madre: al destetarse pasan al Historial
+  const lechonesLactantes = lechones.filter(l => l.estado === 'lactante')
 
   // Las hembras por estado: es como las mira el encargado del plantel
   const gruposHembras = [
@@ -155,21 +166,6 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
     : grupoHembras === '__todas__'
       ? hembras
       : hembras.filter(h => h.estado === grupoHembras)
-
-  const gruposLechones = [
-    { id: 'lactante', label: 'Lactantes' },
-    { id: 'destetado', label: 'Destetados' },
-    { id: 'precebo', label: 'En precebo' },
-    { id: 'levante', label: 'En levante' },
-    { id: 'ceba', label: 'En ceba' },
-    { id: 'vendido', label: 'Vendidos' },
-    { id: 'muerto', label: 'Muertos' },
-  ].map(g => ({ ...g, total: lechones.filter(l => l.estado === g.id).length }))
-    .filter(g => g.total > 0)
-
-  const lechonesVisibles = grupoLechones === null || grupoLechones === '__todos__'
-    ? lechones
-    : lechones.filter(l => l.estado === grupoLechones)
 
   const destetesListos = camadasLactando.filter(p => {
     const d = diasDesde(p.fecha_parto)
@@ -208,17 +204,17 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
    * parto, la cerda vuelve a estar preñada y su servicio a estar confirmado; si se
    * borra el destete, la cerda vuelve a lactante.
    */
-  async function eliminar(tabla: 'reproductoras_cerdos' | 'servicios_cerdos' | 'partos_cerdos' | 'destetes_cerdos', id: string) {
+  async function eliminar(tabla: 'reproductoras_cerdos' | 'servicios_cerdos' | 'partos_cerdos', id: string) {
     const key = `${tabla}-${id}`
     if (confirmandoEliminar !== key) { setConfirmandoEliminar(key); return }
     setConfirmandoEliminar(null)
 
     const parto = tabla === 'partos_cerdos' ? partos.find(p => p.id === id) ?? null : null
-    const destete = tabla === 'destetes_cerdos' ? destetes.find(d => d.id === id) ?? null : null
 
-    // Un parto borrado se lleva su destete: esa camada ya no existe
-    if (parto) {
-      await supabase.from('destetes_cerdos').delete().eq('parto_id', parto.id)
+    // Una camada destetada ya salió: primero se anula su destete en el Historial
+    if (parto && partosConDestete.has(parto.id)) {
+      toast.error('Esta camada ya se destetó: anula el destete en el Historial antes de borrar el parto')
+      return
     }
 
     const { error } = await supabase.from(tabla).delete().eq('id', id)
@@ -236,9 +232,6 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
           .eq('id', parto.servicio_id)
       }
       toast.success(`Parto eliminado · ${hembra?.codigo ?? 'la hembra'} vuelve a figurar preñada`)
-    } else if (destete) {
-      await supabase.from('reproductoras_cerdos').update({ estado: 'lactante' }).eq('id', destete.reproductora_id)
-      toast.success(`Destete eliminado · ${hembraPorId.get(destete.reproductora_id)?.codigo ?? 'la hembra'} vuelve a lactante`)
     } else {
       toast.success('Registro eliminado')
     }
@@ -249,15 +242,15 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
     { id: 'hembras', label: 'Hembras', count: activas.length },
     { id: 'servicios', label: 'Servicios', count: servicios.length },
     { id: 'partos', label: 'Partos', count: partos.length },
-    { id: 'destetes', label: 'Destetes', count: destetes.length },
-    { id: 'lechones', label: 'Lechones', count: lechonesEnPie.length },
+    { id: 'lechones', label: 'Lechones', count: lechonesLactantes.length },
+    { id: 'destetes', label: 'Destetes', count: camadasLactando.length },
   ]
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h2 className="text-lg font-semibold text-gray-800">Reproducción</h2>
+          <h2 className="text-lg font-semibold text-gray-800">{nave.nombre}</h2>
           <p className="text-xs text-gray-400">
             Gestación de {DIAS_GESTACION} días · destete entre los 21 y los {DIAS_LACTANCIA_MAX} días · la cerda repite celo a los 21 días si no prendió
           </p>
@@ -288,8 +281,8 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
           )}
           {subTab === 'destetes' && (
             <Button
-              onClick={() => { setPartoParaDestete(null); setDesteteEditar(null); setModalDestete(true) }}
-              disabled={partos.length === 0}
+              onClick={() => { setPartoParaDestete(null); setModalDestete(true) }}
+              disabled={camadasLactando.length === 0}
               className="bg-pink-600 hover:bg-pink-700 text-white text-sm"
             >
               + Registrar destete
@@ -577,45 +570,9 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
               </div>
             )
           ) : subTab === 'lechones' ? (
-            lechones.length === 0 ? (
-              <Vacio emoji="" texto="Todavía no hay lechones identificados" accion={() => setSubTab('partos')} etiqueta="Ver partos" />
+            lechonesLactantes.length === 0 ? (
+              <Vacio emoji="" texto="No hay lechones con sus madres en esta nave" accion={() => setSubTab('partos')} etiqueta="Ver partos" />
             ) : (
-              <>
-              <div className="flex flex-wrap items-center gap-2 border-b border-gray-100 p-3">
-                <button
-                  type="button"
-                  onClick={() => setGrupoLechones('__todos__')}
-                  className={`rounded-xl px-3 py-2 text-left text-xs ring-1 transition-colors ${
-                    grupoLechones === '__todos__' || grupoLechones === null
-                      ? 'bg-gray-900 text-white ring-gray-900'
-                      : 'bg-white text-gray-600 ring-gray-200 hover:ring-gray-300'
-                  }`}
-                >
-                  <span className="block text-base font-semibold leading-none">{lechones.length}</span>
-                  <span className="text-[0.6875rem]">Todos</span>
-                </button>
-                {gruposLechones.map(g => {
-                  const e = ESTADOS_LECHON[g.id] ?? { label: g.label, clase: 'bg-gray-100 text-gray-600' }
-                  return (
-                    <button
-                      key={g.id}
-                      type="button"
-                      onClick={() => setGrupoLechones(grupoLechones === g.id ? '__todos__' : g.id)}
-                      className={`rounded-xl px-3 py-2 text-left text-xs ring-1 ring-transparent transition-colors ${e.clase} ${
-                        grupoLechones === g.id ? 'ring-2 ring-gray-400' : 'hover:ring-2 hover:ring-gray-300'
-                      }`}
-                    >
-                      <span className="block text-base font-semibold leading-none">{g.total}</span>
-                      <span className="text-[0.6875rem]">{g.label}</span>
-                    </button>
-                  )
-                })}
-                {grupoLechones && grupoLechones !== '__todos__' && (
-                  <span className="text-xs text-gray-500">
-                    Mostrando {lechonesVisibles.length} de {lechones.length}
-                  </span>
-                )}
-              </div>
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
@@ -623,36 +580,27 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
                       <TableHead>Código</TableHead>
                       <TableHead>Madre</TableHead>
                       <TableHead>Nació</TableHead>
+                      <TableHead className="text-right">Días</TableHead>
                       <TableHead className="text-right">Peso al nacer</TableHead>
-                      <TableHead className="text-right">Peso al destete</TableHead>
-                      <TableHead>Estado</TableHead>
+                      <TableHead>Sexo</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {lechonesVisibles.map(l => {
-                      const estadoLechon = ESTADOS_LECHON[l.estado] ?? { label: l.estado, clase: 'bg-gray-100 text-gray-600' }
-                      return (
-                        <TableRow key={l.id}>
-                          <TableCell className="py-2 text-sm font-medium">{l.codigo}</TableCell>
-                          <TableCell className="py-2 text-sm text-gray-600">{hembraPorId.get(l.madre_id ?? '')?.codigo ?? '—'}</TableCell>
-                          <TableCell className="py-2 text-sm text-gray-600">{l.fecha_nacimiento ? fmt(l.fecha_nacimiento) : '—'}</TableCell>
-                          <TableCell className="py-2 text-right text-sm">
-                            {l.peso_nacimiento_kg != null ? `${Number(l.peso_nacimiento_kg).toFixed(2)} kg` : '—'}
-                          </TableCell>
-                          <TableCell className="py-2 text-right text-sm">
-                            {l.peso_destete_kg != null ? `${Number(l.peso_destete_kg).toFixed(2)} kg` : '—'}
-                          </TableCell>
-                          <TableCell className="py-2">
-                            <Badge className={`text-[10px] ${estadoLechon.clase}`}>{estadoLechon.label}</Badge>
-                            {l.causa_salida && <span className="block text-[0.6875rem] text-gray-400">{l.causa_salida}</span>}
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })}
+                    {lechonesLactantes.map(l => (
+                      <TableRow key={l.id}>
+                        <TableCell className="py-2 text-sm font-medium">{l.codigo}</TableCell>
+                        <TableCell className="py-2 text-sm text-gray-600">{hembraPorId.get(l.madre_id ?? '')?.codigo ?? '—'}</TableCell>
+                        <TableCell className="py-2 text-sm text-gray-600">{l.fecha_nacimiento ? fmt(l.fecha_nacimiento) : '—'}</TableCell>
+                        <TableCell className="py-2 text-right text-sm">{l.fecha_nacimiento ? diasDesde(l.fecha_nacimiento) : '—'}</TableCell>
+                        <TableCell className="py-2 text-right text-sm">
+                          {l.peso_nacimiento_kg != null ? `${Number(l.peso_nacimiento_kg).toFixed(2)} kg` : '—'}
+                        </TableCell>
+                        <TableCell className="py-2 text-sm text-gray-600">{l.sexo ?? '—'}</TableCell>
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
               </div>
-              </>
             )
           ) : subTab === 'partos' ? (
             partos.length === 0 ? (
@@ -708,7 +656,7 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
                               {!destetado && (
                                 <Button
                                   size="sm" variant="outline" className="h-7 text-xs"
-                                  onClick={() => { setPartoParaDestete(p); setDesteteEditar(null); setModalDestete(true) }}
+                                  onClick={() => { setPartoParaDestete(p); setModalDestete(true) }}
                                 >
                                   + Destete
                                 </Button>
@@ -719,13 +667,15 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
                               >
                                 <Ic n="editar" />
                               </Button>
-                              <Button
-                                size="sm" variant="ghost"
-                                className={confirmandoEliminar === `partos_cerdos-${p.id}` ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
-                                onClick={() => eliminar('partos_cerdos', p.id)}
-                              >
-                                {confirmandoEliminar === `partos_cerdos-${p.id}` ? '¿Confirmar?' : <Ic n="borrar" />}
-                              </Button>
+                              {!destetado && (
+                                <Button
+                                  size="sm" variant="ghost"
+                                  className={confirmandoEliminar === `partos_cerdos-${p.id}` ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
+                                  onClick={() => eliminar('partos_cerdos', p.id)}
+                                >
+                                  {confirmandoEliminar === `partos_cerdos-${p.id}` ? '¿Confirmar?' : <Ic n="borrar" />}
+                                </Button>
+                              )}
                             </div>
                           </TableCell>
                         </TableRow>
@@ -736,50 +686,44 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
               </div>
             )
           ) : (
-            destetes.length === 0 ? (
-              <Vacio emoji="" texto="Sin destetes registrados" accion={() => { setPartoParaDestete(null); setDesteteEditar(null); setModalDestete(true) }} etiqueta="+ Registrar destete" />
+            camadasLactando.length === 0 ? (
+              <div className="py-10 text-center">
+                <p className="font-medium text-gray-600">No hay camadas por destetar</p>
+                <p className="mt-1 text-xs text-gray-400">Las camadas destetadas, con sus lechones y su destino, quedan en el Historial.</p>
+              </div>
             ) : (
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Fecha</TableHead>
-                      <TableHead>Hembra</TableHead>
-                      <TableHead className="text-right">Destetados</TableHead>
-                      <TableHead className="text-right">Peso prom.</TableHead>
-                      <TableHead>Días de lactancia</TableHead>
+                      <TableHead>Madre</TableHead>
+                      <TableHead>Parto</TableHead>
+                      <TableHead className="text-right">Lechones</TableHead>
+                      <TableHead>Lactancia</TableHead>
                       <TableHead></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {destetes.map(d => {
-                      const h = hembraPorId.get(d.reproductora_id)
-                      const parto = partos.find(p => p.id === d.parto_id)
+                    {camadasLactando.map(p => {
+                      const dias = diasDesde(p.fecha_parto)
+                      const vivos = lechonesLactantes.filter(l => l.parto_id === p.id).length
                       return (
-                        <TableRow key={d.id}>
-                          <TableCell className="text-sm">{fmt(d.fecha_destete)}</TableCell>
-                          <TableCell className="text-sm font-medium">{h?.codigo ?? '—'}</TableCell>
-                          <TableCell className="text-right text-sm font-semibold">{d.lechones_destetados}</TableCell>
-                          <TableCell className="text-right text-sm">{d.peso_promedio_kg != null ? `${Number(d.peso_promedio_kg).toFixed(2)} kg` : '—'}</TableCell>
-                          <TableCell className="text-sm text-gray-500">
-                            {parto ? `${diasDesde(parto.fecha_parto, d.fecha_destete)} días` : '—'}
+                        <TableRow key={p.id}>
+                          <TableCell className="text-sm font-medium">{hembraPorId.get(p.reproductora_id)?.codigo ?? '—'}</TableCell>
+                          <TableCell className="text-sm">{fmt(p.fecha_parto)}</TableCell>
+                          <TableCell className="text-right text-sm">{vivos > 0 ? vivos : p.nacidos_vivos}</TableCell>
+                          <TableCell className="text-xs">
+                            {dias > DIAS_LACTANCIA_MAX
+                              ? <span className="font-medium text-red-700">Día {dias} · destete atrasado</span>
+                              : dias >= DIAS_LACTANCIA_MIN
+                                ? <span className="font-medium text-green-700">Día {dias} · lista para destetar</span>
+                                : <span className="text-gray-500">Día {dias} de {DIAS_LACTANCIA_MIN}</span>}
                           </TableCell>
-                          <TableCell>
-                            <div className="flex items-center justify-end gap-1">
-                              <Button
-                                size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500"
-                                onClick={() => { setDesteteEditar(d); setPartoParaDestete(parto ?? null); setModalDestete(true) }}
-                              >
-                                <Ic n="editar" />
-                              </Button>
-                              <Button
-                                size="sm" variant="ghost"
-                                className={confirmandoEliminar === `destetes_cerdos-${d.id}` ? 'h-7 px-2 text-xs text-white bg-red-600 hover:bg-red-700' : 'h-7 px-2 text-xs text-red-600'}
-                                onClick={() => eliminar('destetes_cerdos', d.id)}
-                              >
-                                {confirmandoEliminar === `destetes_cerdos-${d.id}` ? '¿Confirmar?' : <Ic n="borrar" />}
-                              </Button>
-                            </div>
+                          <TableCell className="text-right">
+                            <Button size="sm" className="h-7 bg-pink-600 text-xs text-white hover:bg-pink-700"
+                              onClick={() => { setPartoParaDestete(p); setModalDestete(true) }}>
+                              Destetar
+                            </Button>
                           </TableCell>
                         </TableRow>
                       )
@@ -796,6 +740,8 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
         open={modalHembra}
         onClose={() => { setModalHembra(false); setHembraEditar(null) }}
         lote={loteActual}
+        naveId={nave.id}
+        naves={naves}
         reproductoraExistente={hembraEditar}
         onCreated={() => { fetchAll(); onLoteUpdated() }}
       />
@@ -825,13 +771,12 @@ export default function TabReproduccion({ loteActual, onLoteUpdated }: Props) {
 
       <RegistrarDesteteModal
         open={modalDestete}
-        onClose={() => { setModalDestete(false); setPartoParaDestete(null); setDesteteEditar(null) }}
+        onClose={() => { setModalDestete(false); setPartoParaDestete(null) }}
         lote={loteActual}
         hembras={activas}
         partos={camadasLactando}
         partoPreseleccionado={partoParaDestete}
-        desteteExistente={desteteEditar}
-        onCreated={fetchAll}
+        onCreated={() => { fetchAll(); onLoteUpdated() }}
       />
     </div>
   )

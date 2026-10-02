@@ -12,6 +12,7 @@ import { ESPECIES_FINCA, type EspecieFinca } from '@/lib/especies'
 import { geocodeMunicipio } from '@/lib/clima'
 import { Ic } from '@/components/ui/icon'
 import { cn } from '@/lib/utils'
+import { LUGAR, USOS_CORRAL, llevaLugares } from '@/lib/instalaciones'
 
 const UNIDAD_OTRA = '__otra__'
 
@@ -34,12 +35,13 @@ type Props = {
   onCreated: () => void
 }
 
-interface GalponNuevo { nombre: string; area_m2: string }
+interface GalponNuevo { nombre: string; area_m2: string; uso: string }
 
 /**
  * Registro de la finca en dos pasos: primero la finca y lo que produce (una sola
- * especie), y si son aves ponedoras, sus galpones con su medida. Los galpones
- * son lugares fijos: después solo se registran los animales que entran a cada uno.
+ * especie), y luego sus lugares fijos con su medida: los galpones de las aves o
+ * los corrales de los cerdos (con el tipo de producción de cada corral). Después
+ * solo se registran los animales que entran a cada uno.
  */
 export default function CrearFincaModal({ open, onCreated }: Props) {
   const [loading, setLoading] = useState(false)
@@ -52,7 +54,7 @@ export default function CrearFincaModal({ open, onCreated }: Props) {
   const [areaUnidad, setAreaUnidad] = useState('ha')
   const [unidadOtra, setUnidadOtra] = useState('')
   const [unidadesGuardadas, setUnidadesGuardadas] = useState<string[]>([])
-  const [galpones, setGalpones] = useState<GalponNuevo[]>([{ nombre: 'Galpón 1', area_m2: '' }])
+  const [galpones, setGalpones] = useState<GalponNuevo[]>([{ nombre: '', area_m2: '', uso: '' }])
 
   useEffect(() => {
     if (!open) return
@@ -68,14 +70,16 @@ export default function CrearFincaModal({ open, onCreated }: Props) {
     })
   }, [open])
 
-  const llevaGalpones = especie === 'aves_ponedoras'
+  const llevaGalpones = llevaLugares(especie)
+  const lugar = (especie && LUGAR[especie]) || LUGAR.aves_ponedoras!
+  const esCorral = especie === 'cerdos'
 
   function setGalpon(i: number, campo: keyof GalponNuevo, valor: string) {
     setGalpones(prev => prev.map((g, j) => j === i ? { ...g, [campo]: valor } : g))
   }
 
   function agregarGalpon() {
-    setGalpones(prev => [...prev, { nombre: `Galpón ${prev.length + 1}`, area_m2: '' }])
+    setGalpones(prev => [...prev, { nombre: `${lugar.base} ${prev.length + 1}`, area_m2: '', uso: '' }])
   }
 
   function validarPaso1(): boolean {
@@ -88,20 +92,26 @@ export default function CrearFincaModal({ open, onCreated }: Props) {
   }
 
   function validarGalpones(): boolean {
-    if (galpones.length === 0) { toast.error('Registra al menos un galpón'); return false }
+    if (galpones.length === 0) { toast.error(`Registra al menos un ${lugar.singular}`); return false }
     const nombres = galpones.map(g => g.nombre.trim().toLowerCase())
-    if (nombres.some(n => !n)) { toast.error('Cada galpón necesita su nombre'); return false }
-    if (new Set(nombres).size !== nombres.length) { toast.error('Hay dos galpones con el mismo nombre'); return false }
+    if (nombres.some(n => !n)) { toast.error(`Cada ${lugar.singular} necesita su nombre`); return false }
+    if (new Set(nombres).size !== nombres.length) { toast.error(`Hay dos ${lugar.plural} con el mismo nombre`); return false }
     if (galpones.some(g => !g.area_m2 || Number(g.area_m2) <= 0)) {
-      toast.error('Escribe la medida de cada galpón en m²'); return false
+      toast.error(`Escribe la medida de cada ${lugar.singular} en m²`); return false
     }
+    if (esCorral && galpones.some(g => !g.uso)) { toast.error('Elige para qué es cada corral (cría o precebo)'); return false }
     return true
   }
 
   function siguiente(e: React.FormEvent) {
     e.preventDefault()
     if (!validarPaso1()) return
-    if (llevaGalpones) { setPaso(2); return }
+    if (llevaGalpones) {
+      // Los nombres de ejemplo siguen a la especie elegida: "Galpón 1" o "Corral 1"
+      setGalpones(prev => prev.map((g, i) => ({ ...g, nombre: g.nombre.trim() ? g.nombre : `${lugar.base} ${i + 1}` })))
+      setPaso(2)
+      return
+    }
     guardar()
   }
 
@@ -142,16 +152,17 @@ export default function CrearFincaModal({ open, onCreated }: Props) {
       const { error: errGalpones } = await supabase.from('instalaciones').insert(
         galpones.map(g => ({
           finca_id: fincaId,
-          especie: 'aves_ponedoras',
-          tipo: 'galpon',
+          especie: especie!,
+          tipo: lugar.tipo,
           nombre: g.nombre.trim(),
           area_m2: Number(g.area_m2),
+          uso: esCorral ? g.uso : null,
           registrado_por: user.id,
         })),
       )
       if (errGalpones) {
-        // La finca ya quedó: los galpones se pueden agregar después desde su configuración
-        toast.warning('La finca se creó, pero los galpones no se guardaron. Agrégalos en la configuración de la finca.')
+        // La finca ya quedó: los lugares se pueden agregar después desde su configuración
+        toast.warning(`La finca se creó, pero los ${lugar.plural} no se guardaron. Agrégalos en Datos de la finca.`)
       }
     }
 
@@ -172,18 +183,18 @@ export default function CrearFincaModal({ open, onCreated }: Props) {
       <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-green-900">
-            <Ic n="hoja" /> {paso === 1 ? 'Registra tu finca' : 'Galpones de la finca'}
+            <Ic n="hoja" /> {paso === 1 ? 'Registra tu finca' : `${lugar.plural.charAt(0).toUpperCase()}${lugar.plural.slice(1)} de la finca`}
           </DialogTitle>
           <p className="text-sm text-gray-500">
             {paso === 1
               ? 'Primero la finca y lo que produce.'
-              : 'Los galpones son los lugares fijos de la finca. Después solo registrarás las aves que entran a cada uno.'}
+              : `Los ${lugar.plural} son los lugares fijos de la finca. Después solo registrarás los ${lugar.animales} que entran a cada uno.`}
           </p>
           {llevaGalpones && (
             <div className="flex items-center gap-2 pt-1 text-xs">
               <span className={cn('rounded-full px-2 py-0.5', paso === 1 ? 'bg-green-700 text-white' : 'bg-green-100 text-green-800')}>1. Finca</span>
               <span className="text-gray-300">→</span>
-              <span className={cn('rounded-full px-2 py-0.5', paso === 2 ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-500')}>2. Galpones</span>
+              <span className={cn('rounded-full px-2 py-0.5', paso === 2 ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-500')}>2. <span className="capitalize">{lugar.plural}</span></span>
             </div>
           )}
         </DialogHeader>
@@ -265,21 +276,32 @@ export default function CrearFincaModal({ open, onCreated }: Props) {
               </div>
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Creando...' : llevaGalpones ? 'Siguiente: galpones' : 'Crear finca'}
+              {loading ? 'Creando...' : llevaGalpones ? `Siguiente: ${lugar.plural}` : 'Crear finca'}
             </Button>
           </form>
         ) : (
           <div className="mt-2 space-y-4">
             <div className="space-y-2">
-              <div className="grid grid-cols-[1fr_8rem_2rem] gap-2 px-1 text-xs font-medium text-gray-500">
-                <span>Nombre del galpón</span>
+              <div className={cn('grid gap-2 px-1 text-xs font-medium text-gray-500', esCorral ? 'grid-cols-[1fr_6.5rem_7.5rem_2rem]' : 'grid-cols-[1fr_8rem_2rem]')}>
+                <span>Nombre del {lugar.singular}</span>
                 <span>Medida (m²)</span>
+                {esCorral && <span>Para qué es</span>}
                 <span />
               </div>
               {galpones.map((g, i) => (
-                <div key={i} className="grid grid-cols-[1fr_8rem_2rem] items-center gap-2">
-                  <Input placeholder="Ej: Galpón A" value={g.nombre} onChange={e => setGalpon(i, 'nombre', e.target.value)} />
-                  <Input type="number" min="0" step="0.1" placeholder="Ej: 500" value={g.area_m2} onChange={e => setGalpon(i, 'area_m2', e.target.value)} />
+                <div key={i} className={cn('grid items-center gap-2', esCorral ? 'grid-cols-[1fr_6.5rem_7.5rem_2rem]' : 'grid-cols-[1fr_8rem_2rem]')}>
+                  <Input placeholder={`Ej: ${lugar.base} A`} value={g.nombre} onChange={e => setGalpon(i, 'nombre', e.target.value)} />
+                  <Input type="number" min="0" step="0.1" placeholder={esCorral ? 'Ej: 60' : 'Ej: 500'} value={g.area_m2} onChange={e => setGalpon(i, 'area_m2', e.target.value)} />
+                  {esCorral && (
+                    <Select
+                      value={g.uso}
+                      onValueChange={v => setGalpon(i, 'uso', v ?? '')}
+                      items={Object.fromEntries(USOS_CORRAL.map(u => [u.value, u.label]))}
+                    >
+                      <SelectTrigger className="w-full"><SelectValue placeholder="Elegir..." /></SelectTrigger>
+                      <SelectContent alignItemWithTrigger={false}>{USOS_CORRAL.map(u => <SelectItem key={u.value} value={u.value}>{u.label}</SelectItem>)}</SelectContent>
+                    </Select>
+                  )}
                   {galpones.length > 1 ? (
                     <Button
                       type="button" variant="ghost" size="sm" className="h-9 w-8 p-0 text-red-600"
@@ -291,9 +313,14 @@ export default function CrearFincaModal({ open, onCreated }: Props) {
                 </div>
               ))}
               <Button type="button" variant="outline" size="sm" onClick={agregarGalpon}>
-                <Ic n="mas" /> Agregar galpón
+                <Ic n="mas" /> Agregar {lugar.singular}
               </Button>
             </div>
+            {esCorral && (
+              <p className="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-500">
+                {USOS_CORRAL.map(u => `${u.label}: ${u.detalle.toLowerCase()}`).join(' · ')}.
+              </p>
+            )}
             <div className="flex gap-2">
               <Button type="button" variant="outline" className="flex-1" disabled={loading} onClick={() => setPaso(1)}>
                 Atrás

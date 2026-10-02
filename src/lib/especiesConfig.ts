@@ -93,6 +93,9 @@ const NUTRICION_CERDOS: ConfigNutricion = {
     { value: 'finalizacion', label: 'Finalización (100 kg en adelante)' },
   ],
   categoriasAlimento: [
+    // Las cerdas de cría comen distinto preñadas y lactando
+    { value: 'gestacion', label: 'Gestación' },
+    { value: 'lactancia', label: 'Lactancia' },
     { value: 'preiniciacion', label: 'Preiniciación' },
     { value: 'iniciacion', label: 'Iniciación' },
     { value: 'levante', label: 'Levante' },
