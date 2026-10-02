@@ -8,7 +8,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ESPECIES_FINCA, type EspecieFinca } from '@/lib/especies'
-import { CONFIG_ESPECIES, dbGenerico, totalVentaAnimales, type VentaGenerica } from '@/lib/especiesConfig'
+import { cargarFinanzasFinca } from '@/lib/finanzas'
 
 interface Props {
   fincaId: string
@@ -26,18 +26,6 @@ function cop(n: number) {
   return n.toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })
 }
 
-/** La venta de huevos se cobra por tamaño, no por kg ni por animal. */
-type VentaHuevos = {
-  fecha: string
-  cantidad_b: number; cantidad_a: number; cantidad_aa: number; cantidad_aaa: number; cantidad_jumbo: number
-  precio_b: number | null; precio_a: number | null; precio_aa: number | null; precio_aaa: number | null; precio_jumbo: number | null
-}
-
-function totalVentaHuevos(v: VentaHuevos) {
-  return v.cantidad_b * (v.precio_b ?? 0) + v.cantidad_a * (v.precio_a ?? 0) + v.cantidad_aa * (v.precio_aa ?? 0)
-    + v.cantidad_aaa * (v.precio_aaa ?? 0) + v.cantidad_jumbo * (v.precio_jumbo ?? 0)
-}
-
 export default function ResumenFinanciero({ fincaId, especies }: Props) {
   const [datos, setDatos] = useState<Record<string, ResumenEspecie>>({})
   const [loading, setLoading] = useState(true)
@@ -48,26 +36,16 @@ export default function ResumenFinanciero({ fincaId, especies }: Props) {
   const cargar = useCallback(async () => {
     if (especies.length === 0) { setLoading(false); return }
     setLoading(true)
-    const db = dbGenerico(createClient())
+    // La misma cuenta que Finanzas: el huevo cuenta cuando se paga, y entran
+    // también las ventas de aves, gallinaza y otros, y los gastos de la finca.
+    const { costos, ingresos } = await cargarFinanzasFinca(createClient(), fincaId, especies)
     const resultado: Record<string, ResumenEspecie> = {}
-
-    await Promise.all(especies.map(async especie => {
-      const config = CONFIG_ESPECIES[especie]
-      const [costosRes, ventasRes] = await Promise.all([
-        db.from(config.tablas.costos).select('fecha, monto').eq('finca_id', fincaId),
-        db.from(config.tablas.ventas).select('*').eq('finca_id', fincaId),
-      ])
-
-      const costos: Movimiento[] = (costosRes.data ?? []).map((c: { fecha: string; monto: number }) => ({
-        fecha: c.fecha, monto: Number(c.monto),
-      }))
-
-      const ingresos: Movimiento[] = especie === 'aves_ponedoras'
-        ? (ventasRes.data ?? []).map((v: VentaHuevos) => ({ fecha: v.fecha, monto: totalVentaHuevos(v) }))
-        : (ventasRes.data ?? []).map((v: VentaGenerica) => ({ fecha: v.fecha, monto: totalVentaAnimales(v) }))
-
-      resultado[especie] = { ingresos, costos }
-    }))
+    for (const especie of especies) {
+      resultado[especie] = {
+        ingresos: ingresos.filter(i => i.especie === especie).map(i => ({ fecha: i.fecha, monto: i.monto })),
+        costos: costos.filter(c => c.especie === especie).map(c => ({ fecha: c.fecha, monto: Number(c.monto) })),
+      }
+    }
 
     setDatos(resultado)
     setLoading(false)

@@ -1,47 +1,56 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, type ReactNode } from 'react'
+import Link from 'next/link'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { useFinca } from '@/components/agro/FincaProvider'
 import { useRol } from '@/components/agro/RolProvider'
 import AccesoRestringido from '@/components/agro/AccesoRestringido'
-import RegistrarCostoFincaModal, { type LoteFinanzas } from '@/components/agro/finanzas/RegistrarCostoFincaModal'
+import RegistrarCostoFincaModal from '@/components/agro/finanzas/RegistrarCostoFincaModal'
+import RegistrarVentaAvesModal from '@/components/agro/finanzas/RegistrarVentaAvesModal'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Indicador } from '@/components/ui/indicador'
-import { Ic } from '@/components/ui/icon'
+import { Ic, type NombreIcono } from '@/components/ui/icon'
 import { cn } from '@/lib/utils'
-import { CATEGORIAS_COSTO, categoriaInfo, type CategoriaCosto } from '@/lib/costos'
-import { CONFIG_ESPECIES, dbGenerico, totalVentaAnimales, type CostoGenerico, type VentaGenerica } from '@/lib/especiesConfig'
-import { ESPECIES_FINCA, type EspecieFinca } from '@/lib/especies'
+import { categoriasCosto, categoriaInfo } from '@/lib/costos'
+import { CONFIG_ESPECIES, dbGenerico } from '@/lib/especiesConfig'
+import type { EspecieFinca } from '@/lib/especies'
 import { cop } from '@/lib/huevos'
+import {
+  cargarFinanzasFinca, tiposIngresoDe, TIPOS_INGRESO,
+  type CostoFinca, type Ingreso, type LoteFinanzas, type TipoIngreso, type VentaAvesLote,
+} from '@/lib/finanzas'
 
-type Costo = CostoGenerico & { especie: EspecieFinca }
-/** Dinero que entró: pagos de huevo (aves) y ventas de animales (cerdos, pollo). */
-interface Ingreso { id: string; fecha: string; monto: number; lote_id: string; especie: EspecieFinca; concepto: string }
+type Tab = 'general' | 'costos' | 'ventas'
 
-const CATEGORIAS_TODAS: CategoriaCosto[] = [
-  ...CATEGORIAS_COSTO,
-  { value: 'lechones', label: 'Lechones', emoji: '', color: 'bg-pink-100 text-pink-700' },
-  { value: 'pollitos', label: 'Pollitos', emoji: '', color: 'bg-yellow-100 text-yellow-700' },
+const TABS: { id: Tab; label: string; icon: NombreIcono }[] = [
+  { id: 'general', label: 'General', icon: 'dinero' },
+  { id: 'costos', label: 'Costos', icon: 'recibo' },
+  { id: 'ventas', label: 'Ventas', icon: 'tendencia' },
 ]
+
+const FINCA = 'finca'
 
 function fmt(d: string) {
   return new Date(d + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 function nombreMes(m: string) {
-  return new Date(m + '-01T00:00:00').toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })
+  const texto = new Date(m + '-01T00:00:00').toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })
+  return texto.charAt(0).toUpperCase() + texto.slice(1)
+}
+function pct(parte: number, todo: number) {
+  return todo > 0 ? `${((parte / todo) * 100).toLocaleString('es-CO', { maximumFractionDigits: 1 })} %` : '—'
 }
 
 /**
- * Finanzas de toda la finca: ingresos que ya entraron, costos y utilidad, con filtro
- * por animal y por galpón o corral. Los costos se cargan siempre a un lote.
+ * Finanzas de la finca, como un control de costos: General con la utilidad (mes a
+ * mes y por galpón), Costos con todos los gastos por categoría, y Ventas con lo
+ * que entró por huevo, aves y demás. Año, mes y galpón filtran las tres.
  */
 export default function FinanzasPage() {
   const supabase = createClient()
@@ -49,76 +58,50 @@ export default function FinanzasPage() {
   const rol = useRol()
 
   const [lotes, setLotes] = useState<LoteFinanzas[]>([])
-  const [costos, setCostos] = useState<Costo[]>([])
+  const [costos, setCostos] = useState<CostoFinca[]>([])
   const [ingresos, setIngresos] = useState<Ingreso[]>([])
   const [loading, setLoading] = useState(true)
 
-  const [especieFiltro, setEspecieFiltro] = useState<'todas' | EspecieFinca>('todas')
+  const [tab, setTab] = useState<Tab>('general')
   const [loteFiltro, setLoteFiltro] = useState('todos')
   const [anioFiltro, setAnioFiltro] = useState('todos')
   const [mesFiltro, setMesFiltro] = useState('todos')
-  const [categoriaFiltro, setCategoriaFiltro] = useState('todas')
+  const [categoriaFiltro, setCategoriaFiltro] = useState<string | null>(null)
+  const [tipoVentaFiltro, setTipoVentaFiltro] = useState<TipoIngreso | null>(null)
 
-  const [modalOpen, setModalOpen] = useState(false)
-  const [costoEditar, setCostoEditar] = useState<Costo | null>(null)
+  const [modalCosto, setModalCosto] = useState(false)
+  const [costoEditar, setCostoEditar] = useState<CostoFinca | null>(null)
+  const [modalVenta, setModalVenta] = useState(false)
+  const [ventaEditar, setVentaEditar] = useState<VentaAvesLote | null>(null)
   const [confirmandoEliminar, setConfirmandoEliminar] = useState<string | null>(null)
-  const [categoriaDialog, setCategoriaDialog] = useState<string | null>(null)
 
-  const especiesFinca = ESPECIES_FINCA.filter(e => (fincaActual?.tipo_produccion ?? []).includes(e.value))
-  const especiesKey = especiesFinca.map(e => e.value).join(',')
+  // Una finca es de una sola especie
+  const especie = (fincaActual?.tipo_produccion?.[0] ?? null) as EspecieFinca | null
 
   const fetchTodo = useCallback(async () => {
     if (!fincaActual) return
     setLoading(true)
-    const db = dbGenerico(supabase)
-    const especies = especiesKey ? (especiesKey.split(',') as EspecieFinca[]) : []
-
-    const porEspecie = await Promise.all(especies.map(async especie => {
-      const t = CONFIG_ESPECIES[especie].tablas
-      const [lotesRes, costosRes, ventasRes, pagosRes] = await Promise.all([
-        db.from(t.lotes).select('id, nombre').eq('finca_id', fincaActual.id).order('created_at', { ascending: false }),
-        db.from(t.costos).select('*').eq('finca_id', fincaActual.id).order('fecha', { ascending: false }),
-        db.from(t.ventas).select('*').eq('finca_id', fincaActual.id),
-        especie === 'aves_ponedoras'
-          ? db.from('pagos_ventas_huevos').select('*').eq('finca_id', fincaActual.id)
-          : Promise.resolve({ data: [] }),
-      ])
-      const lotesEsp: LoteFinanzas[] = ((lotesRes.data ?? []) as { id: string; nombre: string }[])
-        .map(l => ({ id: l.id, nombre: l.nombre, especie }))
-      const costosEsp: Costo[] = ((costosRes.data ?? []) as CostoGenerico[]).map(c => ({ ...c, especie }))
-
-      let ingresosEsp: Ingreso[]
-      if (especie === 'aves_ponedoras') {
-        // En huevo solo cuenta lo que ya se pagó, en la fecha en que entró el dinero
-        const loteDeVenta = new Map(((ventasRes.data ?? []) as { id: string; lote_id: string }[]).map(v => [v.id, v.lote_id]))
-        ingresosEsp = ((pagosRes.data ?? []) as { id: string; venta_id: string; fecha: string; monto: number; titular: string }[])
-          .filter(p => loteDeVenta.has(p.venta_id))
-          .map(p => ({ id: p.id, fecha: p.fecha, monto: Number(p.monto), lote_id: loteDeVenta.get(p.venta_id)!, especie, concepto: `Pago de huevo · ${p.titular}` }))
-      } else {
-        ingresosEsp = ((ventasRes.data ?? []) as VentaGenerica[])
-          .map(v => ({ id: v.id, fecha: v.fecha, monto: totalVentaAnimales(v), lote_id: v.lote_id, especie, concepto: `Venta de ${v.cantidad} ${CONFIG_ESPECIES[especie].animalPlural}` }))
-      }
-      return { lotesEsp, costosEsp, ingresosEsp }
-    }))
-
-    setLotes(porEspecie.flatMap(p => p.lotesEsp))
-    setCostos(porEspecie.flatMap(p => p.costosEsp).sort((a, b) => b.fecha.localeCompare(a.fecha)))
-    setIngresos(porEspecie.flatMap(p => p.ingresosEsp))
+    const datos = await cargarFinanzasFinca(supabase, fincaActual.id, especie ? [especie] : [])
+    setLotes(datos.lotes)
+    setCostos(datos.costos)
+    setIngresos(datos.ingresos)
     setLoading(false)
-  }, [fincaActual, especiesKey, supabase])
+  }, [fincaActual, especie, supabase])
 
   useEffect(() => { fetchTodo() }, [fetchTodo])
 
   if (fincaLoading) return <div className="p-8"><Skeleton className="h-64 rounded-xl" /></div>
   if (rol === 'trabajador') return <div className="p-8"><AccesoRestringido /></div>
 
+  const lugar = especie ? CONFIG_ESPECIES[especie].loteLabel : 'galpón'
+  const lugares = lugar === 'corral' ? 'corrales' : 'galpones'
   const nombreLote = new Map(lotes.map(l => [l.id, l.nombre]))
-  const lotesDeEspecie = especieFiltro === 'todas' ? lotes : lotes.filter(l => l.especie === especieFiltro)
+  const nombreDe = (id: string | null) => (id ? nombreLote.get(id) ?? '—' : 'Toda la finca')
 
-  // ── Filtros: animal → galpón → año → mes (la categoría solo aplica a costos) ──
-  function pasaFiltros<T extends { fecha: string; lote_id: string | null; especie: EspecieFinca }>(x: T) {
-    if (especieFiltro !== 'todas' && x.especie !== especieFiltro) return false
-    if (loteFiltro !== 'todos' && x.lote_id !== loteFiltro) return false
+  // ── Filtros comunes: galpón → año → mes ──
+  function pasaFiltros(x: { fecha: string; lote_id: string | null }) {
+    if (loteFiltro === FINCA && x.lote_id !== null) return false
+    if (loteFiltro !== 'todos' && loteFiltro !== FINCA && x.lote_id !== loteFiltro) return false
     if (anioFiltro !== 'todos' && x.fecha.slice(0, 4) !== anioFiltro) return false
     if (mesFiltro !== 'todos' && x.fecha.slice(0, 7) !== mesFiltro) return false
     return true
@@ -131,26 +114,39 @@ export default function FinanzasPage() {
 
   const costosPeriodo = costos.filter(pasaFiltros)
   const ingresosPeriodo = ingresos.filter(pasaFiltros)
-  const mismaCategoria = (c: Costo, cat: string) => c.categoria === cat || categoriaInfo(c.categoria)?.value === cat
-  const costosFiltrados = categoriaFiltro === 'todas' ? costosPeriodo : costosPeriodo.filter(c => mismaCategoria(c, categoriaFiltro))
-
   const totalIngresos = ingresosPeriodo.reduce((s, i) => s + i.monto, 0)
   const totalCostos = costosPeriodo.reduce((s, c) => s + Number(c.monto), 0)
   const utilidad = totalIngresos - totalCostos
-
-  // Categorías que aplican a los animales que se están viendo
-  const criasVisibles = new Set(
-    (especieFiltro === 'todas' ? especiesFinca.map(e => e.value) : [especieFiltro]).map(e => CONFIG_ESPECIES[e].categoriaCria)
-  )
-  const categoriasVisibles = CATEGORIAS_TODAS.filter(c => !['pollitas', 'lechones', 'pollitos'].includes(c.value) || criasVisibles.has(c.value))
-  const totalPorCategoria = categoriasVisibles
-    .filter(c => categoriaFiltro === 'todas' || c.value === categoriaFiltro)
-    .map(cat => ({ ...cat, total: costosPeriodo.filter(c => mismaCategoria(c, cat.value)).reduce((s, c) => s + Number(c.monto), 0) }))
-
-  const loteSeleccionado = loteFiltro !== 'todos' ? loteFiltro : null
   const etiquetaPeriodo = mesFiltro !== 'todos' ? nombreMes(mesFiltro) : anioFiltro !== 'todos' ? anioFiltro : 'Todo el tiempo'
 
-  async function eliminar(c: Costo) {
+  // ── General: mes a mes y por galpón ──
+  const meses = Array.from(new Set([...costosPeriodo, ...ingresosPeriodo].map(x => x.fecha.slice(0, 7)))).sort().reverse()
+  const porMes = meses.map(m => {
+    const ing = ingresosPeriodo.filter(i => i.fecha.startsWith(m)).reduce((s, i) => s + i.monto, 0)
+    const cos = costosPeriodo.filter(c => c.fecha.startsWith(m)).reduce((s, c) => s + Number(c.monto), 0)
+    return { mes: m, ingresos: ing, costos: cos, utilidad: ing - cos }
+  })
+  const clavesLote = Array.from(new Set([...costosPeriodo, ...ingresosPeriodo].map(x => x.lote_id ?? FINCA)))
+  const porLote = clavesLote.map(k => {
+    const id = k === FINCA ? null : k
+    const ing = ingresosPeriodo.filter(i => i.lote_id === id).reduce((s, i) => s + i.monto, 0)
+    const cos = costosPeriodo.filter(c => c.lote_id === id).reduce((s, c) => s + Number(c.monto), 0)
+    return { clave: k, nombre: nombreDe(id), ingresos: ing, costos: cos, utilidad: ing - cos }
+  }).sort((a, b) => (a.clave === FINCA ? 1 : b.clave === FINCA ? -1 : a.nombre.localeCompare(b.nombre, 'es', { numeric: true })))
+
+  // ── Costos por categoría ──
+  const categoriaDe = (c: CostoFinca) => categoriaInfo(c.categoria)?.value ?? c.categoria
+  const categorias = especie ? categoriasCosto(CONFIG_ESPECIES[especie].categoriaCria) : categoriasCosto()
+  const totalPorCategoria = categorias
+    .map(cat => ({ ...cat, total: costosPeriodo.filter(c => categoriaDe(c) === cat.value).reduce((s, c) => s + Number(c.monto), 0) }))
+  const costosTabla = categoriaFiltro ? costosPeriodo.filter(c => categoriaDe(c) === categoriaFiltro) : costosPeriodo
+
+  // ── Ventas por tipo ──
+  const tiposVenta = tiposIngresoDe(especie)
+  const totalPorTipo = tiposVenta.map(t => ({ tipo: t, ...TIPOS_INGRESO[t], total: ingresosPeriodo.filter(i => i.tipo === t).reduce((s, i) => s + i.monto, 0) }))
+  const ventasTabla = tipoVentaFiltro ? ingresosPeriodo.filter(i => i.tipo === tipoVentaFiltro) : ingresosPeriodo
+
+  async function eliminarCosto(c: CostoFinca) {
     if (confirmandoEliminar !== c.id) { setConfirmandoEliminar(c.id); return }
     setConfirmandoEliminar(null)
     const { error } = await dbGenerico(supabase).from(CONFIG_ESPECIES[c.especie].tablas.costos).delete().eq('id', c.id)
@@ -159,265 +155,409 @@ export default function FinanzasPage() {
     toast.success('Costo eliminado')
   }
 
-  const itemsEspecie = { todas: 'Todos los animales', ...Object.fromEntries(especiesFinca.map(e => [e.value, e.labelNav ?? e.label])) }
-  const itemsLote = { todos: 'Todos los galpones', ...Object.fromEntries(lotesDeEspecie.map(l => [l.id, l.nombre])) }
+  async function eliminarVenta(v: VentaAvesLote) {
+    if (confirmandoEliminar !== v.id) { setConfirmandoEliminar(v.id); return }
+    setConfirmandoEliminar(null)
+    const { error } = await supabase.from('ventas_aves_lote').delete().eq('id', v.id)
+    if (error) {
+      toast.error(error.hint === 'lote_cerrado' ? error.message : 'Error al eliminar la venta')
+      return
+    }
+    toast.success(v.tipo === 'descarte' || v.tipo === 'pollas' ? 'Venta eliminada: las aves volvieron al galpón' : 'Venta eliminada')
+    fetchTodo()
+  }
+
+  const opcionesLote = {
+    todos: `Todos los ${lugares}`,
+    [FINCA]: 'Solo gastos de la finca',
+    ...Object.fromEntries(lotes.map(l => [l.id, l.estado === 'activo' || l.estado === 'preparacion' ? l.nombre : `${l.nombre} (cerrado)`])),
+  }
 
   return (
-    <div className="space-y-6 p-4 md:p-8">
+    <div className="space-y-5 p-4 md:p-8">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="font-heading text-3xl font-medium text-gray-900">Finanzas</h2>
           <p className="mt-1 text-gray-500">
-            {fincaActual ? `${fincaActual.nombre} · ingresos, costos y utilidad de toda la finca` : 'Selecciona una finca'}
+            {fincaActual ? `${fincaActual.nombre} · control de costos, ventas y utilidad` : 'Selecciona una finca'}
           </p>
         </div>
-        <Button onClick={() => { setCostoEditar(null); setModalOpen(true) }} disabled={lotes.length === 0}>
-          <Ic n="mas" /> Registrar costo
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {tab !== 'ventas' && (
+            <Button onClick={() => { setCostoEditar(null); setModalCosto(true) }} disabled={!especie}>
+              <Ic n="mas" /> Registrar costo
+            </Button>
+          )}
+          {tab !== 'costos' && especie === 'aves_ponedoras' && (
+            <Button variant={tab === 'ventas' ? 'default' : 'outline'} onClick={() => { setVentaEditar(null); setModalVenta(true) }}>
+              <Ic n="mas" /> Registrar venta
+            </Button>
+          )}
+        </div>
       </div>
 
-      {/* Filtros */}
-      <div className="superficie flex flex-wrap items-center gap-2 rounded-2xl p-3">
-        {/* Con una sola especie no hay entre qué filtrar */}
-        {especiesFinca.length > 1 && (
-        <Select
-          value={especieFiltro}
-          onValueChange={v => { setEspecieFiltro((v ?? 'todas') as 'todas' | EspecieFinca); setLoteFiltro('todos') }}
-          items={itemsEspecie}
-        >
-          <SelectTrigger className="w-44"><SelectValue placeholder="Animal" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todas">Todos los animales</SelectItem>
-            {especiesFinca.map(e => <SelectItem key={e.value} value={e.value}>{e.labelNav ?? e.label}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        )}
-        <Select value={loteFiltro} onValueChange={v => setLoteFiltro(v ?? 'todos')} items={itemsLote}>
-          <SelectTrigger className="w-44"><SelectValue placeholder="Galpón" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos los galpones</SelectItem>
-            {lotesDeEspecie.map(l => <SelectItem key={l.id} value={l.id}>{l.nombre}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select
-          value={anioFiltro}
-          onValueChange={v => { setAnioFiltro(v ?? 'todos'); setMesFiltro('todos') }}
-          items={{ todos: 'Todos los años', ...Object.fromEntries(aniosDisponibles.map(a => [a, a])) }}
-        >
-          <SelectTrigger className="w-36"><SelectValue placeholder="Año" /></SelectTrigger>
+      {/* Pestañas */}
+      <div className="flex gap-2 overflow-x-auto border-b border-gray-200 [scrollbar-width:none]">
+        {TABS.map(t => (
+          <button
+            key={t.id}
+            onClick={() => { setTab(t.id); setConfirmandoEliminar(null) }}
+            className={cn(
+              '-mb-px inline-flex shrink-0 items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors',
+              tab === t.id ? 'border-green-700 text-green-900' : 'border-transparent text-gray-500 hover:text-gray-800'
+            )}
+          >
+            <Ic n={t.icon} className={cn('size-4', tab === t.id ? 'text-green-700' : 'text-gray-400')} />
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Filtros: los mismos para las tres pestañas */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Select value={anioFiltro} onValueChange={v => { setAnioFiltro(v ?? 'todos'); setMesFiltro('todos') }}
+          items={{ todos: 'Todos los años', ...Object.fromEntries(aniosDisponibles.map(a => [a, a])) }}>
+          <SelectTrigger className="h-8 w-36 bg-white text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="todos">Todos los años</SelectItem>
             {aniosDisponibles.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Select
-          value={mesFiltro}
-          onValueChange={v => setMesFiltro(v ?? 'todos')}
-          items={{ todos: 'Todos los meses', ...Object.fromEntries(mesesDisponibles.map(m => [m, nombreMes(m)])) }}
-        >
-          <SelectTrigger className="w-44"><SelectValue placeholder="Mes" /></SelectTrigger>
+        <Select value={mesFiltro} onValueChange={v => setMesFiltro(v ?? 'todos')}
+          items={{ todos: 'Todos los meses', ...Object.fromEntries(mesesDisponibles.map(m => [m, nombreMes(m)])) }}>
+          <SelectTrigger className="h-8 w-44 bg-white text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="todos">Todos los meses</SelectItem>
             {mesesDisponibles.map(m => <SelectItem key={m} value={m}>{nombreMes(m)}</SelectItem>)}
           </SelectContent>
         </Select>
-        <Select
-          value={categoriaFiltro}
-          onValueChange={v => setCategoriaFiltro(v ?? 'todas')}
-          items={{ todas: 'Todas las categorías', ...Object.fromEntries(categoriasVisibles.map(c => [c.value, c.label])) }}
-        >
-          <SelectTrigger className="w-48"><SelectValue placeholder="Categoría" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todas">Todas las categorías</SelectItem>
-            {categoriasVisibles.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+        <Select value={loteFiltro} onValueChange={v => setLoteFiltro(v ?? 'todos')} items={opcionesLote}>
+          <SelectTrigger className="h-8 w-48 bg-white text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent alignItemWithTrigger={false}>
+            {Object.entries(opcionesLote).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
           </SelectContent>
         </Select>
+        <span className="ml-auto text-xs text-gray-500">{etiquetaPeriodo}</span>
       </div>
 
       {loading ? (
-        <div className="space-y-3">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}</div>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-16 rounded-xl" />)}</div>
+          <Skeleton className="h-64 w-full rounded-xl" />
+        </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <Indicador tono="green" icono="tendencia" etiqueta="Ingresos" valor={cop(totalIngresos)} detalle={`${etiquetaPeriodo} · solo dinero que ya entró`} />
-            <Indicador tono="orange" icono="recibo" etiqueta="Costos" valor={cop(totalCostos)} detalle={etiquetaPeriodo} />
-            <Indicador
-              tono={utilidad >= 0 ? 'green' : 'red'}
-              icono="dinero"
-              etiqueta="Utilidad"
-              valor={<span className={utilidad < 0 ? 'text-red-700' : undefined}>{cop(utilidad)}</span>}
-              detalle={utilidad < 0 ? 'Los costos superan los ingresos' : etiquetaPeriodo}
-            />
+          {/* Cifras del período, pequeñas como en un control de costos */}
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <Cifra etiqueta="Ventas" valor={cop(totalIngresos)} tono="text-green-700" />
+            <Cifra etiqueta="Costos" valor={cop(totalCostos)} tono="text-orange-700" />
+            <Cifra etiqueta="Utilidad" valor={cop(utilidad)} tono={utilidad < 0 ? 'text-red-700' : 'text-gray-900'} />
+            <Cifra etiqueta="Margen" valor={pct(utilidad, totalIngresos)} tono={utilidad < 0 ? 'text-red-700' : 'text-gray-900'}
+              detalle={totalIngresos > 0 ? 'utilidad sobre ventas' : 'sin ventas en el período'} />
           </div>
 
-          {/* Costos por categoría */}
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            {totalPorCategoria.map(cat => (
-              <Card
-                key={cat.value}
-                className={cn('cursor-pointer transition-shadow hover:shadow-md', cat.total > 0 ? '' : '[&_p]:text-gray-400')}
-                onClick={() => setCategoriaDialog(cat.value)}
-              >
-                <CardContent className="p-3">
-                  <p className="text-xs text-gray-500">{cat.label}</p>
-                  <p className="mt-0.5 text-base font-semibold text-gray-800 tabular-nums">{cat.total > 0 ? cop(cat.total) : '—'}</p>
+          {tab === 'general' && (
+            <div className="grid gap-5 xl:grid-cols-2">
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold text-gray-700">Utilidad mes a mes</CardTitle></CardHeader>
+                <CardContent className="p-0">
+                  {porMes.length === 0 ? <Vacio texto="Sin movimientos con estos filtros" /> : (
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Mes</TableHead>
+                            <TableHead className="text-right">Ventas</TableHead>
+                            <TableHead className="text-right">Costos</TableHead>
+                            <TableHead className="text-right">Utilidad</TableHead>
+                            <TableHead className="text-right">Margen</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {porMes.map(m => (
+                            <TableRow key={m.mes}>
+                              <TableCell className="py-2 text-sm">{nombreMes(m.mes)}</TableCell>
+                              <TableCell className="py-2 text-right text-sm tabular-nums">{cop(m.ingresos)}</TableCell>
+                              <TableCell className="py-2 text-right text-sm tabular-nums">{cop(m.costos)}</TableCell>
+                              <TableCell className={cn('py-2 text-right text-sm font-semibold tabular-nums', m.utilidad < 0 && 'text-red-700')}>{cop(m.utilidad)}</TableCell>
+                              <TableCell className="py-2 text-right text-sm text-gray-500 tabular-nums">{pct(m.utilidad, m.ingresos)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                        <TableFooter>
+                          <TableRow>
+                            <TableCell className="py-2 text-sm font-semibold">Total</TableCell>
+                            <TableCell className="py-2 text-right text-sm font-semibold tabular-nums">{cop(totalIngresos)}</TableCell>
+                            <TableCell className="py-2 text-right text-sm font-semibold tabular-nums">{cop(totalCostos)}</TableCell>
+                            <TableCell className={cn('py-2 text-right text-sm font-semibold tabular-nums', utilidad < 0 && 'text-red-700')}>{cop(utilidad)}</TableCell>
+                            <TableCell className="py-2 text-right text-sm text-gray-500 tabular-nums">{pct(utilidad, totalIngresos)}</TableCell>
+                          </TableRow>
+                        </TableFooter>
+                      </Table>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
-            ))}
-          </div>
 
-          {/* Detalle de costos */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle>Detalle de costos</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              {costosFiltrados.length === 0 ? (
-                <div className="py-10 text-center">
-                  <Ic n="dinero" className="mx-auto mb-2 size-8 text-gray-300" />
-                  <p className="font-medium text-gray-600">Sin costos con estos filtros</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Fecha</TableHead>
-                        <TableHead>Galpón</TableHead>
-                        <TableHead>Categoría</TableHead>
-                        <TableHead>Descripción</TableHead>
-                        <TableHead>Proveedor</TableHead>
-                        <TableHead className="text-right">Monto</TableHead>
-                        <TableHead></TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {costosFiltrados.map(c => {
-                        const cat = categoriaInfo(c.categoria)
-                        return (
-                          <TableRow key={c.id}>
-                            <TableCell className="text-sm">{fmt(c.fecha)}</TableCell>
-                            <TableCell className="text-sm">
-                              <span className="font-medium text-gray-800">{c.lote_id ? nombreLote.get(c.lote_id) ?? '—' : 'Toda la finca'}</span>
-                              {especieFiltro === 'todas' && especiesFinca.length > 1 && (
-                                <span className="block text-[0.6875rem] text-gray-500">{CONFIG_ESPECIES[c.especie].label}</span>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <Badge className={`text-[10px] ${cat?.color ?? 'bg-gray-100 text-gray-600'}`}>{cat?.label ?? c.categoria}</Badge>
-                            </TableCell>
-                            <TableCell className="text-sm">{c.descripcion}</TableCell>
-                            <TableCell className="text-sm text-gray-500">{c.proveedor ?? '—'}</TableCell>
-                            <TableCell className="text-right text-sm font-semibold tabular-nums">{cop(Number(c.monto))}</TableCell>
-                            <TableCell>
-                              <div className="flex items-center justify-end gap-1">
-                                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={() => { setCostoEditar(c); setModalOpen(true) }}>
-                                  <Ic n="editar" />
-                                </Button>
-                                <Button
-                                  size="sm" variant="ghost"
-                                  className={cn('h-7 px-2 text-xs', confirmandoEliminar === c.id ? 'bg-red-600 text-white hover:bg-red-700' : 'text-red-600')}
-                                  onClick={() => eliminar(c)}
-                                >
-                                  {confirmandoEliminar === c.id ? '¿Confirmar?' : <Ic n="borrar" />}
-                                </Button>
-                              </div>
-                            </TableCell>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-semibold text-gray-700">Por {lugar}</CardTitle>
+                  <p className="text-xs text-gray-400">Los gastos de toda la finca van aparte: no son de un {lugar} en particular.</p>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {porLote.length === 0 ? <Vacio texto="Sin movimientos con estos filtros" /> : (
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="capitalize">{lugar}</TableHead>
+                            <TableHead className="text-right">Ventas</TableHead>
+                            <TableHead className="text-right">Costos</TableHead>
+                            <TableHead className="text-right">Utilidad</TableHead>
                           </TableRow>
-                        )
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                        </TableHeader>
+                        <TableBody>
+                          {porLote.map(l => (
+                            <TableRow key={l.clave}>
+                              <TableCell className={cn('py-2 text-sm font-medium', l.clave === FINCA ? 'text-gray-500' : 'text-gray-800')}>{l.nombre}</TableCell>
+                              <TableCell className="py-2 text-right text-sm tabular-nums">{cop(l.ingresos)}</TableCell>
+                              <TableCell className="py-2 text-right text-sm tabular-nums">{cop(l.costos)}</TableCell>
+                              <TableCell className={cn('py-2 text-right text-sm font-semibold tabular-nums', l.utilidad < 0 && 'text-red-700')}>{cop(l.utilidad)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
 
-          {/* Ingresos */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle>Ingresos</CardTitle>
-              <p className="text-xs text-gray-500">En huevo cuenta el día en que entró el pago; las ventas sin pagar no suman.</p>
-            </CardHeader>
-            <CardContent className="p-0">
-              {ingresosPeriodo.length === 0 ? (
-                <p className="py-8 text-center text-sm text-gray-500">Sin ingresos con estos filtros</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Fecha</TableHead>
-                        <TableHead>Galpón</TableHead>
-                        <TableHead>Concepto</TableHead>
-                        <TableHead className="text-right">Monto</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {[...ingresosPeriodo].sort((a, b) => b.fecha.localeCompare(a.fecha)).map(i => (
-                        <TableRow key={i.id}>
-                          <TableCell className="text-sm">{fmt(i.fecha)}</TableCell>
-                          <TableCell className="text-sm font-medium text-gray-800">{nombreLote.get(i.lote_id) ?? '—'}</TableCell>
-                          <TableCell className="text-sm text-gray-600">{i.concepto}</TableCell>
-                          <TableCell className="text-right text-sm font-semibold text-green-700 tabular-nums">{cop(i.monto)}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+          {tab === 'costos' && (
+            <>
+              <div className="flex flex-wrap gap-2">
+                {totalPorCategoria.map(cat => (
+                  <button
+                    key={cat.value}
+                    onClick={() => setCategoriaFiltro(prev => prev === cat.value ? null : cat.value)}
+                    className={cn(
+                      'rounded-xl border px-3 py-2 text-left transition-colors',
+                      categoriaFiltro === cat.value ? 'border-green-600 bg-green-50' : 'border-gray-200 bg-white hover:border-gray-300',
+                    )}
+                  >
+                    <p className="text-[0.6875rem] text-gray-500">{cat.label}</p>
+                    <p className={cn('text-sm font-semibold tabular-nums', cat.total > 0 ? 'text-gray-900' : 'text-gray-300')}>{cat.total > 0 ? cop(cat.total) : '—'}</p>
+                    {cat.total > 0 && <p className="text-[0.625rem] text-gray-400">{pct(cat.total, totalCostos)} del total</p>}
+                  </button>
+                ))}
+              </div>
+
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-semibold text-gray-700">
+                    {categoriaFiltro ? `Costos · ${categorias.find(c => c.value === categoriaFiltro)?.label}` : 'Todos los costos'}
+                  </CardTitle>
+                  {categoriaFiltro && (
+                    <button onClick={() => setCategoriaFiltro(null)} className="text-xs text-green-700 hover:underline">Ver todas las categorías</button>
+                  )}
+                </CardHeader>
+                <CardContent className="p-0">
+                  {costosTabla.length === 0 ? <Vacio texto="Sin costos con estos filtros" /> : (
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Fecha</TableHead>
+                            <TableHead className="capitalize">{lugar}</TableHead>
+                            <TableHead>Categoría</TableHead>
+                            <TableHead>Descripción</TableHead>
+                            <TableHead>Proveedor</TableHead>
+                            <TableHead className="text-right">Monto</TableHead>
+                            <TableHead />
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {costosTabla.map(c => {
+                            const cat = categoriaInfo(c.categoria)
+                            return (
+                              <TableRow key={c.id}>
+                                <TableCell className="py-2 text-sm whitespace-nowrap">{fmt(c.fecha)}</TableCell>
+                                <TableCell className={cn('py-2 text-sm', c.lote_id ? 'font-medium text-gray-800' : 'text-gray-500')}>{nombreDe(c.lote_id)}</TableCell>
+                                <TableCell className="py-2"><Badge className={`text-[10px] ${cat?.color ?? 'bg-gray-100 text-gray-600'}`}>{cat?.label ?? c.categoria}</Badge></TableCell>
+                                <TableCell className="py-2 text-sm">{c.descripcion}</TableCell>
+                                <TableCell className="py-2 text-sm text-gray-500">{c.proveedor ?? '—'}</TableCell>
+                                <TableCell className="py-2 text-right text-sm font-semibold tabular-nums">{cop(Number(c.monto))}</TableCell>
+                                <TableCell className="py-2">
+                                  <Acciones
+                                    confirmando={confirmandoEliminar === c.id}
+                                    onEditar={() => { setCostoEditar(c); setModalCosto(true) }}
+                                    onEliminar={() => eliminarCosto(c)}
+                                  />
+                                </TableCell>
+                              </TableRow>
+                            )
+                          })}
+                        </TableBody>
+                        <TableFooter>
+                          <TableRow>
+                            <TableCell colSpan={5} className="py-2 text-sm font-semibold">Total · {costosTabla.length} costo{costosTabla.length === 1 ? '' : 's'}</TableCell>
+                            <TableCell className="py-2 text-right text-sm font-semibold tabular-nums">{cop(costosTabla.reduce((s, c) => s + Number(c.monto), 0))}</TableCell>
+                            <TableCell />
+                          </TableRow>
+                        </TableFooter>
+                      </Table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </>
+          )}
+
+          {tab === 'ventas' && (
+            <>
+              <div className="flex flex-wrap gap-2">
+                {totalPorTipo.map(t => (
+                  <button
+                    key={t.tipo}
+                    onClick={() => setTipoVentaFiltro(prev => prev === t.tipo ? null : t.tipo)}
+                    className={cn(
+                      'rounded-xl border px-3 py-2 text-left transition-colors',
+                      tipoVentaFiltro === t.tipo ? 'border-green-600 bg-green-50' : 'border-gray-200 bg-white hover:border-gray-300',
+                    )}
+                  >
+                    <p className="text-[0.6875rem] text-gray-500">{t.label}</p>
+                    <p className={cn('text-sm font-semibold tabular-nums', t.total > 0 ? 'text-gray-900' : 'text-gray-300')}>{t.total > 0 ? cop(t.total) : '—'}</p>
+                    {t.total > 0 && <p className="text-[0.625rem] text-gray-400">{pct(t.total, totalIngresos)} de las ventas</p>}
+                  </button>
+                ))}
+              </div>
+
+              {especie === 'aves_ponedoras' && (
+                <p className="text-xs text-gray-500">
+                  El huevo cuenta el día en que entró el pago; las ventas y cobros de huevo se registran en{' '}
+                  <Link href="/ventas" className="font-medium text-green-700 hover:underline">Ventas de la finca</Link>.
+                  Al vender gallinas o pollas, salen del galpón.
+                </p>
               )}
-            </CardContent>
-          </Card>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-semibold text-gray-700">
+                    {tipoVentaFiltro ? `Ventas · ${TIPOS_INGRESO[tipoVentaFiltro].label}` : 'Todas las ventas'}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {ventasTabla.length === 0 ? <Vacio texto="Sin ventas con estos filtros" /> : (
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Fecha</TableHead>
+                            <TableHead className="capitalize">{lugar}</TableHead>
+                            <TableHead>Qué se vendió</TableHead>
+                            <TableHead>Detalle</TableHead>
+                            <TableHead className="text-right">Monto</TableHead>
+                            <TableHead />
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {ventasTabla.map(i => (
+                            <TableRow key={`${i.tipo}-${i.id}`}>
+                              <TableCell className="py-2 text-sm whitespace-nowrap">{fmt(i.fecha)}</TableCell>
+                              <TableCell className={cn('py-2 text-sm', i.lote_id ? 'font-medium text-gray-800' : 'text-gray-500')}>{nombreDe(i.lote_id)}</TableCell>
+                              <TableCell className="py-2"><Badge className={`text-[10px] ${TIPOS_INGRESO[i.tipo].color}`}>{TIPOS_INGRESO[i.tipo].label}</Badge></TableCell>
+                              <TableCell className="py-2 text-sm text-gray-600">{i.concepto}</TableCell>
+                              <TableCell className="py-2 text-right text-sm font-semibold text-green-700 tabular-nums">{cop(i.monto)}</TableCell>
+                              <TableCell className="py-2">
+                                {i.ventaAves && (
+                                  <Acciones
+                                    confirmando={confirmandoEliminar === i.id}
+                                    onEditar={() => { setVentaEditar(i.ventaAves!); setModalVenta(true) }}
+                                    onEliminar={() => eliminarVenta(i.ventaAves!)}
+                                  />
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                        <TableFooter>
+                          <TableRow>
+                            <TableCell colSpan={4} className="py-2 text-sm font-semibold">Total · {ventasTabla.length} venta{ventasTabla.length === 1 ? '' : 's'}</TableCell>
+                            <TableCell className="py-2 text-right text-sm font-semibold tabular-nums">{cop(ventasTabla.reduce((s, i) => s + i.monto, 0))}</TableCell>
+                            <TableCell />
+                          </TableRow>
+                        </TableFooter>
+                      </Table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </>
+          )}
         </>
       )}
 
-      {fincaActual && (
+      {fincaActual && especie && (
         <RegistrarCostoFincaModal
-          open={modalOpen}
-          onClose={() => { setModalOpen(false); setCostoEditar(null) }}
+          open={modalCosto}
+          onClose={() => { setModalCosto(false); setCostoEditar(null) }}
           fincaId={fincaActual.id}
-          lotes={lotesDeEspecie.length > 0 ? lotesDeEspecie : lotes}
-          loteInicial={loteSeleccionado}
+          especie={especie}
+          lotes={lotes}
+          loteInicial={loteFiltro === 'todos' ? null : loteFiltro}
           costoExistente={costoEditar}
           onCreated={fetchTodo}
         />
       )}
 
-      <Dialog open={categoriaDialog != null} onOpenChange={v => !v && setCategoriaDialog(null)}>
-        <DialogContent className="max-h-[80vh] max-w-lg overflow-y-auto">
-          {categoriaDialog && (() => {
-            const cat = CATEGORIAS_TODAS.find(c => c.value === categoriaDialog)
-            const items = costosPeriodo.filter(c => mismaCategoria(c, categoriaDialog))
-            const total = items.reduce((s, c) => s + Number(c.monto), 0)
-            return (
-              <>
-                <DialogHeader>
-                  <DialogTitle>{cat?.label ?? categoriaDialog}</DialogTitle>
-                </DialogHeader>
-                <div className="flex items-center justify-between rounded-lg bg-green-50 p-3">
-                  <span className="text-sm font-medium text-green-800">Total · {etiquetaPeriodo}</span>
-                  <span className="text-lg font-semibold text-green-800 tabular-nums">{cop(total)}</span>
-                </div>
-                {items.length === 0 ? (
-                  <p className="py-4 text-center text-sm text-gray-500">Sin costos en esta categoría</p>
-                ) : (
-                  <div className="max-h-72 space-y-1.5 overflow-y-auto">
-                    {items.map(c => (
-                      <div key={c.id} className="flex items-center justify-between border-b border-gray-100 pb-1.5 text-sm">
-                        <div>
-                          <p className="font-medium">{c.descripcion}</p>
-                          <p className="text-xs text-gray-400">{fmt(c.fecha)} · {c.lote_id ? nombreLote.get(c.lote_id) ?? '—' : 'Toda la finca'}{c.proveedor ? ` · ${c.proveedor}` : ''}</p>
-                        </div>
-                        <span className="font-semibold tabular-nums">{cop(Number(c.monto))}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </>
-            )
-          })()}
-        </DialogContent>
-      </Dialog>
+      {fincaActual && especie === 'aves_ponedoras' && (
+        <RegistrarVentaAvesModal
+          open={modalVenta}
+          onClose={() => { setModalVenta(false); setVentaEditar(null) }}
+          fincaId={fincaActual.id}
+          ventaExistente={ventaEditar}
+          nombreLote={id => nombreLote.get(id) ?? '—'}
+          onGuardado={fetchTodo}
+        />
+      )}
+    </div>
+  )
+}
+
+function Cifra({ etiqueta, valor, tono, detalle }: { etiqueta: string; valor: string; tono: string; detalle?: ReactNode }) {
+  return (
+    <div className="superficie rounded-xl px-4 py-3">
+      <p className="text-xs text-gray-500">{etiqueta}</p>
+      <p className={cn('mt-0.5 text-lg font-semibold tabular-nums', tono)}>{valor}</p>
+      {detalle && <p className="text-[0.6875rem] text-gray-400">{detalle}</p>}
+    </div>
+  )
+}
+
+function Vacio({ texto }: { texto: string }) {
+  return (
+    <div className="py-10 text-center">
+      <Ic n="dinero" className="mx-auto mb-2 size-8 text-gray-300" />
+      <p className="text-sm font-medium text-gray-500">{texto}</p>
+    </div>
+  )
+}
+
+function Acciones({ confirmando, onEditar, onEliminar }: { confirmando: boolean; onEditar: () => void; onEliminar: () => void }) {
+  return (
+    <div className="flex items-center justify-end gap-1">
+      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-gray-500" onClick={onEditar} title="Editar">
+        <Ic n="editar" />
+      </Button>
+      <Button
+        size="sm" variant="ghost"
+        className={cn('h-7 px-2 text-xs', confirmando ? 'bg-red-600 text-white hover:bg-red-700' : 'text-red-600')}
+        onClick={onEliminar}
+        title="Eliminar"
+      >
+        {confirmando ? '¿Confirmar?' : <Ic n="borrar" />}
+      </Button>
     </div>
   )
 }

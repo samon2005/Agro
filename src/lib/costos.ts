@@ -10,6 +10,7 @@ export const CATEGORIAS_COSTO: CategoriaCosto[] = [
   { value: 'pollitas', label: 'Pollitas', emoji: '', color: 'bg-yellow-100 text-yellow-700' },
   { value: 'alimento', label: 'Alimento', emoji: '', color: 'bg-orange-100 text-orange-700' },
   { value: 'servicios_publicos', label: 'Servicios públicos', emoji: '', color: 'bg-blue-100 text-blue-700', legacy: ['agua', 'energia'] },
+  { value: 'mano_obra', label: 'Mano de obra', emoji: '', color: 'bg-teal-100 text-teal-700' },
   { value: 'mantenimiento', label: 'Mantenimiento', emoji: '', color: 'bg-gray-100 text-gray-700' },
   { value: 'sanitario', label: 'Sanitario', emoji: '', color: 'bg-purple-100 text-purple-700' },
   { value: 'equipos', label: 'Equipos', emoji: '', color: 'bg-indigo-100 text-indigo-700' },
