@@ -10,7 +10,6 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
-import { ajustarHuevos } from '@/lib/inventario'
 import { TAMANOS_HUEVO, cop, type PreciosHuevo } from '@/lib/huevos'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
@@ -104,17 +103,8 @@ export default function RegistrarVentaModal({ open, onClose, fincaId, lotes, pre
       ? await supabase.from('ventas_huevos_aves').update(payload).eq('id', ventaExistente.id)
       : await supabase.from('ventas_huevos_aves').insert({ ...payload, finca_id: fincaId })
 
-    // El huevo sale del inventario del galpón. Al editar solo se mueve la diferencia;
-    // si cambió de galpón, se devuelve al anterior y se descuenta del nuevo.
-    if (!error) {
-      if (ventaExistente && ventaExistente.lote_id !== form.lote_id) {
-        const anterior = lotes.find(l => l.id === ventaExistente.lote_id)
-        if (anterior) await ajustarHuevos(supabase, fincaId, anterior.nombre, vendidosAntes)
-        await ajustarHuevos(supabase, fincaId, lote.nombre, -totalHuevos)
-      } else if (totalHuevos - vendidosAntes !== 0) {
-        await ajustarHuevos(supabase, fincaId, lote.nombre, -(totalHuevos - vendidosAntes))
-      }
-    }
+    // El huevo sale solo del inventario del galpón (y vuelve al anterior si la venta
+    // cambió de galpón): la base rehace el saldo con cada venta.
 
     setLoading(false)
     if (error) { toast.error(ventaExistente ? 'Error al actualizar la venta' : 'Error al registrar la venta'); return }

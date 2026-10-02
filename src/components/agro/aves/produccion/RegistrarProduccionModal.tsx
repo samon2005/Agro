@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
-import { ajustarHuevos, recalcularStockAlimentoAves } from '@/lib/inventario'
+import { recalcularStockAlimentoAves } from '@/lib/inventario'
 import { Ic } from '@/components/ui/icon'
 
 type ProduccionDiaria = Database['public']['Tables']['produccion_diaria_aves']['Row']
@@ -21,8 +21,6 @@ interface Props {
   loteId: string
   fincaId: string
   avesActuales: number
-  /** Nombre del galpón, para el ítem de huevos en el inventario de la finca */
-  nombreLote?: string
   estadoLote?: string
   registroExistente?: ProduccionDiaria | null
   onCreated: () => void
@@ -84,7 +82,7 @@ function defaultForm(avesActuales: number, r?: ProduccionDiaria | null) {
   }
 }
 
-export default function RegistrarProduccionModal({ open, onClose, loteId, fincaId, avesActuales, nombreLote, estadoLote, registroExistente, onCreated }: Props) {
+export default function RegistrarProduccionModal({ open, onClose, loteId, fincaId, avesActuales, estadoLote, registroExistente, onCreated }: Props) {
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState(() => defaultForm(avesActuales, registroExistente))
@@ -243,11 +241,7 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
         .eq('id', loteId)
     }
 
-    // Los huevos puestos se acumulan en el inventario de la finca y bajan al vender.
-    const huevosDelta = (enPreparacion ? 0 : totalHuevos) - (existing?.huevos_totales ?? 0)
-    if (!error && huevosDelta !== 0 && nombreLote) {
-      await ajustarHuevos(supabase, fincaId, nombreLote, huevosDelta)
-    }
+    // Los huevos del día entran solos al inventario del galpón: la base rehace su saldo
 
     // El alimento del día sale del stock: se rehace la cuenta del inventario
     if (!error) await recalcularStockAlimentoAves(supabase, fincaId)

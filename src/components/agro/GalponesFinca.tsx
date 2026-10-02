@@ -6,7 +6,6 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Ic } from '@/components/ui/icon'
-import { nombreItemHuevos } from '@/lib/inventario'
 import type { Database } from '@/types/database'
 
 type Instalacion = Database['public']['Tables']['instalaciones']['Row']
@@ -101,14 +100,7 @@ export default function GalponesFinca({ fincaId, onCambio }: Props) {
         .update({ nombre, area_galpon_m2: area })
         .eq('instalacion_id', f.id)
         .in('estado', ['activo', 'preparacion'])
-
-      // Los huevos del galpón se guardan con su nombre en el inventario
-      if (antes.nombre !== nombre) {
-        await supabase.from('inventario')
-          .update({ nombre: nombreItemHuevos(nombre) })
-          .eq('finca_id', fincaId)
-          .eq('nombre', nombreItemHuevos(antes.nombre))
-      }
+      // El ítem de huevos del galpón cambia de nombre solo (lo hace la base)
     }
     setGuardando(false)
     toast.success('Galpones guardados')

@@ -20,7 +20,7 @@ import Link from 'next/link'
 import { estadoPostura } from '@/lib/postura'
 import type { Database } from '@/types/database'
 import { aFechaLocal } from '@/lib/fechas'
-import { ajustarHuevos, recalcularStockAlimentoAves } from '@/lib/inventario'
+import { recalcularStockAlimentoAves } from '@/lib/inventario'
 import { Ic } from '@/components/ui/icon'
 import { useFinca } from '@/components/agro/FincaProvider'
 import { preciosDeFinca, hayPrecios } from '@/lib/huevos'
@@ -134,10 +134,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
     if (devolver > 0) {
       await supabase.from('lotes_aves').update({ aves_actuales: loteActual.aves_actuales + devolver }).eq('id', loteActual.id)
     }
-    // Los huevos de ese día también salen del inventario de la finca
-    if (r.huevos_totales > 0) {
-      await ajustarHuevos(supabase, loteActual.finca_id, loteActual.nombre, -r.huevos_totales)
-    }
+    // Los huevos de ese día salen solos del inventario: la base rehace el saldo del galpón
     // Si ese día se había registrado un consumo, el vigente vuelve a ser el anterior
     if (Number(r.alimento_kg) > 0) {
       const { data: anterior } = await supabase
@@ -918,7 +915,6 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
         loteId={loteActual.id}
         fincaId={loteActual.finca_id}
         avesActuales={loteActual.aves_actuales}
-        nombreLote={loteActual.nombre}
         estadoLote={loteActual.estado}
         registroExistente={registroEditar}
         onCreated={() => { fetchRegistros(); fetchEventosClinicos(); onLoteUpdated() }}

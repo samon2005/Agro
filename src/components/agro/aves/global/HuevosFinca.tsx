@@ -30,7 +30,7 @@ interface Props {
 }
 
 interface FilaGalpon {
-  loteId: string
+  clave: string
   nombre: string
   puestos: PorTamano
   vendidos: PorTamano
@@ -44,6 +44,9 @@ function total(p: PorTamano) {
  * Huevo de toda la finca, no de un solo galpón: lo que se puso menos lo que se
  * vendió, clasificado por tamaño. Registrar producción sube el disponible y
  * registrar una venta lo baja, sin tener que llevar la cuenta aparte.
+ *
+ * El saldo es de cada galpón, sumando todos los lotes que han pasado por él: es
+ * la misma cuenta que lleva la base en el inventario (migración 056).
  */
 export default function HuevosFinca({ fincaId, lotes }: Props) {
   const supabase = createClient()
@@ -53,37 +56,56 @@ export default function HuevosFinca({ fincaId, lotes }: Props) {
   const lotesKey = lotes.map(l => l.id).join(',')
 
   const fetchTodo = useCallback(async () => {
-    if (lotes.length === 0) { setFilas([]); setLoading(false); return }
     setLoading(true)
-    const [prodRes, ventasRes] = await Promise.all([
+    const [prodRes, ventasRes, lotesRes, galponesRes] = await Promise.all([
       supabase.from('produccion_diaria_aves')
         .select('lote_id, huevos_b, huevos_a, huevos_aa, huevos_aaa, huevos_jumbo')
         .eq('finca_id', fincaId),
       supabase.from('ventas_huevos_aves')
         .select('lote_id, cantidad_b, cantidad_a, cantidad_aa, cantidad_aaa, cantidad_jumbo')
         .eq('finca_id', fincaId),
+      // Todos los lotes, también los que ya salieron: su huevo sigue en la bodega del galpón
+      supabase.from('lotes_aves').select('id, nombre, instalacion_id').eq('finca_id', fincaId),
+      supabase.from('instalaciones').select('id, nombre').eq('finca_id', fincaId),
     ])
 
-    const porLote = new Map<string, FilaGalpon>()
-    for (const l of lotes) {
-      porLote.set(l.id, { loteId: l.id, nombre: l.nombre, puestos: { ...CERO }, vendidos: { ...CERO } })
+    const nombreGalpon = new Map((galponesRes.data ?? []).map(g => [g.id, g.nombre]))
+    const claveDe = (l: { nombre: string; instalacion_id: string | null }) =>
+      l.instalacion_id && nombreGalpon.has(l.instalacion_id) ? l.instalacion_id : `lote:${l.nombre}`
+    const filaDeLote = new Map<string, FilaGalpon>()
+    const porGalpon = new Map<string, FilaGalpon>()
+    for (const l of lotesRes.data ?? []) {
+      const clave = claveDe(l)
+      if (!porGalpon.has(clave)) {
+        porGalpon.set(clave, {
+          clave,
+          nombre: (l.instalacion_id ? nombreGalpon.get(l.instalacion_id) : null) ?? l.nombre,
+          puestos: { ...CERO },
+          vendidos: { ...CERO },
+        })
+      }
+      filaDeLote.set(l.id, porGalpon.get(clave)!)
     }
     for (const p of prodRes.data ?? []) {
-      const fila = porLote.get(p.lote_id)
+      const fila = filaDeLote.get(p.lote_id)
       if (!fila) continue
       for (const t of TAMANOS) {
         fila.puestos[t.key] += Number(p[`huevos_${t.key}` as keyof typeof p] ?? 0)
       }
     }
     for (const v of ventasRes.data ?? []) {
-      const fila = porLote.get(v.lote_id)
+      const fila = filaDeLote.get(v.lote_id)
       if (!fila) continue
       for (const t of TAMANOS) {
         fila.vendidos[t.key] += Number(v[`cantidad_${t.key}` as keyof typeof v] ?? 0)
       }
     }
 
-    setFilas([...porLote.values()])
+    // Se ven los galpones con aves hoy y los que aún guardan (o deben) huevo
+    const vivos = new Set(lotes.map(l => claveDe(l)))
+    setFilas([...porGalpon.values()]
+      .filter(f => vivos.has(f.clave) || total(f.puestos) !== total(f.vendidos))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { numeric: true })))
     setLoading(false)
     // lotesKey entra como dependencia para no re-consultar en cada render
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -116,6 +138,13 @@ export default function HuevosFinca({ fincaId, lotes }: Props) {
           se registra en Ventas baja.
         </p>
       </div>
+
+      {filas.some(f => total(f.vendidos) > total(f.puestos)) && (
+        <p className="rounded-lg bg-red-50 px-4 py-2.5 text-sm text-red-700">
+          <Ic n="alerta" /> {filas.filter(f => total(f.vendidos) > total(f.puestos)).map(f => f.nombre).join(', ')}:
+          se vendió más huevo del que está registrado en producción. Revisa los días que faltan por registrar.
+        </p>
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         <Indicador tono="amber" etiqueta="Disponible en la finca" valor={total(disponibleFinca).toLocaleString('es-CO')} detalle="huevos sin vender" />
@@ -159,7 +188,7 @@ export default function HuevosFinca({ fincaId, lotes }: Props) {
         </CardHeader>
         <CardContent className="p-0">
           {filas.length === 0 ? (
-            <p className="p-4 text-sm text-gray-400">No hay galpones activos todavía.</p>
+            <p className="p-4 text-sm text-gray-400">No hay galpones con huevo todavía.</p>
           ) : (
             <div className="overflow-x-auto">
               <Table>
@@ -177,14 +206,14 @@ export default function HuevosFinca({ fincaId, lotes }: Props) {
                       TAMANOS.map(t => [t.key, f.puestos[t.key] - f.vendidos[t.key]])
                     ) as PorTamano
                     return (
-                      <TableRow key={f.loteId}>
+                      <TableRow key={f.clave}>
                         <TableCell className="font-medium text-sm"><Ic n="ave" /> {f.nombre}</TableCell>
                         {TAMANOS.map(t => (
                           <TableCell key={t.key} className="text-right text-sm">
                             {disponible[t.key].toLocaleString('es-CO')}
                           </TableCell>
                         ))}
-                        <TableCell className="text-right font-semibold text-sm text-yellow-700">
+                        <TableCell className={`text-right font-semibold text-sm ${total(disponible) < 0 ? 'text-red-600' : 'text-yellow-700'}`}>
                           {total(disponible).toLocaleString('es-CO')}
                         </TableCell>
                         <TableCell className="text-right text-sm text-gray-500">

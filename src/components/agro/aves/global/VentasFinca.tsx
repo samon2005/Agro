@@ -18,7 +18,7 @@ import RegistrarPagoModal from '@/components/agro/aves/ventas/RegistrarPagoModal
 import RegistrarEncargoModal from '@/components/agro/aves/ventas/RegistrarEncargoModal'
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
-import { ajustarHuevos, nombreItemHuevos } from '@/lib/inventario'
+import { nombreItemHuevos } from '@/lib/inventario'
 import { TAMANOS_HUEVO, cop, huevosDe, valorVenta, preciosDeFinca, hayPrecios } from '@/lib/huevos'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
@@ -150,9 +150,7 @@ export default function VentasFinca({ fincaId, lotes }: Props) {
     await supabase.from('encargos_huevos_aves').update({ estado: 'pendiente', venta_id: null }).eq('venta_id', v.id)
     const { error } = await supabase.from('ventas_huevos_aves').delete().eq('id', v.id)
     if (error) { toast.error('Error al eliminar la venta'); return }
-    // El huevo de una venta borrada vuelve a la bodega de su galpón
-    const lote = lotes.find(l => l.id === v.lote_id)
-    if (lote && huevosDe(v) > 0) await ajustarHuevos(supabase, fincaId, lote.nombre, huevosDe(v))
+    // El huevo de una venta borrada vuelve solo a la bodega de su galpón
     toast.success('Venta eliminada')
     fetchTodo()
   }
@@ -187,8 +185,6 @@ export default function VentasFinca({ fincaId, lotes }: Props) {
     }).select('id').single()
     if (error || !venta) { toast.error('Error al convertir el encargo en venta'); return }
     await supabase.from('encargos_huevos_aves').update({ estado: 'entregado', venta_id: venta.id }).eq('id', e.id)
-    const lote = lotes.find(l => l.id === e.lote_id)
-    if (lote && huevosDe(e) > 0) await ajustarHuevos(supabase, fincaId, lote.nombre, -huevosDe(e))
     toast.success('Encargo entregado y registrado como venta')
     fetchTodo()
   }
