@@ -208,6 +208,7 @@ export async function invitarOperario(formData: FormData, fincaId: string) {
 export async function actualizarOperario(fincaId: string, operarioId: string, datos: { cargo: string; pagoMonto: string; pagoPeriodo: string }) {
   await verificarPropietario(fincaId)
   const admin = createAdminClient()
+  await verificarOperarioDeFinca(admin, fincaId, operarioId)
   const { error } = await admin
     .from('profiles')
     .update({
@@ -231,6 +232,21 @@ async function verificarPropietario(fincaId: string) {
     .eq('perfil_id', user.id)
     .maybeSingle()
   if (!membresia || membresia.rol !== 'propietario') throw new Error('No autorizado')
+}
+
+/**
+ * El operario que se va a cambiar tiene que ser trabajador de esa finca: si no,
+ * el dueño de una finca podría tocar el perfil de cualquier usuario con su id
+ * (la clave de administrador se salta las reglas de la base).
+ */
+async function verificarOperarioDeFinca(admin: ReturnType<typeof createAdminClient>, fincaId: string, operarioId: string) {
+  const { data } = await admin
+    .from('finca_miembros')
+    .select('rol')
+    .eq('finca_id', fincaId)
+    .eq('perfil_id', operarioId)
+    .maybeSingle()
+  if (!data || data.rol !== 'trabajador') throw new Error('No autorizado')
 }
 
 export async function getOperarios(fincaId: string) {
@@ -259,6 +275,7 @@ export async function getOperarios(fincaId: string) {
 export async function actualizarEstadoOperario(fincaId: string, operarioId: string, activo: boolean) {
   await verificarPropietario(fincaId)
   const admin = createAdminClient()
+  await verificarOperarioDeFinca(admin, fincaId, operarioId)
   const { error } = await admin.from('profiles').update({ activo }).eq('id', operarioId)
   if (error) throw new Error(error.message)
   revalidatePath('/operarios')
