@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -177,7 +178,10 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-800">Sanitario y Bioseguridad</h2>
+        <h2 className="text-lg font-semibold text-gray-800">
+          Sanitario y Bioseguridad
+          <Link href="/calendario" className="ml-3 text-xs font-normal text-green-700 hover:underline"><Ic n="calendario" /> Ver calendario de la finca</Link>
+        </h2>
         <div>
           {subTab === 'vacunas' && <Button onClick={() => { setVacunaEditar(null); setModalVacuna(true) }} className="bg-green-700 hover:bg-green-800 text-white text-sm">+ Registrar vacuna</Button>}
           {subTab === 'medicaciones' && <Button onClick={() => { setEventoClinicoIdActivo(null); setMedEditar(null); setModalMed(true) }} className="bg-green-700 hover:bg-green-800 text-white text-sm">+ Registrar tratamiento</Button>}

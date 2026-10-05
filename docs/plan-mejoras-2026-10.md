@@ -138,7 +138,7 @@ separado.
 | 5. Predicción | hecho: curva MCM ajustada a las semanas reales partiendo de la guía (con pocas semanas, la guía), pico, persistencia sobre 90 %, huevos que faltan hasta el fin del ciclo, efecto del último bache y eventos clínicos, y semana de descarte a revisar con el punto de equilibrio |
 | 6. Diagnóstico | hecho: sugerencias que solo aparecen cuando algo se sale de lo esperado (huevos deformes, rotos y sucios; postura, mortalidad, consumo y peso frente a la guía; calor, frío, amoníaco, humedad y CO₂) con posibles causas, qué revisar y fuente, nunca como diagnóstico; directorio de veterinarios con su historial de casos |
 | 7. Ventas de huevo | hecho: ventas y encargos salen del huevo de toda la finca (por tamaño, sin galpón; las de antes conservan el suyo), un solo saldo de huevo en inventario, producción de cada galpón en Huevos de la finca, clientes con precio propio o contrato, compras y variación de precios, y utilidad estimada por venta |
-| 8. Calendario sanitario | pendiente |
+| 8. Calendario sanitario | hecho: página Calendario sanitario con vacunas (y siguientes dosis), tratamientos, dosis por aplicar, retiros, eventos, desinfecciones, pesajes, cambios de alimento, inicio de postura, entradas, salidas y vacío sanitario, cada uno con su color; vista por mes y lista de lo que viene, filtro por galpón y por categoría |
 | 9. Reportes | pendiente |
 | 10. Operarios | pendiente (WhatsApp y RFID después) |
 | 11. Plataforma | pendiente |

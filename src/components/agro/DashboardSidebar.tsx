@@ -39,6 +39,7 @@ export default function DashboardSidebar({ user }: { user: User }) {
     ...(especiesFinca.includes('aves_ponedoras')
       ? [
           { href: '/huevos', label: 'Huevos de la finca', icon: 'huevo' as const },
+          { href: '/calendario', label: 'Calendario sanitario', icon: 'calendario' as const },
           ...(rol !== 'trabajador' ? [{ href: '/ventas', label: 'Ventas de la finca', icon: 'recibo' as const }] : []),
         ]
       : []),
