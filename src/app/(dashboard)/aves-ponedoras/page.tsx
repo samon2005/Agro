@@ -7,6 +7,8 @@ import { cn } from '@/lib/utils'
 import LoteSelector from '@/components/agro/aves/LoteSelector'
 import CrearLoteModal from '@/components/agro/aves/CrearLoteModal'
 import LotesAnterioresModal from '@/components/agro/aves/LotesAnterioresModal'
+import TabRentabilidad from '@/components/agro/aves/rentabilidad/TabRentabilidad'
+import { useRol } from '@/components/agro/RolProvider'
 import { PROPOSITO_LABEL } from '@/lib/lotesAves'
 import EditarFincaModal from '@/components/agro/EditarFincaModal'
 import TabProduccion from '@/components/agro/aves/produccion/TabProduccion'
@@ -31,7 +33,7 @@ type Equipo = Database['public']['Tables']['equipos_aves']['Row']
 type Ambiental = Database['public']['Tables']['parametros_ambientales_aves']['Row']
 type Produccion = Database['public']['Tables']['produccion_diaria_aves']['Row']
 
-type Tab = 'produccion' | 'alimento' | 'ambiental' | 'sanitario' | 'equipos' | 'pesajes' | 'semanal'
+type Tab = 'produccion' | 'alimento' | 'ambiental' | 'sanitario' | 'equipos' | 'pesajes' | 'semanal' | 'rentabilidad'
 
 const TABS: { id: Tab; label: string; icon: NombreIcono }[] = [
   { id: 'produccion', label: 'Producción', icon: 'tendencia' },
@@ -41,11 +43,14 @@ const TABS: { id: Tab; label: string; icon: NombreIcono }[] = [
   { id: 'equipos', label: 'Equipos', icon: 'ajustes' },
   { id: 'pesajes', label: 'Pesajes', icon: 'bascula' },
   { id: 'semanal', label: 'Resumen semanal', icon: 'resumen' },
+  { id: 'rentabilidad', label: 'Rentabilidad', icon: 'dinero' },
 ]
 
 interface Alerta { tipo: 'danger' | 'warning'; mensaje: string }
 
 export default function AvesPonedorasPage() {
+  // Los costos y la utilidad no son para el operario
+  const puedeVerCostos = useRol() !== 'trabajador'
   const { fincaActual, loading: fincaLoading, refetch: refetchFinca } = useFinca()
   const supabase = createClient()
 
@@ -268,7 +273,7 @@ export default function AvesPonedorasPage() {
           {/* Tab bar */}
           <div className="space-y-5">
             <div className="superficie flex gap-1 overflow-x-auto rounded-2xl p-1.5 [scrollbar-width:none]">
-              {TABS.map(tab => (
+              {TABS.filter(tab => tab.id !== 'rentabilidad' || puedeVerCostos).map(tab => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
@@ -315,6 +320,7 @@ export default function AvesPonedorasPage() {
               {activeTab === 'equipos' && <TabEquipos loteActual={loteActual} />}
               {activeTab === 'pesajes' && <TabPesajes key={loteActual.id} loteActual={loteActual} />}
               {activeTab === 'semanal' && <TabResumenSemanal key={loteActual.id} loteActual={loteActual} />}
+              {activeTab === 'rentabilidad' && puedeVerCostos && <TabRentabilidad key={loteActual.id} loteActual={loteActual} />}
             </div>
           </div>
         </>

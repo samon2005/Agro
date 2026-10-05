@@ -17,6 +17,7 @@ import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, Table
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Ic, type NombreIcono } from '@/components/ui/icon'
 import { cn } from '@/lib/utils'
+import CostoHuevoGalpones from '@/components/agro/finanzas/CostoHuevoGalpones'
 import { categoriasCosto, categoriaInfo } from '@/lib/costos'
 import { CONFIG_ESPECIES, dbGenerico } from '@/lib/especiesConfig'
 import type { EspecieFinca } from '@/lib/especies'
@@ -331,6 +332,10 @@ export default function FinanzasPage() {
                   )}
                 </CardContent>
               </Card>
+
+              {especie === 'aves_ponedoras' && fincaActual && (
+                <div className="xl:col-span-2"><CostoHuevoGalpones finca={fincaActual} /></div>
+              )}
             </div>
           )}
 
