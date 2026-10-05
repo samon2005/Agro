@@ -42,11 +42,13 @@ export async function cargarSemanasLote(
 export function useResumenSemanal(
   lote: (LoteResumen & { id: string; aves_actuales?: number }) | null,
   hasta?: string,
+  /** Cambia cuando se registra o borra algo del lote, para volver a cargar */
+  version?: string | number,
 ): { filas: FilaSemana[]; cargando: boolean } {
   const [estado, setEstado] = useState<{ clave: string; filas: FilaSemana[] } | null>(null)
   // La clave cambia con todo lo que mueve el cálculo: así no se muestra un lote con datos de otro
   const clave = lote
-    ? [lote.id, lote.estado, lote.fecha_inicio, lote.fecha_inicio_postura, lote.aves_iniciales, lote.aves_actuales ?? '', hasta ?? ''].join('|')
+    ? [lote.id, lote.estado, lote.fecha_inicio, lote.fecha_inicio_postura, lote.aves_iniciales, lote.aves_actuales ?? '', hasta ?? '', version ?? ''].join('|')
     : ''
 
   useEffect(() => {

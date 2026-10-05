@@ -13,6 +13,7 @@ import ConfigurarGalponModal from './ConfigurarGalponModal'
 import HorariosRecoleccion from './HorariosRecoleccion'
 import RevisionCalidadHuevo from './RevisionCalidadHuevo'
 import GraficasPostura from './GraficasPostura'
+import PrediccionPostura from './PrediccionPostura'
 import ConfigurarRecoleccionModal from './ConfigurarRecoleccionModal'
 import IniciarPosturaModal, { type ConfigPostura } from './IniciarPosturaModal'
 import { toast } from 'sonner'
@@ -900,6 +901,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
             metaPosturaPct={loteActual.meta_postura_pct}
             version={`${registros.length}-${registros[0]?.id ?? ''}-${huevosAcumulados}`}
           />
+          <PrediccionPostura lote={loteActual} version={`${registros.length}-${registros[0]?.id ?? ''}-${huevosAcumulados}`} />
         </>
       )}
 
