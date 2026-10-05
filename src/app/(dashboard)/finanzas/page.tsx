@@ -1,6 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback, type ReactNode } from 'react'
+import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { BarraExportar, type Vista } from '@/components/ui/barra-exportar'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
@@ -68,6 +70,11 @@ export default function FinanzasPage() {
   const [anioFiltro, setAnioFiltro] = useState('todos')
   const [mesFiltro, setMesFiltro] = useState('todos')
   const [categoriaFiltro, setCategoriaFiltro] = useState<string | null>(null)
+  // Vistas e impresión de cada tabla
+  const [vistaMes, setVistaMes] = useState<Vista>('tabla')
+  const refMes = useRef<HTMLDivElement>(null)
+  const refCostos = useRef<HTMLDivElement>(null)
+  const refVentas = useRef<HTMLDivElement>(null)
   const [tipoVentaFiltro, setTipoVentaFiltro] = useState<TipoIngreso | null>(null)
 
   const [modalCosto, setModalCosto] = useState(false)
@@ -260,9 +267,37 @@ export default function FinanzasPage() {
           {tab === 'general' && (
             <div className="grid gap-5 xl:grid-cols-2">
               <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold text-gray-700">Utilidad mes a mes</CardTitle></CardHeader>
-                <CardContent className="p-0">
-                  {porMes.length === 0 ? <Vacio texto="Sin movimientos con estos filtros" /> : (
+                <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
+                  <CardTitle className="text-sm font-semibold text-gray-700">Utilidad mes a mes</CardTitle>
+                  <BarraExportar
+                    titulo={`Utilidad mes a mes ${fincaActual?.nombre ?? ''}`}
+                    imprimir={refMes}
+                    vista={vistaMes}
+                    onVista={setVistaMes}
+                    hojas={() => [{
+                      nombre: 'Utilidad por mes',
+                      columnas: ['Mes', 'Ventas', 'Costos', 'Utilidad', 'Margen %'],
+                      filas: porMes.map(m => [nombreMes(m.mes), m.ingresos, m.costos, m.utilidad, m.ingresos > 0 ? Math.round((m.utilidad / m.ingresos) * 1000) / 10 : null]),
+                    }]}
+                  />
+                </CardHeader>
+                <CardContent className="p-0" ref={refMes}>
+                  {porMes.length === 0 ? <Vacio texto="Sin movimientos con estos filtros" /> : vistaMes === 'grafica' ? (
+                    <div className="h-72 p-4">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={[...porMes].reverse().map(m => ({ mes: nombreMes(m.mes), Ventas: m.ingresos, Costos: m.costos, Utilidad: m.utilidad }))} margin={{ top: 5, right: 10, left: 10, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                          <XAxis dataKey="mes" tick={{ fontSize: 10 }} />
+                          <YAxis tick={{ fontSize: 10 }} tickFormatter={v => `$${(Number(v) / 1000).toLocaleString('es-CO')}k`} />
+                          <Tooltip formatter={v => cop(Number(v))} />
+                          <Legend wrapperStyle={{ fontSize: 12 }} />
+                          <Bar dataKey="Ventas" fill="#86EFAC" />
+                          <Bar dataKey="Costos" fill="#FCA5A5" />
+                          <Bar dataKey="Utilidad" fill="#15803D" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
                     <div className="overflow-x-auto">
                       <Table>
                         <TableHeader>
@@ -363,11 +398,22 @@ export default function FinanzasPage() {
                   <CardTitle className="text-sm font-semibold text-gray-700">
                     {categoriaFiltro ? `Costos · ${categorias.find(c => c.value === categoriaFiltro)?.label}` : 'Todos los costos'}
                   </CardTitle>
-                  {categoriaFiltro && (
-                    <button onClick={() => setCategoriaFiltro(null)} className="text-xs text-green-700 hover:underline">Ver todas las categorías</button>
-                  )}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {categoriaFiltro && (
+                      <button onClick={() => setCategoriaFiltro(null)} className="text-xs text-green-700 hover:underline">Ver todas las categorías</button>
+                    )}
+                    <BarraExportar
+                      titulo={`Costos ${fincaActual?.nombre ?? ''}`}
+                      imprimir={refCostos}
+                      hojas={() => [{
+                        nombre: 'Costos',
+                        columnas: ['Fecha', lugar, 'Categoría', 'Descripción', 'Proveedor', 'Monto'],
+                        filas: costosTabla.map(c => [c.fecha, nombreDe(c.lote_id), categoriaInfo(c.categoria)?.label ?? c.categoria, c.descripcion, c.proveedor, Number(c.monto)]),
+                      }]}
+                    />
+                  </div>
                 </CardHeader>
-                <CardContent className="p-0">
+                <CardContent className="p-0" ref={refCostos}>
                   {costosTabla.length === 0 ? <Vacio texto="Sin costos con estos filtros" /> : (
                     <div className="overflow-x-auto">
                       <Table>
@@ -447,12 +493,21 @@ export default function FinanzasPage() {
               )}
 
               <Card>
-                <CardHeader className="pb-2">
+                <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
                   <CardTitle className="text-sm font-semibold text-gray-700">
                     {tipoVentaFiltro ? `Ventas · ${TIPOS_INGRESO[tipoVentaFiltro].label}` : 'Todas las ventas'}
                   </CardTitle>
+                  <BarraExportar
+                    titulo={`Ventas ${fincaActual?.nombre ?? ''}`}
+                    imprimir={refVentas}
+                    hojas={() => [{
+                      nombre: 'Ventas',
+                      columnas: ['Fecha', lugar, 'Qué se vendió', 'Detalle', 'Monto'],
+                      filas: ventasTabla.map(i => [i.fecha, nombreDe(i.lote_id), TIPOS_INGRESO[i.tipo].label, i.concepto, i.monto]),
+                    }]}
+                  />
                 </CardHeader>
-                <CardContent className="p-0">
+                <CardContent className="p-0" ref={refVentas}>
                   {ventasTabla.length === 0 ? <Vacio texto="Sin ventas con estos filtros" /> : (
                     <div className="overflow-x-auto">
                       <Table>

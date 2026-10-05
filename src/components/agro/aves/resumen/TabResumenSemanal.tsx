@@ -1,6 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { BarraExportar, type Vista } from '@/components/ui/barra-exportar'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
@@ -95,6 +97,29 @@ const COLUMNAS: { titulo: string; ayuda: string; valor: (f: FilaSemana) => strin
   { titulo: 'Conversión', ayuda: 'Kg de alimento por kg de huevo', valor: f => f.conversion != null ? n2(f.conversion) : '—' },
 ]
 
+type MetricaGrafica = 'posturaPct' | 'consumoAveGDia' | 'pesoAveG' | 'pesoHuevoG' | 'mortalidadAcumPct' | 'huevos'
+
+const METRICAS: { v: MetricaGrafica; t: string; unidad: string }[] = [
+  { v: 'posturaPct', t: '% postura', unidad: '%' },
+  { v: 'huevos', t: 'Huevos', unidad: '' },
+  { v: 'consumoAveGDia', t: 'Consumo g/ave/día', unidad: 'g' },
+  { v: 'pesoAveG', t: 'Peso ave', unidad: 'g' },
+  { v: 'pesoHuevoG', t: 'Peso huevo', unidad: 'g' },
+  { v: 'mortalidadAcumPct', t: '% mort. acumulada', unidad: '%' },
+]
+
+/** Lo que espera la guía de una métrica en una semana (null si no aplica) */
+function esperadoMetrica(m: MetricaGrafica, c: Contexto | null): number | null {
+  if (!c) return null
+  const e = esperadoDeSemana(c.ref, c.vida)
+  if (m === 'posturaPct') return e?.postura ?? null
+  if (m === 'consumoAveGDia') return e?.consumo ?? null
+  if (m === 'pesoAveG') return e?.pesoAve ?? null
+  if (m === 'pesoHuevoG') return e?.pesoHuevo ?? null
+  if (m === 'mortalidadAcumPct') return mortalidadEsperadaDesde(c.ref, c.semanaEntrada, c.vida)
+  return null
+}
+
 /**
  * El lote semana a semana en una tabla compacta, con los promedios de 7 días.
  * En levante las semanas van desde la entrada; en postura, desde que empezó a poner.
@@ -103,6 +128,9 @@ export default function TabResumenSemanal({ loteActual, hasta }: { loteActual: L
   const { filas, cargando } = useResumenSemanal(loteActual, hasta)
   const ref = useReferencia(loteActual.referencia_id)
   const [comparar, setComparar] = useState(true)
+  const [vista, setVista] = useState<Vista>('tabla')
+  const [metrica, setMetrica] = useState<MetricaGrafica>('posturaPct')
+  const imprimir = useRef<HTMLDivElement>(null)
 
   // La semana más reciente arriba
   const visibles = [...filas].reverse()
@@ -119,7 +147,29 @@ export default function TabResumenSemanal({ loteActual, hasta }: { loteActual: L
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-semibold text-gray-700">Resumen semanal</CardTitle>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <CardTitle className="text-sm font-semibold text-gray-700">Resumen semanal</CardTitle>
+          <BarraExportar
+            titulo={`Resumen semanal ${loteActual.nombre}`}
+            subtitulo={loteActual.linea_genetica ?? undefined}
+            imprimir={imprimir}
+            vista={vista}
+            onVista={setVista}
+            hojas={() => [{
+              nombre: 'Resumen semanal',
+              columnas: ['Semana', 'Etapa', 'Desde', 'Hasta', ...(conGuia ? ['Semana de vida'] : []), ...COLUMNAS.map(c => c.titulo),
+                ...(conGuia ? ['Guía % postura', 'Guía consumo g', 'Guía peso ave g', 'Guía peso huevo g', 'Guía % mort. acum.'] : [])],
+              filas: filas.map(f => {
+                const c = contexto(f)
+                const num = (v: number | null) => (v == null ? null : Math.round(v * 100) / 100)
+                return [f.semana, f.etapa, f.desde, f.hasta, ...(conGuia ? [c?.vida ?? null] : []),
+                  f.huevos, f.huevosAcumulados, f.saldoAves, f.muertes, num(f.consumoKg), num(f.pesoAveG), num(f.pesoHuevoG),
+                  f.avesEncasetadas, num(f.posturaPct), num(f.haa), num(f.consumoAveGDia), num(f.mortalidadPct), num(f.mortalidadAcumPct), num(f.conversion),
+                  ...(conGuia ? (['posturaPct', 'consumoAveGDia', 'pesoAveG', 'pesoHuevoG', 'mortalidadAcumPct'] as const).map(m => num(esperadoMetrica(m, c))) : [])]
+              }),
+            }]}
+          />
+        </div>
         <p className="text-xs text-gray-400">
           Promedios de cada 7 días. En levante la semana cuenta desde la entrada al galpón; en postura, desde que empezó a poner.
           Pasa el cursor sobre cada columna para ver cómo se calcula.
@@ -141,11 +191,45 @@ export default function TabResumenSemanal({ loteActual, hasta }: { loteActual: L
           </p>
         )}
       </CardHeader>
-      <CardContent className="p-0">
+      <CardContent className="p-0" ref={imprimir}>
         {cargando ? (
           <div className="space-y-2 p-4">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-7 w-full" />)}</div>
         ) : visibles.length === 0 ? (
           <p className="p-6 text-center text-sm text-gray-400">El lote todavía no tiene semanas</p>
+        ) : vista === 'grafica' ? (
+          <div className="space-y-2 p-4">
+            <div data-no-imprimir className="flex flex-wrap gap-1">
+              {METRICAS.map(m => (
+                <button
+                  key={m.v} type="button" onClick={() => setMetrica(m.v)}
+                  className={cn('rounded-full px-2.5 py-1 text-xs', metrica === m.v ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200')}
+                >
+                  {m.t}
+                </button>
+              ))}
+            </div>
+            <div className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart
+                  data={filas.map(f => ({
+                    semana: `${f.etapa === 'postura' ? 'P' : 'L'}${f.semana}`,
+                    real: f[metrica] == null ? null : Math.round(Number(f[metrica]) * 100) / 100,
+                    guia: (() => { const v = esperadoMetrica(metrica, contexto(f)); return v == null ? null : Math.round(v * 100) / 100 })(),
+                  }))}
+                  margin={{ top: 5, right: 10, left: -10, bottom: 0 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="semana" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip formatter={v => (v == null ? '—' : `${Number(v).toLocaleString('es-CO')} ${METRICAS.find(m => m.v === metrica)?.unidad ?? ''}`)} />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Line dataKey="real" name="Real" stroke="#15803D" strokeWidth={2} dot={{ r: 2 }} connectNulls />
+                  {conGuia && <Line dataKey="guia" name="Guía" stroke="#9CA3AF" strokeDasharray="4 4" dot={false} connectNulls />}
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+            <p className="text-[0.6875rem] text-gray-400">L = semana de levante · P = semana de postura</p>
+          </div>
         ) : (
           <div className="max-h-[32rem] overflow-auto">
             <table className="w-full border-collapse text-[0.75rem] tabular-nums">

@@ -1,6 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { BarraExportar, type Vista } from '@/components/ui/barra-exportar'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -31,6 +33,8 @@ export default function TabRentabilidad({ loteActual }: { loteActual: LoteAves }
   const { filas, cargando: cargandoSemanas } = useResumenSemanal(loteActual)
   const [datos, setDatos] = useState<DatosCostosLote | null>(null)
   const [margen, setMargen] = useState('20')
+  const [vista, setVista] = useState<Vista>('tabla')
+  const imprimir = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     let vigente = true
@@ -166,15 +170,53 @@ export default function TabRentabilidad({ loteActual }: { loteActual: LoteAves }
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-semibold text-gray-700">Semana a semana</CardTitle>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <CardTitle className="text-sm font-semibold text-gray-700">Semana a semana</CardTitle>
+            <BarraExportar
+              titulo={`Rentabilidad ${loteActual.nombre}`}
+              imprimir={imprimir}
+              vista={vista}
+              onVista={setVista}
+              hojas={() => [{
+                nombre: 'Rentabilidad',
+                columnas: ['Semana', 'Etapa', 'Desde', 'Hasta', 'Huevos', '% postura', 'Alimento', 'Kg sin precio', 'Directos', 'Finca', 'Aves (amortización)', 'Costo total', 'Costo por huevo', 'Precio promedio', 'Ingreso estimado', 'Utilidad', '% equilibrio'],
+                filas: r.semanas.map(s => {
+                  const v = (x: number | null) => (x == null ? null : Math.round(x * 100) / 100)
+                  return [s.semana, s.etapa, s.desde, s.hasta, s.huevos, v(s.posturaPct), v(s.alimento), v(s.kgSinPrecio), v(s.directos), v(s.finca),
+                    v(s.amortizacion), v(s.total), v(s.costoHuevo), v(s.precioPromedio), v(s.ingreso), v(s.utilidad), v(s.equilibrioPct)]
+                }),
+              }]}
+            />
+          </div>
           <p className="text-xs text-gray-400">
             Alimento: lo consumido por su precio por kg. Directos: costos registrados del galpón. Finca: su parte de los costos
             generales (por sus aves). Aves: la inversión repartida. En levante todo va a la inversión.
           </p>
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent className="p-0" ref={imprimir}>
           {visibles.length === 0 ? (
             <p className="p-6 text-center text-sm text-gray-400">El lote todavía no tiene semanas</p>
+          ) : vista === 'grafica' ? (
+            <div className="h-80 p-4">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={r.semanas.filter(s => s.etapa === 'postura').map(s => ({
+                  semana: `P${s.semana}`,
+                  utilidad: s.utilidad != null ? Math.round(s.utilidad) : null,
+                  postura: s.posturaPct != null ? Math.round(s.posturaPct * 10) / 10 : null,
+                  equilibrio: s.equilibrioPct != null ? Math.round(s.equilibrioPct * 10) / 10 : null,
+                }))} margin={{ top: 5, right: 10, left: 10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="semana" tick={{ fontSize: 10 }} />
+                  <YAxis yAxisId="pesos" tick={{ fontSize: 10 }} tickFormatter={v => `$${(Number(v) / 1000).toLocaleString('es-CO')}k`} />
+                  <YAxis yAxisId="pct" orientation="right" domain={[0, 100]} tick={{ fontSize: 10 }} unit="%" />
+                  <Tooltip formatter={(v, n) => (v == null ? '—' : n === 'Utilidad' ? pesos(Number(v)) : `${Number(v).toLocaleString('es-CO')} %`)} />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Bar yAxisId="pesos" dataKey="utilidad" name="Utilidad" fill="#86EFAC" />
+                  <Line yAxisId="pct" dataKey="postura" name="% postura" stroke="#15803D" strokeWidth={2} dot={false} connectNulls />
+                  <Line yAxisId="pct" dataKey="equilibrio" name="% equilibrio" stroke="#DC2626" strokeDasharray="5 3" dot={false} connectNulls />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
           ) : (
             <div className="max-h-[28rem] overflow-auto">
               <table className="w-full border-collapse text-[0.75rem] tabular-nums">

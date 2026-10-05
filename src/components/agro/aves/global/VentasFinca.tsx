@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { BarraExportar } from '@/components/ui/barra-exportar'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { useFinca } from '@/components/agro/FincaProvider'
@@ -57,6 +58,7 @@ export default function VentasFinca({ fincaId, lotes }: Props) {
   // Costo por gramo de huevo de la finca, para estimar la utilidad de cada venta
   const [costoGramo, setCostoGramo] = useState<number | null>(null)
   const puedeVerCostos = useRol() !== 'trabajador'
+  const refVentas = useRef<HTMLDivElement>(null)
   const [loading, setLoading] = useState(true)
   const [confirmandoEliminar, setConfirmandoEliminar] = useState<string | null>(null)
 
@@ -341,9 +343,26 @@ export default function VentasFinca({ fincaId, lotes }: Props) {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-3">
             <CardTitle>Ventas registradas</CardTitle>
-            <Button size="sm" onClick={abrirNuevaVenta}><Ic n="mas" /> Registrar venta</Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <BarraExportar
+                titulo={`Ventas de huevo ${fincaActual?.nombre ?? ''}`}
+                imprimir={refVentas}
+                hojas={() => [{
+                  nombre: 'Ventas de huevo',
+                  columnas: ['Fecha', 'Cliente', ...TAMANOS_HUEVO.map(t => `Huevos ${t.label}`), ...TAMANOS_HUEVO.map(t => `Precio ${t.label}`), 'Huevos', 'Total', 'Pagado', 'Debe', 'Origen'],
+                  filas: ventas.map(v => [
+                    v.fecha, v.cliente,
+                    ...TAMANOS_HUEVO.map(t => Number(v[`cantidad_${t.key}` as keyof Venta] ?? 0)),
+                    ...TAMANOS_HUEVO.map(t => v[`precio_${t.key}` as keyof Venta] as number | null),
+                    huevosDe(v), valorVenta(v), pagadoDe(v), Math.max(0, valorVenta(v) - pagadoDe(v)),
+                    v.lote_id ? nombrePorLote.get(v.lote_id) ?? 'Galpón' : 'Finca',
+                  ]),
+                }]}
+              />
+              <Button size="sm" onClick={abrirNuevaVenta}><Ic n="mas" /> Registrar venta</Button>
+            </div>
           </CardHeader>
-          <CardContent className="p-0">
+          <CardContent className="p-0" ref={refVentas}>
             {ventas.length === 0 ? (
               <div className="py-12 text-center">
                 <Ic n="recibo" className="mx-auto mb-2 size-8 text-gray-300" />
