@@ -14,6 +14,7 @@ import HorariosRecoleccion from './HorariosRecoleccion'
 import RevisionCalidadHuevo from './RevisionCalidadHuevo'
 import GraficasPostura from './GraficasPostura'
 import PrediccionPostura from './PrediccionPostura'
+import SugerenciasLote from './SugerenciasLote'
 import ConfigurarRecoleccionModal from './ConfigurarRecoleccionModal'
 import IniciarPosturaModal, { type ConfigPostura } from './IniciarPosturaModal'
 import { toast } from 'sonner'
@@ -540,6 +541,9 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
           </Button>
         </div>
       </div>
+
+      {/* Solo aparece si algo se salió de lo esperado */}
+      <SugerenciasLote lote={loteActual} version={`${registros.length}-${registros[0]?.id ?? ''}-${huevosAcumulados}`} />
 
       {!listoParaRegistrar && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-amber-50 px-4 py-3.5 ring-1 ring-amber-200/70">

@@ -12,34 +12,44 @@ interface Props {
   onChange: (value: string) => void
   label?: string
   placeholder?: string
+  /** También ofrece los veterinarios de la finca (sanidad): así su historial cuadra por nombre */
+  incluirVeterinarios?: boolean
 }
 
 const OTRO = '__otro__'
 
-export default function EncargadoSelect({ fincaId, value, onChange, placeholder = 'Nombre del encargado' }: Props) {
+export default function EncargadoSelect({ fincaId, value, onChange, placeholder = 'Nombre del encargado', incluirVeterinarios = false }: Props) {
   const [operarios, setOperarios] = useState<Operario[]>([])
+  const [veterinarios, setVeterinarios] = useState<string[]>([])
   const [loaded, setLoaded] = useState(false)
   const [modoTexto, setModoTexto] = useState(false)
 
   useEffect(() => {
     if (!fincaId) return
     const supabase = createClient()
-    obtenerMiembrosFinca(supabase, fincaId).then(lista => {
+    Promise.all([
+      obtenerMiembrosFinca(supabase, fincaId),
+      incluirVeterinarios
+        ? supabase.from('veterinarios').select('nombre').eq('finca_id', fincaId).eq('activo', true).order('nombre')
+        : Promise.resolve({ data: [] as { nombre: string }[] }),
+    ]).then(([lista, vets]) => {
       setOperarios(lista)
+      // Un veterinario que también es miembro de la finca no se repite
+      setVeterinarios((vets.data ?? []).map(v => v.nombre).filter(n => !lista.some(o => o.full_name === n)))
       setLoaded(true)
     })
-  }, [fincaId])
+  }, [fincaId, incluirVeterinarios])
 
   useEffect(() => {
     if (!loaded) return
-    if (value && !operarios.some(o => o.full_name === value)) setModoTexto(true)
-  }, [loaded, operarios, value])
+    if (value && !operarios.some(o => o.full_name === value) && !veterinarios.includes(value)) setModoTexto(true)
+  }, [loaded, operarios, veterinarios, value])
 
-  if (modoTexto || (loaded && operarios.length === 0)) {
+  if (modoTexto || (loaded && operarios.length === 0 && veterinarios.length === 0)) {
     return (
       <div className="flex gap-1.5">
         <Input placeholder={placeholder} value={value} onChange={e => onChange(e.target.value)} />
-        {operarios.length > 0 && (
+        {operarios.length + veterinarios.length > 0 && (
           <button
             type="button"
             onClick={() => { setModoTexto(false); onChange('') }}
@@ -52,7 +62,10 @@ export default function EncargadoSelect({ fincaId, value, onChange, placeholder 
     )
   }
 
-  const items: Record<string, string> = Object.fromEntries(operarios.map(o => [o.full_name as string, o.full_name as string]))
+  const items: Record<string, string> = Object.fromEntries([
+    ...operarios.map(o => [o.full_name as string, o.full_name as string]),
+    ...veterinarios.map(n => [n, `${n} · veterinario`]),
+  ])
   items[OTRO] = 'Otro (escribir)'
 
   return (
@@ -64,6 +77,7 @@ export default function EncargadoSelect({ fincaId, value, onChange, placeholder 
       <SelectTrigger className="w-full"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
       <SelectContent>
         {operarios.map(o => <SelectItem key={o.id} value={o.full_name as string}>{o.full_name}</SelectItem>)}
+        {veterinarios.map(n => <SelectItem key={`vet-${n}`} value={n}>{n} · veterinario</SelectItem>)}
         <SelectItem value={OTRO}>Otro (escribir)</SelectItem>
       </SelectContent>
     </Select>

@@ -135,7 +135,11 @@ export default function AvesPonedorasPage() {
       if (ultimoAmb?.nh3_ppm && ultimoAmb.nh3_ppm > 25)
         nuevasAlertas.push({ tipo: 'danger', mensaje: `NH₃: ${ultimoAmb.nh3_ppm} ppm — supera el límite (25 ppm)` })
 
-      if (ultimaProd?.huevos_totales && ultimaProd?.aves_en_dia && ultimaProd.aves_en_dia > 0) {
+      // En las primeras semanas de postura lo normal es estar subiendo: no es alerta
+      const semanasPostura = loteActual.estado === 'activo' && loteActual.fecha_inicio_postura
+        ? (Date.now() - new Date(loteActual.fecha_inicio_postura + 'T00:00:00').getTime()) / (7 * 86_400_000)
+        : 0
+      if (semanasPostura > 6 && ultimaProd?.huevos_totales && ultimaProd?.aves_en_dia && ultimaProd.aves_en_dia > 0) {
         const postura = (ultimaProd.huevos_totales / ultimaProd.aves_en_dia) * 100
         if (postura < 70)
           nuevasAlertas.push({ tipo: 'warning', mensaje: `Postura: ${postura.toFixed(1)}% — por debajo del umbral (70%)` })

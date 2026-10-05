@@ -373,7 +373,7 @@ export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaI
             </div>
             <div className="space-y-1">
               <Label>Encargado</Label>
-              <EncargadoSelect fincaId={fincaId} value={form.encargado} onChange={v => set('encargado', v)} />
+              <EncargadoSelect fincaId={fincaId} value={form.encargado} onChange={v => set('encargado', v)} incluirVeterinarios />
             </div>
             <div className="col-span-2 space-y-1">
               <Label>Observaciones</Label>

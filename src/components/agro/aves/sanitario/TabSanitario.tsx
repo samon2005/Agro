@@ -19,6 +19,7 @@ import RegistrarDesinfeccionModal from './RegistrarDesinfeccionModal'
 import type { Database } from '@/types/database'
 import { aFechaLocal } from '@/lib/fechas'
 import { Ic } from '@/components/ui/icon'
+import VeterinariosFinca from './VeterinariosFinca'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 type Vacunacion = Database['public']['Tables']['vacunaciones_aves']['Row']
@@ -30,7 +31,7 @@ type RegistroMuerte = Pick<Database['public']['Tables']['produccion_diaria_aves'
 type FilaMuerte = { id: string; fecha: string; muertes: number; causa: string | null; origen: 'dia' | 'evento' }
 type Recordatorio = Database['public']['Tables']['recordatorios_medicacion_aves']['Row']
 
-type SubTab = 'vacunas' | 'medicaciones' | 'eventos' | 'desinfecciones' | 'muertes'
+type SubTab = 'vacunas' | 'medicaciones' | 'eventos' | 'desinfecciones' | 'muertes' | 'veterinarios'
 
 interface Props { loteActual: LoteAves; onChange?: () => void }
 
@@ -170,6 +171,7 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
     { id: 'vacunas', label: 'Vacunaciones', count: vacunas.length },
     { id: 'desinfecciones', label: 'Desinfección', count: desinfecciones.length },
     { id: 'muertes', label: 'Muertes', count: filasMuertes.length },
+    { id: 'veterinarios', label: 'Veterinarios', count: 0 },
   ]
 
   return (
@@ -235,7 +237,9 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
         ))}
       </div>
 
-      <Card>
+      {subTab === 'veterinarios' && <VeterinariosFinca fincaId={loteActual.finca_id} />}
+
+      {subTab !== 'veterinarios' && <Card>
         <CardContent className="p-0">
           {loading ? (
             <div className="p-4 space-y-2">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}</div>
@@ -536,7 +540,7 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
             )
           )}
         </CardContent>
-      </Card>
+      </Card>}
 
       <RegistrarVacunacionModal
         open={modalVacuna}

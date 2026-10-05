@@ -581,6 +581,12 @@ export interface Database {
         Update: { id?: string; linea_id?: string; orden?: number; nombre?: string; categoria?: 'iniciacion' | 'crecimiento' | 'desarrollo' | 'prepostura' | 'postura'; desde_semana?: number | null; hasta_semana?: number | null; peso_cambio_g?: number | null; postura_min?: number | null; bajo_pico?: number | null; notas?: string | null }
         Relationships: []
       }
+      veterinarios: {
+        Row: { id: string; finca_id: string; nombre: string; telefono: string | null; correo: string | null; tarjeta_profesional: string | null; especialidad: string | null; notas: string | null; activo: boolean; created_at: string }
+        Insert: { id?: string; finca_id: string; nombre: string; telefono?: string | null; correo?: string | null; tarjeta_profesional?: string | null; especialidad?: string | null; notas?: string | null; activo?: boolean; created_at?: string }
+        Update: { id?: string; finca_id?: string; nombre?: string; telefono?: string | null; correo?: string | null; tarjeta_profesional?: string | null; especialidad?: string | null; notas?: string | null; activo?: boolean; created_at?: string }
+        Relationships: []
+      }
       lineas_referencia: {
         Row: { id: string; finca_id: string | null; codigo: string; nombre: string; especie: string; fuente: string | null; url: string | null; notas: string | null; basada_en: string | null; created_at: string }
         Insert: { id?: string; finca_id?: string | null; codigo: string; nombre: string; especie?: string; fuente?: string | null; url?: string | null; notas?: string | null; basada_en?: string | null; created_at?: string }
