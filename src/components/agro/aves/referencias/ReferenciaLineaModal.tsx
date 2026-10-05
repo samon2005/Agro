@@ -10,6 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Ic } from '@/components/ui/icon'
 import { dbGenerico } from '@/lib/especiesConfig'
 import type { FilaReferencia, LineaReferencia } from '@/lib/referencias'
+import FasesAlimentoReferencia from './FasesAlimentoReferencia'
 
 interface Props {
   open: boolean
@@ -192,6 +193,8 @@ export default function ReferenciaLineaModal({ open, onClose, linea, fincaId, on
             </table>
           </div>
         )}
+
+        {linea && !editando && <FasesAlimentoReferencia key={linea.id} lineaId={linea.id} editable={esDeLaFinca} />}
 
         <DialogFooter className="flex-wrap gap-2">
           {esDeLaFinca ? (

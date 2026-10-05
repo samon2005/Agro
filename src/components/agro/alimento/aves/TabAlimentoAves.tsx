@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { avisoCostoVinculado } from '@/lib/eliminarConAviso'
 import CrearTipoAlimentoModal from './CrearTipoAlimentoModal'
+import ProgramaAlimentacion from './ProgramaAlimentacion'
 import EditarRequerimientosModal from './EditarRequerimientosModal'
 import RegistrarConsumoAlimentoModal from './RegistrarConsumoAlimentoModal'
 import HorariosAlimentacion from './HorariosAlimentacion'
@@ -24,6 +25,7 @@ import { Indicador } from '@/components/ui/indicador'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { useRouter } from 'next/navigation'
 import { Ic } from '@/components/ui/icon'
+import { CATEGORIAS_ALIMENTO_AVES } from '@/lib/programaAlimento'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 type ProduccionDiaria = Database['public']['Tables']['produccion_diaria_aves']['Row']
@@ -69,11 +71,7 @@ function fmt(d: string) {
   return new Date(d + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-const CATEGORIA_LABEL: Record<string, string> = {
-  levante: 'Levante',
-  pollitas_ponedoras: 'Pollitas ponedoras',
-  otros: 'Otros',
-}
+const CATEGORIA_LABEL: Record<string, string> = Object.fromEntries(CATEGORIAS_ALIMENTO_AVES.map(c => [c.value, c.label]))
 
 const NUTRIENTES = [
   { key: 'proteina', label: 'Proteína bruta', pctKey: 'proteina_bruta_pct' as const, mantKey: 'mant_proteina_g' as const, prodKey: 'prod_proteina_g' as const },
@@ -450,6 +448,15 @@ export default function TabAlimentoAves({ lotes, loteInicialId, modo = 'finca', 
             }
           />
         </div>
+      )}
+
+      {/* Lo que le corresponde comer a su edad, según su referencia */}
+      {enGalpon && subTab === 'alimento' && lote && (
+        <ProgramaAlimentacion
+          lote={lote}
+          consumoKgDia={alimentoActivo?.consumo_activo_kg != null ? Number(alimentoActivo.consumo_activo_kg) : null}
+          alimento={tipoActual}
+        />
       )}
 
       {!enGalpon && subTab === 'alimento' ? (

@@ -133,7 +133,7 @@ separado.
 |---|---|
 | 1. Referencias por línea | hecho: Hy-Line Brown y Lohmann Brown-Classic (100 semanas), edad de las aves, copia ajustable por finca, comparación en Resumen semanal y Pesajes. Isa Brown, Bovans y Babcock sin guía pública confiable: se copia una parecida y se ajusta |
 | 2. Configuración del lote | hecho: propósito (ciclo completo, venta en postura, levante y venta) con fecha de salida por semana de vida, plantillas de configuración, cierre del lote sin borrar (venta de las aves que quedan) con vacío sanitario, lotes anteriores y avisos de salida |
-| 3. Programa de alimentación | pendiente |
+| 3. Programa de alimentación | hecho: fases de Hy-Line Brown (por edad y peso en levante, por % de postura en producción), consumo esperado vs real del galpón, aviso de cambio de alimento, fases ajustables en copias de la finca. Lohmann sin fases publicadas en su tabla |
 | 4. Costo por huevo | pendiente |
 | 5. Predicción | pendiente |
 | 6. Diagnóstico | pendiente |

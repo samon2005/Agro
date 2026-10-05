@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database'
 import type { EspecieFinca } from './especies'
+import { CATEGORIAS_ALIMENTO_AVES } from './programaAlimento'
 
 /**
  * Nombres de tabla por especie. Las columnas son iguales entre especies por
@@ -74,11 +75,7 @@ const NUTRICION_AVES: ConfigNutricion = {
   campoConsumo: 'consumo_g_dia',
   unidadConsumo: 'g',
   etapas: [{ value: 'postura', label: 'Postura' }],
-  categoriasAlimento: [
-    { value: 'levante', label: 'Levante' },
-    { value: 'pollitas_ponedoras', label: 'Pollitas ponedoras' },
-    { value: 'otros', label: 'Otros' },
-  ],
+  categoriasAlimento: CATEGORIAS_ALIMENTO_AVES,
 }
 
 const NUTRICION_CERDOS: ConfigNutricion = {

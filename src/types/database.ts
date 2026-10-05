@@ -575,6 +575,12 @@ export interface Database {
         Update: { id?: string; finca_id?: string; nombre?: string; linea_genetica?: string | null; referencia_id?: string | null; proposito?: 'ciclo_completo' | 'venta_postura' | 'venta_levante'; estado_llegada?: 'preparacion' | 'activo'; edad_llegada_semanas?: number | null; semana_salida?: number | null; semanas_ciclo_postura?: number | null; meta_postura_pct?: number | null; created_at?: string }
         Relationships: []
       }
+      fases_alimento: {
+        Row: { id: string; linea_id: string; orden: number; nombre: string; categoria: 'iniciacion' | 'crecimiento' | 'desarrollo' | 'prepostura' | 'postura'; desde_semana: number | null; hasta_semana: number | null; peso_cambio_g: number | null; postura_min: number | null; bajo_pico: number | null; notas: string | null }
+        Insert: { id?: string; linea_id: string; orden: number; nombre: string; categoria: 'iniciacion' | 'crecimiento' | 'desarrollo' | 'prepostura' | 'postura'; desde_semana?: number | null; hasta_semana?: number | null; peso_cambio_g?: number | null; postura_min?: number | null; bajo_pico?: number | null; notas?: string | null }
+        Update: { id?: string; linea_id?: string; orden?: number; nombre?: string; categoria?: 'iniciacion' | 'crecimiento' | 'desarrollo' | 'prepostura' | 'postura'; desde_semana?: number | null; hasta_semana?: number | null; peso_cambio_g?: number | null; postura_min?: number | null; bajo_pico?: number | null; notas?: string | null }
+        Relationships: []
+      }
       lineas_referencia: {
         Row: { id: string; finca_id: string | null; codigo: string; nombre: string; especie: string; fuente: string | null; url: string | null; notas: string | null; basada_en: string | null; created_at: string }
         Insert: { id?: string; finca_id?: string | null; codigo: string; nombre: string; especie?: string; fuente?: string | null; url?: string | null; notas?: string | null; basada_en?: string | null; created_at?: string }

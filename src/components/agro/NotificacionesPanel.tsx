@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { faseSugerida, type FaseAlimento } from '@/lib/programaAlimento'
+import { semanaDeVida } from '@/lib/referencias'
 import { useFinca } from './FincaProvider'
 import { Badge } from '@/components/ui/badge'
 import { aFechaLocal } from '@/lib/fechas'
@@ -57,9 +59,33 @@ export default function NotificacionesPanel() {
     await Promise.all(tareas)
 
     if (especies.includes('aves_ponedoras')) {
-      const { data: lotes } = await supabase.from('lotes_aves').select('id, nombre, estado, fecha_inicio_postura, fecha_salida_programada, proposito').eq('finca_id', fincaActual.id).in('estado', ['activo', 'preparacion'])
+      const { data: lotes } = await supabase.from('lotes_aves').select('id, nombre, estado, fecha_inicio_postura, fecha_salida_programada, proposito, referencia_id, fecha_nacimiento').eq('finca_id', fincaActual.id).in('estado', ['activo', 'preparacion'])
+
+      // Las fases de alimentación de las referencias de los lotes en levante
+      const refsLevante = [...new Set((lotes ?? []).filter(l => l.estado === 'preparacion' && l.referencia_id && l.fecha_nacimiento).map(l => l.referencia_id as string))]
+      const { data: fasesRefs } = refsLevante.length
+        ? await supabase.from('fases_alimento').select('*').in('linea_id', refsLevante)
+        : { data: [] as FaseAlimento[] }
 
       for (const lote of lotes ?? []) {
+        // Cambio de alimento por edad en la próxima semana
+        if (lote.estado === 'preparacion' && lote.referencia_id && lote.fecha_nacimiento) {
+          const sug = faseSugerida((fasesRefs ?? []).filter(f => f.linea_id === lote.referencia_id), {
+            vida: semanaDeVida(lote.fecha_nacimiento, aFechaLocal(hoy)),
+            enPostura: false, fechaNacimiento: lote.fecha_nacimiento, posturas: [], pesoG: null,
+          })
+          if (sug?.siguiente && sug.cambioDesde) {
+            const dias = Math.round((new Date(sug.cambioDesde + 'T00:00:00').getTime() - new Date(aFechaLocal(hoy) + 'T00:00:00').getTime()) / 86_400_000)
+            if (dias >= 0 && dias <= 7) {
+              notifs.push({
+                tipo: 'stock',
+                mensaje: `"${lote.nombre}" pasa a ${sug.siguiente.nombre} ${dias === 0 ? 'hoy' : `en ${dias} día${dias === 1 ? '' : 's'}`}: revisa que haya ese alimento`,
+                href: `/aves-ponedoras?lote=${lote.id}`,
+              })
+            }
+          }
+        }
+
         const [{ data: horarios }, { data: hoyProd }] = await Promise.all([
           supabase.from('horarios_recoleccion_aves').select('hora, descripcion').eq('lote_id', lote.id).eq('activo', true),
           supabase.from('produccion_diaria_aves').select('id').eq('lote_id', lote.id).eq('fecha', aFechaLocal(hoy)).maybeSingle(),

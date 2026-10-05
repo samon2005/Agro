@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { CATEGORIAS_ALIMENTO_AVES } from '@/lib/programaAlimento'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -21,11 +22,8 @@ interface Props {
   onCreated: () => void
 }
 
-const TIPOS_CATEGORIA = [
-  { value: 'levante', label: 'Levante' },
-  { value: 'pollitas_ponedoras', label: 'Pollitas ponedoras' },
-  { value: 'otros', label: 'Otros' },
-]
+// Las mismas fases del programa de alimentación (y las clases de antes)
+const TIPOS_CATEGORIA = CATEGORIAS_ALIMENTO_AVES
 
 const CATEGORIA_LABEL: Record<string, string> = Object.fromEntries(TIPOS_CATEGORIA.map(t => [t.value, t.label]))
 
