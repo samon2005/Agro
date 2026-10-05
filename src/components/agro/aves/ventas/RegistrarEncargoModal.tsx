@@ -7,34 +7,31 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
 import { TAMANOS_HUEVO } from '@/lib/huevos'
+import { totalTamanos, type ClienteHuevos, type PorTamano } from '@/lib/huevosFinca'
+import ClienteSelect, { asegurarCliente, type ValorCliente } from './ClienteSelect'
 
-type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 type Encargo = Database['public']['Tables']['encargos_huevos_aves']['Row']
 
 interface Props {
   open: boolean
   onClose: () => void
   fincaId: string
-  /** Galpones de la finca: el encargo dice de cuál saldrá el huevo */
-  lotes: LoteAves[]
   encargoExistente?: Encargo | null
-  /** Huevos en bodega de cada galpón hoy, por id de lote */
-  stockPorLote: Record<string, number>
-  /** Huevo ya comprometido en otros encargos pendientes, por id de lote */
-  comprometidoPorLote: Record<string, number>
+  /** Huevos en bodega de toda la finca hoy, por tamaño */
+  disponible: PorTamano
+  /** Huevo ya comprometido en encargos pendientes, por tamaño */
+  comprometido: PorTamano
+  clientes: ClienteHuevos[]
   onCreated: () => void
 }
 
-function defaultForm(lotes: LoteAves[], e?: Encargo | null) {
+function defaultForm(e?: Encargo | null) {
   return {
-    lote_id: e?.lote_id ?? lotes[0]?.id ?? '',
     fecha_pedido: e?.fecha_pedido ?? hoyLocal(),
     fecha_entrega: e?.fecha_entrega ?? '',
-    cliente: e?.cliente ?? '',
     cantidad_b: e ? String(e.cantidad_b) : '',
     cantidad_a: e ? String(e.cantidad_a) : '',
     cantidad_aa: e ? String(e.cantidad_aa) : '',
@@ -44,27 +41,30 @@ function defaultForm(lotes: LoteAves[], e?: Encargo | null) {
   }
 }
 
-export default function RegistrarEncargoModal({ open, onClose, fincaId, lotes, encargoExistente, stockPorLote, comprometidoPorLote, onCreated }: Props) {
+export default function RegistrarEncargoModal({ open, onClose, fincaId, encargoExistente, disponible, comprometido, clientes, onCreated }: Props) {
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
-  const [form, setForm] = useState(() => defaultForm(lotes, encargoExistente))
+  const [form, setForm] = useState(() => defaultForm(encargoExistente))
+  const [cliente, setCliente] = useState<ValorCliente>({ id: null, nombre: '' })
 
-  useEffect(() => { if (open) setForm(defaultForm(lotes, encargoExistente)) }, [open, lotes, encargoExistente])
+  useEffect(() => {
+    if (!open) return
+    setForm(defaultForm(encargoExistente))
+    setCliente({ id: encargoExistente?.cliente_id ?? null, nombre: encargoExistente?.cliente ?? '' })
+  }, [open, encargoExistente])
 
   function set(field: string, value: string | null) {
     setForm(prev => ({ ...prev, [field]: value ?? '' }))
   }
 
-  const totalHuevos = TAMANOS_HUEVO.reduce((s, t) => s + (Number(form[`cantidad_${t.key}` as keyof typeof form]) || 0), 0)
-  const lote = lotes.find(l => l.id === form.lote_id) ?? null
-  const enBodega = stockPorLote[form.lote_id] ?? 0
-  // Lo ya comprometido en otros encargos del mismo galpón (sin contar este si se edita)
-  const yaComprometido = Math.max(0, (comprometidoPorLote[form.lote_id] ?? 0)
-    - (encargoExistente && encargoExistente.lote_id === form.lote_id
-      ? TAMANOS_HUEVO.reduce((s, t) => s + Number(encargoExistente[`cantidad_${t.key}` as keyof Encargo] ?? 0), 0)
-      : 0))
-  const libre = Math.max(0, enBodega - yaComprometido)
-  const noAlcanza = totalHuevos > 0 && totalHuevos > libre
+  const cantidad = (k: keyof PorTamano) => Number(form[`cantidad_${k}` as keyof typeof form]) || 0
+  const totalHuevos = TAMANOS_HUEVO.reduce((s, t) => s + cantidad(t.key), 0)
+  // Lo libre de cada tamaño: lo que hay menos lo comprometido en otros encargos (sin contar este si se edita)
+  const libre = (k: keyof PorTamano) => Math.max(0, disponible[k] - Math.max(0, comprometido[k]
+    - (encargoExistente && encargoExistente.estado !== 'entregado' ? Number(encargoExistente[`cantidad_${k}` as keyof Encargo] ?? 0) : 0)))
+  const faltan = TAMANOS_HUEVO.filter(t => cantidad(t.key) > libre(t.key))
+  const noAlcanza = totalHuevos > 0 && faltan.length > 0
+  const libreTotal = totalTamanos(Object.fromEntries(TAMANOS_HUEVO.map(t => [t.key, libre(t.key)])) as PorTamano)
 
   function fmtLargo(d: string) {
     return new Date(d + 'T00:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long' })
@@ -72,16 +72,18 @@ export default function RegistrarEncargoModal({ open, onClose, fincaId, lotes, e
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.lote_id || !lote) { toast.error('Elige de qué galpón saldrá el huevo'); return }
     if (!form.fecha_entrega) { toast.error('Ingresa la fecha de entrega del encargo'); return }
+    if (form.fecha_pedido && form.fecha_entrega < form.fecha_pedido) { toast.error('La entrega no puede ser antes del pedido'); return }
     if (totalHuevos <= 0) { toast.error('Ingresa cuántos huevos se encargaron'); return }
 
     setLoading(true)
+    const c = await asegurarCliente(supabase, fincaId, cliente, clientes)
+    if (c.error) { setLoading(false); toast.error(c.error); return }
     const payload = {
-      lote_id: form.lote_id,
       fecha_pedido: form.fecha_pedido,
       fecha_entrega: form.fecha_entrega,
-      cliente: form.cliente || null,
+      cliente: c.nombre,
+      cliente_id: c.id,
       cantidad_b: Number(form.cantidad_b) || 0,
       cantidad_a: Number(form.cantidad_a) || 0,
       cantidad_aa: Number(form.cantidad_aa) || 0,
@@ -91,14 +93,14 @@ export default function RegistrarEncargoModal({ open, onClose, fincaId, lotes, e
     }
     const { error } = encargoExistente
       ? await supabase.from('encargos_huevos_aves').update(payload).eq('id', encargoExistente.id)
-      : await supabase.from('encargos_huevos_aves').insert({ ...payload, finca_id: fincaId })
+      : await supabase.from('encargos_huevos_aves').insert({ ...payload, finca_id: fincaId, lote_id: null })
 
     setLoading(false)
     if (error) { toast.error(encargoExistente ? 'Error al actualizar el encargo' : 'Error al registrar el encargo'); return }
     // Se deja registrar aunque hoy no alcance, pero queda claro lo que hay que tener ese día
     if (noAlcanza) {
       toast.warning(
-        `Encargo registrado. Para el ${fmtLargo(form.fecha_entrega)} ${lote.nombre} debe tener ${totalHuevos.toLocaleString('es-CO')} huevos disponibles; hoy tiene ${libre.toLocaleString('es-CO')} libres.`,
+        `Encargo registrado. Para el ${fmtLargo(form.fecha_entrega)} la finca debe tener ese huevo: hoy falta ${faltan.map(t => t.label).join(', ')}.`,
         { duration: 10000 }
       )
     } else {
@@ -120,23 +122,6 @@ export default function RegistrarEncargoModal({ open, onClose, fincaId, lotes, e
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2 space-y-1">
-              <Label>Galpón del que saldrá *</Label>
-              <Select
-                value={form.lote_id}
-                onValueChange={v => set('lote_id', v)}
-                items={Object.fromEntries(lotes.map(l => [l.id, l.nombre]))}
-              >
-                <SelectTrigger className="w-full"><SelectValue placeholder="Seleccionar galpón..." /></SelectTrigger>
-                <SelectContent alignItemWithTrigger={false}>
-                  {lotes.map(l => (
-                    <SelectItem key={l.id} value={l.id}>
-                      {l.nombre} · {(stockPorLote[l.id] ?? 0).toLocaleString('es-CO')} huevos en bodega
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
             <div className="space-y-1">
               <Label>Fecha del pedido</Label>
               <Input type="date" value={form.fecha_pedido} onChange={e => set('fecha_pedido', e.target.value)} />
@@ -147,7 +132,7 @@ export default function RegistrarEncargoModal({ open, onClose, fincaId, lotes, e
             </div>
             <div className="col-span-2 space-y-1">
               <Label>Cliente</Label>
-              <Input placeholder="¿Quién lo encargó?" value={form.cliente} onChange={e => set('cliente', e.target.value)} />
+              <ClienteSelect clientes={clientes} value={cliente} onChange={setCliente} />
             </div>
           </div>
 
@@ -162,22 +147,24 @@ export default function RegistrarEncargoModal({ open, onClose, fincaId, lotes, e
                     value={form[`cantidad_${t.key}` as keyof typeof form]}
                     onChange={e => set(`cantidad_${t.key}`, e.target.value)}
                   />
+                  <p className={`text-[0.6875rem] ${cantidad(t.key) > libre(t.key) ? 'font-medium text-amber-700' : 'text-gray-400'}`}>
+                    libres {libre(t.key).toLocaleString('es-CO')}
+                  </p>
                 </div>
               ))}
             </div>
             <p className="text-xs text-gray-600">
               Total encargado: <span className="font-semibold">{totalHuevos.toLocaleString('es-CO')}</span>
-              {lote && ` · ${lote.nombre} tiene ${enBodega.toLocaleString('es-CO')} en bodega${yaComprometido > 0 ? `, ${yaComprometido.toLocaleString('es-CO')} ya comprometidos` : ''}`}
+              {` · la finca tiene ${libreTotal.toLocaleString('es-CO')} huevos libres (en bodega y sin comprometer)`}
             </p>
           </div>
 
-          {noAlcanza && lote && (
+          {noAlcanza && (
             <div className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 ring-1 ring-amber-200/70">
               <p className="font-semibold">Hoy no alcanza, pero puedes registrarlo.</p>
               <p className="mt-0.5">
-                {form.fecha_entrega
-                  ? `Para el ${fmtLargo(form.fecha_entrega)} ${lote.nombre} debe tener ${totalHuevos.toLocaleString('es-CO')} huevos disponibles para cumplir. Hoy tiene ${libre.toLocaleString('es-CO')} libres.`
-                  : `El encargo supera los ${libre.toLocaleString('es-CO')} huevos libres que tiene hoy ${lote.nombre}.`}
+                {`Hoy no hay suficiente ${faltan.map(t => `${t.label} (libres ${libre(t.key).toLocaleString('es-CO')})`).join(', ')}.`}
+                {form.fecha_entrega && ` Para el ${fmtLargo(form.fecha_entrega)} la finca debe tenerlo para cumplir.`}
               </p>
             </div>
           )}

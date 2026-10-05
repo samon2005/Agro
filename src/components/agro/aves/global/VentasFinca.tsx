@@ -16,17 +16,22 @@ import { cn } from '@/lib/utils'
 import RegistrarVentaModal from '@/components/agro/aves/ventas/RegistrarVentaModal'
 import RegistrarPagoModal from '@/components/agro/aves/ventas/RegistrarPagoModal'
 import RegistrarEncargoModal from '@/components/agro/aves/ventas/RegistrarEncargoModal'
+import ClientesHuevos from '@/components/agro/aves/ventas/ClientesHuevos'
+import { useRol } from '@/components/agro/RolProvider'
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
-import { nombreItemHuevos } from '@/lib/inventario'
 import { TAMANOS_HUEVO, cop, huevosDe, valorVenta, preciosDeFinca, hayPrecios } from '@/lib/huevos'
+import { CERO, cantidadesDe, cargarHuevosFinca, preciosParaCliente, totalTamanos, type ClienteHuevos, type PorTamano } from '@/lib/huevosFinca'
+import { costoGramoFinca } from '@/lib/costoHuevo'
+import { cargarSemanasLote } from '@/lib/useResumenSemanal'
+import { PESO_HUEVO_G } from '@/lib/resumenSemanal'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 type Venta = Database['public']['Tables']['ventas_huevos_aves']['Row']
 type Encargo = Database['public']['Tables']['encargos_huevos_aves']['Row']
 type Pago = Database['public']['Tables']['pagos_ventas_huevos']['Row']
 
-type SubTab = 'ventas' | 'encargos'
+type SubTab = 'ventas' | 'encargos' | 'clientes'
 
 interface Props {
   fincaId: string
@@ -35,9 +40,9 @@ interface Props {
 
 /**
  * Las ventas de huevo son de la finca, no de un galpón: aquí se ponen los precios
- * (uno solo para toda la finca), se registran y editan las ventas diciendo de qué
- * galpón sale el huevo, se anotan los pagos cuando entra el dinero, y se llevan
- * los encargos futuros.
+ * (uno solo para toda la finca, o el propio de cada cliente), se registran las
+ * ventas del huevo de toda la finca, se anotan los pagos cuando entra el dinero,
+ * se llevan los encargos futuros y los clientes.
  */
 export default function VentasFinca({ fincaId, lotes }: Props) {
   const supabase = createClient()
@@ -46,7 +51,12 @@ export default function VentasFinca({ fincaId, lotes }: Props) {
   const [ventas, setVentas] = useState<Venta[]>([])
   const [pagos, setPagos] = useState<Pago[]>([])
   const [encargos, setEncargos] = useState<Encargo[]>([])
-  const [stockPorLote, setStockPorLote] = useState<Record<string, number>>({})
+  // Huevo de toda la finca por tamaño (puesto menos vendido)
+  const [disponible, setDisponible] = useState<PorTamano>(CERO)
+  const [clientes, setClientes] = useState<ClienteHuevos[]>([])
+  // Costo por gramo de huevo de la finca, para estimar la utilidad de cada venta
+  const [costoGramo, setCostoGramo] = useState<number | null>(null)
+  const puedeVerCostos = useRol() !== 'trabajador'
   const [loading, setLoading] = useState(true)
   const [confirmandoEliminar, setConfirmandoEliminar] = useState<string | null>(null)
 
@@ -64,27 +74,41 @@ export default function VentasFinca({ fincaId, lotes }: Props) {
   const [modalEncargo, setModalEncargo] = useState(false)
   const [encargoEditar, setEncargoEditar] = useState<Encargo | null>(null)
 
-  const nombrePorLote = new Map(lotes.map(l => [l.id, l.nombre]))
+  // Las ventas de antes decían de qué galpón salía el huevo (también lotes que ya salieron)
+  const [nombrePorLote, setNombrePorLote] = useState<Map<string, string>>(new Map())
   const lotesKey = lotes.map(l => l.id).join(',')
 
   const fetchTodo = useCallback(async () => {
     setLoading(true)
-    const [ventasRes, pagosRes, encargosRes, inventarioRes] = await Promise.all([
-      supabase.from('ventas_huevos_aves').select('*').eq('finca_id', fincaId).order('fecha', { ascending: false }).limit(300),
+    const [ventasRes, pagosRes, encargosRes, huevos, clientesRes, lotesRes] = await Promise.all([
+      supabase.from('ventas_huevos_aves').select('*').eq('finca_id', fincaId).order('fecha', { ascending: false }).limit(500),
       supabase.from('pagos_ventas_huevos').select('*').eq('finca_id', fincaId).order('fecha', { ascending: false }),
       supabase.from('encargos_huevos_aves').select('*').eq('finca_id', fincaId).order('fecha_entrega'),
-      supabase.from('inventario').select('nombre, cantidad_actual').eq('finca_id', fincaId).like('nombre', 'Huevos — %'),
+      cargarHuevosFinca(supabase, fincaId),
+      supabase.from('clientes_huevos').select('*').eq('finca_id', fincaId).order('nombre'),
+      supabase.from('lotes_aves').select('id, nombre').eq('finca_id', fincaId),
     ])
     setVentas(ventasRes.data ?? [])
     setPagos(pagosRes.data ?? [])
     setEncargos(encargosRes.data ?? [])
-    const porNombre = new Map((inventarioRes.data ?? []).map(i => [i.nombre, Number(i.cantidad_actual)]))
-    setStockPorLote(Object.fromEntries(lotes.map(l => [l.id, porNombre.get(nombreItemHuevos(l.nombre)) ?? 0])))
+    setDisponible(huevos.disponible)
+    setClientes(clientesRes.data ?? [])
+    setNombrePorLote(new Map((lotesRes.data ?? []).map(l => [l.id, l.nombre])))
     setLoading(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fincaId, lotesKey, supabase])
 
   useEffect(() => { fetchTodo() }, [fetchTodo])
+
+  const clavePrecios = JSON.stringify(precios)
+  useEffect(() => {
+    if (!puedeVerCostos) return
+    let vigente = true
+    costoGramoFinca(supabase, fincaId, JSON.parse(clavePrecios), lote => cargarSemanasLote(supabase, lote))
+      .then(c => { if (vigente) setCostoGramo(c) })
+    return () => { vigente = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fincaId, clavePrecios, puedeVerCostos])
 
   useEffect(() => {
     setFormPrecios(Object.fromEntries(TAMANOS_HUEVO.map(t => [t.key, precios[t.key] != null ? String(precios[t.key]) : ''])))
@@ -126,8 +150,20 @@ export default function VentasFinca({ fincaId, lotes }: Props) {
   const huevosMes = ventas.filter(v => v.fecha.slice(0, 7) === mesActual).reduce((s, v) => s + huevosDe(v), 0)
   const encargosPendientes = encargos.filter(e => e.estado !== 'entregado')
   const comprometidos = encargosPendientes.reduce((s, e) => s + huevosDe(e), 0)
-  const comprometidoPorLote: Record<string, number> = {}
-  for (const e of encargosPendientes) comprometidoPorLote[e.lote_id] = (comprometidoPorLote[e.lote_id] ?? 0) + huevosDe(e)
+  const comprometido: PorTamano = { ...CERO }
+  for (const e of encargosPendientes) {
+    const c = cantidadesDe(e)
+    for (const t of TAMANOS_HUEVO) comprometido[t.key] += c[t.key]
+  }
+  const enBodega = totalTamanos(disponible)
+  const hayVentasConGalpon = ventas.some(v => v.lote_id)
+
+  /** Lo que costó producir el huevo de una venta, con el costo por gramo de la finca */
+  function costoDeVenta(v: Venta) {
+    if (costoGramo == null) return null
+    const c = cantidadesDe(v)
+    return TAMANOS_HUEVO.reduce((s, t) => s + c[t.key] * PESO_HUEVO_G[t.key] * costoGramo, 0)
+  }
 
   function fmt(d: string) {
     return new Date(d + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -150,7 +186,7 @@ export default function VentasFinca({ fincaId, lotes }: Props) {
     await supabase.from('encargos_huevos_aves').update({ estado: 'pendiente', venta_id: null }).eq('venta_id', v.id)
     const { error } = await supabase.from('ventas_huevos_aves').delete().eq('id', v.id)
     if (error) { toast.error('Error al eliminar la venta'); return }
-    // El huevo de una venta borrada vuelve solo a la bodega de su galpón
+    // El huevo de una venta borrada vuelve solo a la bodega de la finca
     toast.success('Venta eliminada')
     fetchTodo()
   }
@@ -167,20 +203,26 @@ export default function VentasFinca({ fincaId, lotes }: Props) {
   /** Al entregarse, el encargo se vuelve venta con los precios de la finca y sale de bodega. */
   async function entregarEncargo(e: Encargo) {
     if (!preciosListos) { toast.error('Primero define los precios del huevo de la finca'); setEditandoPrecios(true); return }
-    // Se encarga sin tener el huevo, pero para entregarlo tiene que estar en bodega
-    const enBodega = stockPorLote[e.lote_id] ?? 0
-    if (huevosDe(e) > enBodega) {
-      toast.error(`${nombrePorLote.get(e.lote_id) ?? 'El galpón'} tiene ${enBodega.toLocaleString('es-CO')} huevos en bodega y el encargo es de ${huevosDe(e).toLocaleString('es-CO')}. Registra la producción de esos días antes de entregarlo.`, { duration: 8000 })
+    // Se encarga sin tener el huevo, pero para entregarlo tiene que estar en la bodega de la finca
+    const pide = cantidadesDe(e)
+    const falta = TAMANOS_HUEVO.filter(t => pide[t.key] > Math.max(0, disponible[t.key]))
+    if (falta.length > 0) {
+      toast.error(`En la finca no hay suficiente huevo ${falta.map(t => `${t.label} (hay ${Math.max(0, disponible[t.key]).toLocaleString('es-CO')}, piden ${pide[t.key].toLocaleString('es-CO')})`).join(', ')}. Registra la producción de esos días antes de entregarlo.`, { duration: 8000 })
       return
     }
+    const cliente = clientes.find(c => c.id === e.cliente_id) ?? null
+    const p = preciosParaCliente(precios, cliente, hoyStr)
+    const sinPrecio = TAMANOS_HUEVO.filter(t => pide[t.key] > 0 && !(Number(p[t.key] ?? 0) > 0))
+    if (sinPrecio.length > 0) { toast.error(`El tamaño ${sinPrecio.map(t => t.label).join(', ')} no tiene precio`); return }
     const { data: venta, error } = await supabase.from('ventas_huevos_aves').insert({
-      lote_id: e.lote_id,
+      lote_id: null,
       finca_id: fincaId,
       fecha: hoyStr,
       cantidad_b: e.cantidad_b, cantidad_a: e.cantidad_a, cantidad_aa: e.cantidad_aa,
       cantidad_aaa: e.cantidad_aaa, cantidad_jumbo: e.cantidad_jumbo,
-      precio_b: precios.b, precio_a: precios.a, precio_aa: precios.aa, precio_aaa: precios.aaa, precio_jumbo: precios.jumbo,
+      precio_b: p.b, precio_a: p.a, precio_aa: p.aa, precio_aaa: p.aaa, precio_jumbo: p.jumbo,
       cliente: e.cliente,
+      cliente_id: e.cliente_id,
       observaciones: `Entrega del encargo del ${e.fecha_pedido}`,
     }).select('id').single()
     if (error || !venta) { toast.error('Error al convertir el encargo en venta'); return }
@@ -259,7 +301,11 @@ export default function VentasFinca({ fincaId, lotes }: Props) {
           valor={porCobrar > 0 ? <span className="text-red-700">{cop(porCobrar)}</span> : '—'}
           detalle="Ventas despachadas sin pagar"
         />
-        <Indicador tono="amber" icono="huevo" etiqueta="Huevos vendidos (mes)" valor={huevosMes.toLocaleString('es-CO')} />
+        <Indicador
+          tono="amber" icono="huevo" etiqueta="Huevo en bodega"
+          valor={enBodega.toLocaleString('es-CO')}
+          detalle={`De toda la finca · ${huevosMes.toLocaleString('es-CO')} vendidos este mes`}
+        />
         <Indicador
           tono={comprometidos > 0 ? 'orange' : 'gray'}
           icono="diario"
@@ -274,6 +320,7 @@ export default function VentasFinca({ fincaId, lotes }: Props) {
         {([
           { id: 'ventas' as const, label: 'Ventas', icono: 'recibo' as const, count: ventas.length },
           { id: 'encargos' as const, label: 'Encargos futuros', icono: 'agenda' as const, count: encargosPendientes.length },
+          { id: 'clientes' as const, label: 'Clientes', icono: 'operario' as const, count: clientes.filter(c => c.activo).length },
         ]).map(item => (
           <button
             key={item.id}
@@ -309,10 +356,13 @@ export default function VentasFinca({ fincaId, lotes }: Props) {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Salida</TableHead>
-                      <TableHead>Galpón</TableHead>
+                      {hayVentasConGalpon && <TableHead>Origen</TableHead>}
                       <TableHead>Cliente</TableHead>
                       <TableHead className="text-right">Huevos</TableHead>
                       <TableHead className="text-right">Total</TableHead>
+                      {puedeVerCostos && costoGramo != null && (
+                        <TableHead className="text-right" title="Total menos lo que costó producir ese huevo (costo por gramo de la última semana de los galpones)">Utilidad est.</TableHead>
+                      )}
                       <TableHead>Pago</TableHead>
                       <TableHead></TableHead>
                     </TableRow>
@@ -326,10 +376,16 @@ export default function VentasFinca({ fincaId, lotes }: Props) {
                       return (
                         <TableRow key={v.id}>
                           <TableCell className="text-sm">{fmt(v.fecha)}</TableCell>
-                          <TableCell className="text-sm text-gray-600">{nombrePorLote.get(v.lote_id) ?? '—'}</TableCell>
+                          {hayVentasConGalpon && (
+                            <TableCell className="text-sm text-gray-600">{v.lote_id ? nombrePorLote.get(v.lote_id) ?? 'Galpón' : 'Finca'}</TableCell>
+                          )}
                           <TableCell className="text-sm text-gray-600">{v.cliente ?? '—'}</TableCell>
                           <TableCell className="text-right text-sm">{huevosDe(v).toLocaleString('es-CO')}</TableCell>
                           <TableCell className="text-right text-sm font-semibold">{cop(total)}</TableCell>
+                          {puedeVerCostos && costoGramo != null && (() => {
+                            const util = total - (costoDeVenta(v) ?? 0)
+                            return <TableCell className={cn('text-right text-sm', util >= 0 ? 'text-green-700' : 'text-red-700')}>{cop(util)}</TableCell>
+                          })()}
                           <TableCell className="text-xs">
                             {debe <= 0.5 ? (
                               <span className="inline-flex items-center gap-1 font-medium text-green-700">
@@ -367,6 +423,8 @@ export default function VentasFinca({ fincaId, lotes }: Props) {
             )}
           </CardContent>
         </Card>
+      ) : subTab === 'clientes' ? (
+        <ClientesHuevos fincaId={fincaId} clientes={clientes} ventas={ventas} precios={precios} onCambio={fetchTodo} />
       ) : (
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-3">
@@ -385,7 +443,6 @@ export default function VentasFinca({ fincaId, lotes }: Props) {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Entrega</TableHead>
-                      <TableHead>Galpón</TableHead>
                       <TableHead>Cliente</TableHead>
                       <TableHead className="text-right">Huevos</TableHead>
                       <TableHead>Estado</TableHead>
@@ -396,11 +453,11 @@ export default function VentasFinca({ fincaId, lotes }: Props) {
                     {encargos.map(e => {
                       const entregado = e.estado === 'entregado'
                       const vencido = !entregado && e.fecha_entrega < hoyStr
-                      const faltaStock = !entregado && huevosDe(e) > (stockPorLote[e.lote_id] ?? 0)
+                      const pide = cantidadesDe(e)
+                      const faltaStock = !entregado && TAMANOS_HUEVO.some(t => pide[t.key] > Math.max(0, disponible[t.key]))
                       return (
                         <TableRow key={e.id} className={vencido ? 'bg-red-50' : ''}>
                           <TableCell className="text-sm">{fmt(e.fecha_entrega)}</TableCell>
-                          <TableCell className="text-sm text-gray-600">{nombrePorLote.get(e.lote_id) ?? '—'}</TableCell>
                           <TableCell className="text-sm text-gray-600">{e.cliente ?? '—'}</TableCell>
                           <TableCell className="text-right text-sm">{huevosDe(e).toLocaleString('es-CO')}</TableCell>
                           <TableCell className="text-xs">
@@ -444,9 +501,10 @@ export default function VentasFinca({ fincaId, lotes }: Props) {
         open={modalVenta}
         onClose={() => { setModalVenta(false); setVentaEditar(null) }}
         fincaId={fincaId}
-        lotes={lotes}
         precios={precios}
-        stockPorLote={stockPorLote}
+        disponible={disponible}
+        clientes={clientes}
+        nombreGalpon={id => nombrePorLote.get(id) ?? 'anterior'}
         ventaExistente={ventaEditar}
         onCreated={fetchTodo}
       />
@@ -461,10 +519,10 @@ export default function VentasFinca({ fincaId, lotes }: Props) {
         open={modalEncargo}
         onClose={() => { setModalEncargo(false); setEncargoEditar(null) }}
         fincaId={fincaId}
-        lotes={lotes}
         encargoExistente={encargoEditar}
-        stockPorLote={stockPorLote}
-        comprometidoPorLote={comprometidoPorLote}
+        disponible={disponible}
+        comprometido={comprometido}
+        clientes={clientes}
         onCreated={fetchTodo}
       />
     </div>

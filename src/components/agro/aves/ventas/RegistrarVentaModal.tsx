@@ -7,87 +7,98 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
 import { TAMANOS_HUEVO, cop, type PreciosHuevo } from '@/lib/huevos'
+import { preciosParaCliente, type ClienteHuevos, type PorTamano } from '@/lib/huevosFinca'
+import ClienteSelect, { asegurarCliente, type ValorCliente } from './ClienteSelect'
 
-type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 type Venta = Database['public']['Tables']['ventas_huevos_aves']['Row']
 
 interface Props {
   open: boolean
   onClose: () => void
   fincaId: string
-  /** Galpones de la finca: la venta dice de cuál sale el huevo */
-  lotes: LoteAves[]
-  /** Precios de la finca: la venta se registra con ellos */
+  /** Precios de la finca: la venta se registra con ellos (o con los del cliente) */
   precios: PreciosHuevo
-  /** Huevos disponibles en el inventario de cada galpón, por id de lote */
-  stockPorLote: Record<string, number>
+  /** Huevos en bodega de toda la finca, por tamaño */
+  disponible: PorTamano
+  clientes: ClienteHuevos[]
+  /** Nombre del galpón de las ventas de antes, que sí lo tenían */
+  nombreGalpon?: (loteId: string) => string
   ventaExistente?: Venta | null
   onCreated: () => void
 }
 
-function defaultForm(lotes: LoteAves[], v?: Venta | null) {
+function defaultForm(v?: Venta | null) {
   return {
-    lote_id: v?.lote_id ?? lotes[0]?.id ?? '',
     fecha: v?.fecha ?? hoyLocal(),
     cantidad_b: v ? String(v.cantidad_b) : '',
     cantidad_a: v ? String(v.cantidad_a) : '',
     cantidad_aa: v ? String(v.cantidad_aa) : '',
     cantidad_aaa: v ? String(v.cantidad_aaa) : '',
     cantidad_jumbo: v ? String(v.cantidad_jumbo) : '',
-    cliente: v?.cliente ?? '',
     observaciones: v?.observaciones ?? '',
   }
 }
 
 /**
- * Registra el huevo el día que sale de bodega: baja el inventario del galpón del
- * que sale. El dinero se registra aparte, cuando entra, como pago de la venta.
+ * Registra el huevo el día que sale de bodega. Sale del huevo de toda la finca,
+ * no de un galpón. El precio es el del cliente si tiene uno propio, si no el de
+ * la finca. El dinero se registra aparte, cuando entra, como pago de la venta.
  */
-export default function RegistrarVentaModal({ open, onClose, fincaId, lotes, precios, stockPorLote, ventaExistente, onCreated }: Props) {
+export default function RegistrarVentaModal({ open, onClose, fincaId, precios, disponible, clientes, nombreGalpon, ventaExistente, onCreated }: Props) {
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
-  const [form, setForm] = useState(() => defaultForm(lotes, ventaExistente))
+  const [form, setForm] = useState(() => defaultForm(ventaExistente))
+  const [cliente, setCliente] = useState<ValorCliente>({ id: null, nombre: '' })
 
-  useEffect(() => { if (open) setForm(defaultForm(lotes, ventaExistente)) }, [open, lotes, ventaExistente])
+  useEffect(() => {
+    if (!open) return
+    setForm(defaultForm(ventaExistente))
+    setCliente({ id: ventaExistente?.cliente_id ?? null, nombre: ventaExistente?.cliente ?? '' })
+  }, [open, ventaExistente])
 
   function set(field: string, value: string | null) {
     setForm(prev => ({ ...prev, [field]: value ?? '' }))
   }
 
+  const clienteSel = clientes.find(c => c.id === cliente.id) ?? null
   // Al editar, la venta conserva los precios con los que se registró
   const preciosVenta: PreciosHuevo = ventaExistente
     ? {
         b: ventaExistente.precio_b, a: ventaExistente.precio_a, aa: ventaExistente.precio_aa,
         aaa: ventaExistente.precio_aaa, jumbo: ventaExistente.precio_jumbo,
       }
-    : precios
+    : preciosParaCliente(precios, clienteSel, form.fecha)
+  const conPrecioPropio = !ventaExistente && clienteSel && TAMANOS_HUEVO.some(t => preciosVenta[t.key] !== precios[t.key])
 
   const cantidad = (k: string) => Number(form[`cantidad_${k}` as keyof typeof form]) || 0
   const totalHuevos = TAMANOS_HUEVO.reduce((s, t) => s + cantidad(t.key), 0)
   const totalVenta = TAMANOS_HUEVO.reduce((s, t) => s + cantidad(t.key) * Number(preciosVenta[t.key] ?? 0), 0)
-  const lote = lotes.find(l => l.id === form.lote_id) ?? null
-  const vendidosAntes = ventaExistente
-    ? TAMANOS_HUEVO.reduce((s, t) => s + Number(ventaExistente[`cantidad_${t.key}` as keyof Venta] ?? 0), 0)
-    : 0
-  const disponible = (stockPorLote[form.lote_id] ?? 0) + (ventaExistente?.lote_id === form.lote_id ? vendidosAntes : 0)
+  // Lo que hay de cada tamaño (al editar, lo de esta venta vuelve a estar disponible)
+  const hay = (k: keyof PorTamano) => disponible[k] + (ventaExistente ? Number(ventaExistente[`cantidad_${k}` as keyof Venta] ?? 0) : 0)
   const sinPrecio = TAMANOS_HUEVO.filter(t => cantidad(t.key) > 0 && !(Number(preciosVenta[t.key] ?? 0) > 0))
+  const sinHuevo = TAMANOS_HUEVO.filter(t => cantidad(t.key) > Math.max(0, hay(t.key)))
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.lote_id || !lote) { toast.error('Elige de qué galpón sale el huevo'); return }
+    if (!form.fecha || form.fecha > hoyLocal()) { toast.error('Indica una fecha de venta que no sea futura'); return }
     if (totalHuevos <= 0) { toast.error('Ingresa la cantidad de huevos vendidos'); return }
+    if (TAMANOS_HUEVO.some(t => !Number.isInteger(cantidad(t.key)) || cantidad(t.key) < 0)) { toast.error('Las cantidades son huevos enteros'); return }
     if (sinPrecio.length > 0) {
       toast.error(`El tamaño ${sinPrecio.map(t => t.label).join(', ')} no tiene precio: defínelo arriba antes de vender`)
       return
     }
+    if (sinHuevo.length > 0) {
+      toast.error(`No hay suficiente huevo ${sinHuevo.map(t => `${t.label} (hay ${Math.max(0, hay(t.key)).toLocaleString('es-CO')})`).join(', ')} en la finca. Registra la producción antes de venderlo.`, { duration: 8000 })
+      return
+    }
 
     setLoading(true)
+    const c = await asegurarCliente(supabase, fincaId, cliente, clientes)
+    if (c.error) { setLoading(false); toast.error(c.error); return }
     const payload = {
-      lote_id: form.lote_id,
       fecha: form.fecha,
       cantidad_b: cantidad('b'),
       cantidad_a: cantidad('a'),
@@ -96,19 +107,18 @@ export default function RegistrarVentaModal({ open, onClose, fincaId, lotes, pre
       cantidad_jumbo: cantidad('jumbo'),
       precio_b: preciosVenta.b, precio_a: preciosVenta.a, precio_aa: preciosVenta.aa,
       precio_aaa: preciosVenta.aaa, precio_jumbo: preciosVenta.jumbo,
-      cliente: form.cliente || null,
+      cliente: c.nombre,
+      cliente_id: c.id,
       observaciones: form.observaciones || null,
     }
+    // La venta nueva es de la finca (sin galpón); una de antes conserva el suyo
     const { error } = ventaExistente
       ? await supabase.from('ventas_huevos_aves').update(payload).eq('id', ventaExistente.id)
-      : await supabase.from('ventas_huevos_aves').insert({ ...payload, finca_id: fincaId })
-
-    // El huevo sale solo del inventario del galpón (y vuelve al anterior si la venta
-    // cambió de galpón): la base rehace el saldo con cada venta.
+      : await supabase.from('ventas_huevos_aves').insert({ ...payload, finca_id: fincaId, lote_id: null })
 
     setLoading(false)
     if (error) { toast.error(ventaExistente ? 'Error al actualizar la venta' : 'Error al registrar la venta'); return }
-    toast.success(ventaExistente ? 'Venta actualizada' : 'Venta registrada: el huevo salió de bodega')
+    toast.success(ventaExistente ? 'Venta actualizada' : 'Venta registrada: el huevo salió de la bodega de la finca')
     onCreated()
     onClose()
   }
@@ -119,81 +129,59 @@ export default function RegistrarVentaModal({ open, onClose, fincaId, lotes, pre
         <DialogHeader>
           <DialogTitle>{ventaExistente ? 'Editar venta' : 'Registrar venta de huevo'}</DialogTitle>
           <p className="text-sm text-gray-500">
-            Se registra el día que el huevo sale de bodega. El dinero se anota después, cuando entre.
+            Sale del huevo de toda la finca, el día que sale de bodega. El dinero se anota después, cuando entre.
           </p>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
-            <div className="col-span-2 space-y-1">
-              <Label>Galpón del que sale *</Label>
-              <Select
-                value={form.lote_id}
-                onValueChange={v => set('lote_id', v)}
-                items={Object.fromEntries(lotes.map(l => [l.id, l.nombre]))}
-              >
-                <SelectTrigger className="w-full"><SelectValue placeholder="Seleccionar galpón..." /></SelectTrigger>
-                <SelectContent alignItemWithTrigger={false}>
-                  {lotes.map(l => (
-                    <SelectItem key={l.id} value={l.id}>
-                      {l.nombre} · {(stockPorLote[l.id] ?? 0).toLocaleString('es-CO')} huevos en bodega
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
             <div className="space-y-1">
               <Label>Fecha de salida</Label>
-              <Input type="date" value={form.fecha} onChange={e => set('fecha', e.target.value)} />
+              <Input type="date" max={hoyLocal()} value={form.fecha} onChange={e => set('fecha', e.target.value)} />
             </div>
             <div className="space-y-1">
               <Label>Cliente</Label>
-              <Input placeholder="Nombre del cliente" value={form.cliente} onChange={e => set('cliente', e.target.value)} />
+              <ClienteSelect clientes={clientes} value={cliente} onChange={setCliente} />
             </div>
+            {ventaExistente?.lote_id && nombreGalpon && (
+              <p className="col-span-2 text-xs text-gray-500">
+                Venta de antes, registrada del galpón {nombreGalpon(ventaExistente.lote_id)}: lo conserva.
+              </p>
+            )}
           </div>
 
           <div className="space-y-2 rounded-xl bg-gray-50 p-3">
-            <p className="text-xs font-semibold text-gray-700">Cantidad por tamaño</p>
-            <div className="grid grid-cols-5 gap-2">
+            <p className="text-xs font-semibold text-gray-700">
+              Huevos vendidos por tamaño
+              {conPrecioPropio && <span className="ml-1 font-normal text-green-700">· con el precio de {clienteSel!.nombre}</span>}
+            </p>
+            <div className="grid grid-cols-3 gap-3 md:grid-cols-5">
               {TAMANOS_HUEVO.map(t => (
                 <div key={t.key} className="space-y-1">
-                  <Label className="text-xs">{t.label}</Label>
+                  <Label className="text-xs">{t.label} · {preciosVenta[t.key] ? cop(Number(preciosVenta[t.key])) : 'sin precio'}</Label>
                   <Input
-                    type="number" min="0" placeholder="0" className="bg-white"
+                    type="number" min="0" step="1" placeholder="0" className="bg-white"
                     value={form[`cantidad_${t.key}` as keyof typeof form]}
                     onChange={e => set(`cantidad_${t.key}`, e.target.value)}
                   />
-                  <p className="text-[0.6875rem] text-gray-500 tabular-nums">
-                    {Number(preciosVenta[t.key] ?? 0) > 0 ? cop(Number(preciosVenta[t.key])) : 'sin precio'}
+                  <p className={`text-[0.6875rem] ${cantidad(t.key) > Math.max(0, hay(t.key)) ? 'font-medium text-red-600' : 'text-gray-400'}`}>
+                    hay {Math.max(0, hay(t.key)).toLocaleString('es-CO')}
                   </p>
                 </div>
               ))}
             </div>
-            <div className="flex items-center justify-between border-t border-gray-200 pt-2">
-              <p className="text-xs text-gray-600">Total: <span className="font-semibold">{totalHuevos.toLocaleString('es-CO')} huevos</span></p>
-              <p className="text-sm font-semibold text-gray-900 tabular-nums">{cop(totalVenta)}</p>
-            </div>
-            <p className="text-[0.6875rem] text-gray-500">
-              {ventaExistente ? 'Conserva los precios con los que se registró.' : 'Con los precios definidos para la finca.'}
+            <p className="text-xs text-gray-600">
+              {totalHuevos.toLocaleString('es-CO')} huevos · <span className="font-semibold">{cop(totalVenta)}</span>
             </p>
           </div>
 
-          {lote && totalHuevos > disponible && (
-            <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              En bodega de {lote.nombre} hay {disponible.toLocaleString('es-CO')} huevos y estás sacando {totalHuevos.toLocaleString('es-CO')}.
-              Revisa que la producción de esos días esté registrada.
-            </p>
-          )}
-
           <div className="space-y-1">
             <Label>Observaciones</Label>
-            <Input placeholder="Notas adicionales..." value={form.observaciones} onChange={e => set('observaciones', e.target.value)} />
+            <Input placeholder="Notas de la venta..." value={form.observaciones} onChange={e => set('observaciones', e.target.value)} />
           </div>
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? 'Guardando...' : ventaExistente ? 'Guardar cambios' : 'Registrar venta'}
-            </Button>
+            <Button type="submit" disabled={loading}>{loading ? 'Guardando...' : ventaExistente ? 'Guardar cambios' : 'Registrar venta'}</Button>
           </DialogFooter>
         </form>
       </DialogContent>

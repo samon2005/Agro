@@ -239,3 +239,28 @@ export function ultimaSemanaPostura(semanas: CostoSemana[]): CostoSemana | null 
   const completas = postura.filter(s => (new Date(s.hasta + 'T00:00:00').getTime() - new Date(s.desde + 'T00:00:00').getTime()) / 86_400_000 >= 6)
   return completas[completas.length - 1] ?? postura[postura.length - 1] ?? null
 }
+
+/**
+ * El costo por gramo de huevo de toda la finca: la última semana completa de
+ * postura de cada galpón, sumando costos y gramos. Sirve para estimar lo que
+ * costó el huevo de una venta (que es de la finca, no de un galpón).
+ */
+export async function costoGramoFinca(
+  supabase: SupabaseClient<Database>,
+  fincaId: string,
+  precios: PreciosHuevo,
+  cargarSemanas: (lote: Database['public']['Tables']['lotes_aves']['Row']) => Promise<FilaSemana[]>,
+): Promise<number | null> {
+  const { data } = await supabase.from('lotes_aves').select('*').eq('finca_id', fincaId).eq('estado', 'activo')
+  let costo = 0
+  let gramos = 0
+  await Promise.all((data ?? []).map(async lote => {
+    const [semanas, datos] = await Promise.all([cargarSemanas(lote), cargarDatosCostos(supabase, lote)])
+    const u = ultimaSemanaPostura(costosDeLote(lote, semanas, datos, precios).semanas)
+    if (u?.costoGramo != null && u.total > 0) {
+      costo += u.total
+      gramos += u.total / u.costoGramo
+    }
+  }))
+  return gramos > 0 ? costo / gramos : null
+}

@@ -199,9 +199,9 @@ export interface Database {
         Relationships: []
       }
       encargos_huevos_aves: {
-        Row: { id: string; lote_id: string; finca_id: string; fecha_pedido: string; fecha_entrega: string; cliente: string | null; cantidad_b: number; cantidad_a: number; cantidad_aa: number; cantidad_aaa: number; cantidad_jumbo: number; estado: string; venta_id: string | null; observaciones: string | null; registrado_por: string | null; created_at: string }
-        Insert: { id?: string; lote_id: string; finca_id: string; fecha_pedido?: string; fecha_entrega: string; cliente?: string | null; cantidad_b?: number; cantidad_a?: number; cantidad_aa?: number; cantidad_aaa?: number; cantidad_jumbo?: number; estado?: string; venta_id?: string | null; observaciones?: string | null; registrado_por?: string | null; created_at?: string }
-        Update: { id?: string; lote_id?: string; finca_id?: string; fecha_pedido?: string; fecha_entrega?: string; cliente?: string | null; cantidad_b?: number; cantidad_a?: number; cantidad_aa?: number; cantidad_aaa?: number; cantidad_jumbo?: number; estado?: string; venta_id?: string | null; observaciones?: string | null; registrado_por?: string | null; created_at?: string }
+        Row: { id: string; lote_id: string | null; finca_id: string; fecha_pedido: string; fecha_entrega: string; cliente: string | null; cantidad_b: number; cantidad_a: number; cantidad_aa: number; cantidad_aaa: number; cantidad_jumbo: number; estado: string; venta_id: string | null; observaciones: string | null; registrado_por: string | null; created_at: string; cliente_id: string | null }
+        Insert: { id?: string; lote_id?: string | null; finca_id: string; fecha_pedido?: string; fecha_entrega: string; cliente?: string | null; cantidad_b?: number; cantidad_a?: number; cantidad_aa?: number; cantidad_aaa?: number; cantidad_jumbo?: number; estado?: string; venta_id?: string | null; observaciones?: string | null; registrado_por?: string | null; created_at?: string; cliente_id?: string | null }
+        Update: { id?: string; lote_id?: string | null; finca_id?: string; fecha_pedido?: string; fecha_entrega?: string; cliente?: string | null; cantidad_b?: number; cantidad_a?: number; cantidad_aa?: number; cantidad_aaa?: number; cantidad_jumbo?: number; estado?: string; venta_id?: string | null; observaciones?: string | null; registrado_por?: string | null; created_at?: string; cliente_id?: string | null }
         Relationships: []
       }
       entradas_alimento_lote: {
@@ -235,9 +235,9 @@ export interface Database {
         Relationships: []
       }
       ventas_huevos_aves: {
-        Row: { id: string; lote_id: string; finca_id: string; fecha: string; cantidad_b: number; cantidad_a: number; cantidad_aa: number; cantidad_aaa: number; cantidad_jumbo: number; precio_b: number | null; precio_a: number | null; precio_aa: number | null; precio_aaa: number | null; precio_jumbo: number | null; cliente: string | null; observaciones: string | null; registrado_por: string | null; created_at: string }
-        Insert: { id?: string; lote_id: string; finca_id: string; fecha?: string; cantidad_b?: number; cantidad_a?: number; cantidad_aa?: number; cantidad_aaa?: number; cantidad_jumbo?: number; precio_b?: number | null; precio_a?: number | null; precio_aa?: number | null; precio_aaa?: number | null; precio_jumbo?: number | null; cliente?: string | null; observaciones?: string | null; registrado_por?: string | null; created_at?: string }
-        Update: { id?: string; lote_id?: string; finca_id?: string; fecha?: string; cantidad_b?: number; cantidad_a?: number; cantidad_aa?: number; cantidad_aaa?: number; cantidad_jumbo?: number; precio_b?: number | null; precio_a?: number | null; precio_aa?: number | null; precio_aaa?: number | null; precio_jumbo?: number | null; cliente?: string | null; observaciones?: string | null; registrado_por?: string | null; created_at?: string }
+        Row: { id: string; lote_id: string | null; finca_id: string; fecha: string; cantidad_b: number; cantidad_a: number; cantidad_aa: number; cantidad_aaa: number; cantidad_jumbo: number; precio_b: number | null; precio_a: number | null; precio_aa: number | null; precio_aaa: number | null; precio_jumbo: number | null; cliente: string | null; observaciones: string | null; registrado_por: string | null; created_at: string; cliente_id: string | null }
+        Insert: { id?: string; lote_id?: string | null; finca_id: string; fecha?: string; cantidad_b?: number; cantidad_a?: number; cantidad_aa?: number; cantidad_aaa?: number; cantidad_jumbo?: number; precio_b?: number | null; precio_a?: number | null; precio_aa?: number | null; precio_aaa?: number | null; precio_jumbo?: number | null; cliente?: string | null; observaciones?: string | null; registrado_por?: string | null; created_at?: string; cliente_id?: string | null }
+        Update: { id?: string; lote_id?: string | null; finca_id?: string; fecha?: string; cantidad_b?: number; cantidad_a?: number; cantidad_aa?: number; cantidad_aaa?: number; cantidad_jumbo?: number; precio_b?: number | null; precio_a?: number | null; precio_aa?: number | null; precio_aaa?: number | null; precio_jumbo?: number | null; cliente?: string | null; observaciones?: string | null; registrado_por?: string | null; created_at?: string; cliente_id?: string | null }
         Relationships: []
       }
       equipos_aves: {
@@ -585,6 +585,12 @@ export interface Database {
         Row: { id: string; finca_id: string; nombre: string; telefono: string | null; correo: string | null; tarjeta_profesional: string | null; especialidad: string | null; notas: string | null; activo: boolean; created_at: string }
         Insert: { id?: string; finca_id: string; nombre: string; telefono?: string | null; correo?: string | null; tarjeta_profesional?: string | null; especialidad?: string | null; notas?: string | null; activo?: boolean; created_at?: string }
         Update: { id?: string; finca_id?: string; nombre?: string; telefono?: string | null; correo?: string | null; tarjeta_profesional?: string | null; especialidad?: string | null; notas?: string | null; activo?: boolean; created_at?: string }
+        Relationships: []
+      }
+      clientes_huevos: {
+        Row: { id: string; finca_id: string; nombre: string; telefono: string | null; precio_b: number | null; precio_a: number | null; precio_aa: number | null; precio_aaa: number | null; precio_jumbo: number | null; contrato: boolean; contrato_desde: string | null; contrato_hasta: string | null; huevos_semana: number | null; notas: string | null; activo: boolean; created_at: string }
+        Insert: { id?: string; finca_id: string; nombre: string; telefono?: string | null; precio_b?: number | null; precio_a?: number | null; precio_aa?: number | null; precio_aaa?: number | null; precio_jumbo?: number | null; contrato?: boolean; contrato_desde?: string | null; contrato_hasta?: string | null; huevos_semana?: number | null; notas?: string | null; activo?: boolean; created_at?: string }
+        Update: { id?: string; finca_id?: string; nombre?: string; telefono?: string | null; precio_b?: number | null; precio_a?: number | null; precio_aa?: number | null; precio_aaa?: number | null; precio_jumbo?: number | null; contrato?: boolean; contrato_desde?: string | null; contrato_hasta?: string | null; huevos_semana?: number | null; notas?: string | null; activo?: boolean; created_at?: string }
         Relationships: []
       }
       lineas_referencia: {

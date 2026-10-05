@@ -37,7 +37,7 @@ export async function cargarVeterinarios(supabase: SupabaseClient<Database>, fin
     ...v,
     casos: casos
       .filter(c => normalizarNombre(c.quien) === normalizarNombre(v.nombre))
-      .map(({ quien: _quien, ...c }) => c)
+      .map(c => ({ tipo: c.tipo, fecha: c.fecha, detalle: c.detalle, lote_id: c.lote_id }))
       .sort((a, b) => b.fecha.localeCompare(a.fecha)),
   }))
 }
