@@ -13,6 +13,9 @@ import type { Database } from '@/types/database'
 import { hoyLocal, aFechaLocal } from '@/lib/fechas'
 import { Ic } from '@/components/ui/icon'
 import { cn } from '@/lib/utils'
+import { LINEAS_PONEDORAS as LINEAS, fechaDeSemanaDeVida, nacimientoDesdeEdad, semanaInicioPostura } from '@/lib/referencias'
+import { useReferencia } from '@/lib/useReferencia'
+import SelectorReferencia from './referencias/SelectorReferencia'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 type Instalacion = Database['public']['Tables']['instalaciones']['Row']
@@ -30,7 +33,7 @@ interface Props {
   onCreated: (lote: LoteAves) => void
 }
 
-const LINEAS = ['Lohmann Brown', 'Isa Brown', 'Hy-Line Brown', 'Bovans Brown', 'Babcock B-380', 'Otra']
+// Semana de vida en que suelen empezar a poner, si no hay guía de la línea
 const SEMANAS_INICIO_POSTURA = 20
 
 function sumarSemanas(fechaStr: string, semanas: number) {
@@ -44,13 +47,16 @@ function defaultForm(galponId: string) {
   return {
     instalacion_id: galponId,
     linea_genetica: '',
+    referencia_id: '',
     fecha_inicio: fechaInicio,
+    // Semanas cumplidas al llegar: de ahí sale la fecha de nacimiento y la semana de vida
+    edad_semanas: '0',
     aves_iniciales: '',
     costo_pollitas: '',
     // preparacion = pollas de levante · activo = ya están en postura
     estado: 'preparacion',
     observaciones: '',
-    fecha_inicio_postura: sumarSemanas(fechaInicio, SEMANAS_INICIO_POSTURA),
+    fecha_inicio_postura: sumarSemanas(fechaInicio, SEMANAS_INICIO_POSTURA - 1),
     fecha_salida_programada: '',
     // Solo si entran ya en postura: si no, se configura al marcar el inicio
     meta_postura_pct: '90',
@@ -79,12 +85,30 @@ export default function CrearLoteModal({ open, onClose, fincaId, galpones, ocupa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, galponInicialId])
 
+  const referencia = useReferencia(form.referencia_id)
+
+  const edadValida = form.edad_semanas.trim() !== '' && Number(form.edad_semanas) >= 0
+  const fechaNacimiento = edadValida ? nacimientoDesdeEdad(form.fecha_inicio, Number(form.edad_semanas)) : null
+
+  // Cuándo se espera que pongan: la semana de vida en que la guía de la línea
+  // espera postura; sin guía, hacia la semana 20 de vida
+  // (mientras no la escriban a mano)
+  const semanaPostura = semanaInicioPostura(referencia) ?? SEMANAS_INICIO_POSTURA
+  const posturaEstimada = (() => {
+    const estimada = fechaNacimiento
+      ? fechaDeSemanaDeVida(fechaNacimiento, semanaPostura)
+      : sumarSemanas(form.fecha_inicio, SEMANAS_INICIO_POSTURA - 1)
+    // Si ya pasó (pollas viejas), no se propone una fecha anterior a la entrada
+    return estimada < form.fecha_inicio ? form.fecha_inicio : estimada
+  })()
+  const fechaInicioPostura = posturaManual ? form.fecha_inicio_postura : posturaEstimada
+
   function set(field: string, value: string | null) {
     setForm(prev => {
       const next = { ...prev, [field]: value ?? '' }
-      if (field === 'fecha_inicio' && !posturaManual && value) {
-        next.fecha_inicio_postura = sumarSemanas(value, SEMANAS_INICIO_POSTURA)
-      }
+      // Las que llegan poniendo no son de un día: la edad por defecto deja de servir
+      if (field === 'estado' && value === 'activo' && prev.edad_semanas === '0') next.edad_semanas = ''
+      if (field === 'estado' && value === 'preparacion' && prev.edad_semanas === '') next.edad_semanas = '0'
       return next
     })
   }
@@ -101,6 +125,9 @@ export default function CrearLoteModal({ open, onClose, fincaId, galpones, ocupa
     if (!galpon) { toast.error('Elige el galpón al que entran las aves'); return }
     if (ocupados.has(galpon.id)) { toast.error(`${galpon.nombre} ya tiene aves: sácalas antes de registrar otras`); return }
     if (!form.aves_iniciales || Number(form.aves_iniciales) <= 0) { toast.error('Ingresa cuántas aves entraron'); return }
+    if (form.edad_semanas.trim() !== '' && (!Number.isFinite(Number(form.edad_semanas)) || Number(form.edad_semanas) < 0 || Number(form.edad_semanas) > 120)) {
+      toast.error('La edad al llegar debe estar entre 0 y 120 semanas'); return
+    }
     if (enPostura && (!form.meta_postura_pct || !form.semanas_ciclo_postura)) {
       toast.error('Si entran en postura, completa la duración del ciclo y la meta de pico'); return
     }
@@ -116,13 +143,15 @@ export default function CrearLoteModal({ open, onClose, fincaId, galpones, ocupa
         nombre: galpon.nombre,
         area_galpon_m2: area,
         linea_genetica: form.linea_genetica || null,
+        referencia_id: form.referencia_id || null,
+        fecha_nacimiento: fechaNacimiento,
         fecha_inicio: form.fecha_inicio,
         aves_iniciales: aves,
         aves_actuales: aves,
         estado: form.estado,
         observaciones: form.observaciones || null,
         // Si entran poniendo, la postura empezó con su llegada
-        fecha_inicio_postura: enPostura ? form.fecha_inicio : (form.fecha_inicio_postura || null),
+        fecha_inicio_postura: enPostura ? form.fecha_inicio : (fechaInicioPostura || null),
         fecha_salida_programada: form.fecha_salida_programada || null,
         meta_postura_pct: enPostura && form.meta_postura_pct ? Number(form.meta_postura_pct) : null,
         meta_huevos_diaria: enPostura && form.meta_huevos_diaria ? Number(form.meta_huevos_diaria) : null,
@@ -227,6 +256,23 @@ export default function CrearLoteModal({ open, onClose, fincaId, galpones, ocupa
                 <Input type="date" value={form.fecha_inicio} onChange={e => set('fecha_inicio', e.target.value)} />
               </div>
               <div className="space-y-1">
+                <Label>Edad al llegar (semanas)</Label>
+                <Input
+                  type="number" min="0" max="120" step="1"
+                  placeholder={enPostura ? 'Ej: 18' : 'Ej: 0'}
+                  value={form.edad_semanas}
+                  onChange={e => set('edad_semanas', e.target.value)}
+                />
+                <p className="text-xs text-gray-400">0 si llegan de un día de nacidas. Con ella se compara con la guía de la línea.</p>
+              </div>
+              <SelectorReferencia
+                fincaId={fincaId}
+                lineaGenetica={form.linea_genetica}
+                value={form.referencia_id}
+                onChange={v => set('referencia_id', v)}
+                seguirLinea
+              />
+              <div className="space-y-1">
                 <Label>Aves que entraron *</Label>
                 <Input type="number" min="1" placeholder="Ej: 5000" value={form.aves_iniciales} onChange={e => set('aves_iniciales', e.target.value)} />
               </div>
@@ -246,10 +292,14 @@ export default function CrearLoteModal({ open, onClose, fincaId, galpones, ocupa
                   <div className="space-y-1">
                     <Label>¿Cuándo se espera que pongan?</Label>
                     <Input
-                      type="date" value={form.fecha_inicio_postura}
+                      type="date" value={fechaInicioPostura}
                       onChange={e => { setPosturaManual(true); setForm(p => ({ ...p, fecha_inicio_postura: e.target.value })) }}
                     />
-                    <p className="text-xs text-gray-400">Estimado. La postura se configura al marcar su inicio.</p>
+                    <p className="text-xs text-gray-400">
+                      {semanaInicioPostura(referencia) != null && fechaNacimiento
+                        ? `Según la guía, hacia la semana ${semanaInicioPostura(referencia)} de vida.`
+                        : 'Estimado.'} La postura se configura al marcar su inicio.
+                    </p>
                   </div>
                   <div className="space-y-1">
                     <Label>Salida programada</Label>

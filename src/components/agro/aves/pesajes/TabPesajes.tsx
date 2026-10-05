@@ -10,6 +10,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Indicador, GrupoIndicadores } from '@/components/ui/indicador'
 import { Ic } from '@/components/ui/icon'
 import { semanaDelLote } from '@/lib/postura'
+import { compararConRango, esperadoDeSemana, semanaDeVida, type EstadoComparacion } from '@/lib/referencias'
+import { useReferencia } from '@/lib/useReferencia'
 import type { Database } from '@/types/database'
 import RegistrarPesajeModal from './RegistrarPesajeModal'
 
@@ -20,6 +22,12 @@ const MS_DIA = 24 * 60 * 60 * 1000
 
 function fmtFecha(d: string) {
   return new Date(d + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+const COLOR_ESTADO: Record<EstadoComparacion, string> = {
+  ok: 'text-green-700',
+  atento: 'text-amber-600',
+  alerta: 'text-red-600',
 }
 
 function fmtG(g: number) {
@@ -38,6 +46,7 @@ export default function TabPesajes({ loteActual }: { loteActual: LoteAves }) {
   const [modalAbierto, setModalAbierto] = useState(false)
   const [editando, setEditando] = useState<Pesaje | null>(null)
   const [confirmandoBorrar, setConfirmandoBorrar] = useState<string | null>(null)
+  const ref = useReferencia(loteActual.referencia_id)
 
   const cargar = useCallback(async () => {
     setCargando(true)
@@ -69,7 +78,14 @@ export default function TabPesajes({ loteActual }: { loteActual: LoteAves }) {
       ? Math.round((new Date(p.fecha + 'T00:00:00').getTime() - new Date(anterior.fecha + 'T00:00:00').getTime()) / MS_DIA)
       : 0
     const ganancia = anterior ? promedio - Number(anterior.peso_promedio_g) : null
+    // Lo que la guía de la línea espera para la semana de vida del pesaje
+    const vida = semanaDeVida(loteActual.fecha_nacimiento, p.fecha)
+    const esperado = esperadoDeSemana(ref, vida)
+    const guia = esperado?.pesoAve != null
+      ? { vida, medio: esperado.pesoAve, min: esperado.pesoAveMin, max: esperado.pesoAveMax, estado: compararConRango(promedio, esperado.pesoAveMin, esperado.pesoAveMax) }
+      : null
     return {
+      guia,
       p,
       promedio,
       semana: semanaDelLote(loteActual, p.fecha),
@@ -81,6 +97,11 @@ export default function TabPesajes({ loteActual }: { loteActual: LoteAves }) {
 
   const ultimo = filas[0] ?? null
   const enLevante = loteActual.estado === 'preparacion'
+  const conGuia = filas.some(f => f.guia)
+  const rangoGuia = (g: NonNullable<(typeof filas)[number]['guia']>) =>
+    g.min != null && g.max != null && g.min !== g.max
+      ? `${g.min.toLocaleString('es-CO')}–${g.max.toLocaleString('es-CO')} g`
+      : fmtG(g.medio)
 
   return (
     <div className="space-y-5">
@@ -110,7 +131,14 @@ export default function TabPesajes({ loteActual }: { loteActual: LoteAves }) {
             etiqueta="Último peso promedio"
             valor={ultimo ? fmtG(ultimo.promedio) : '—'}
             detalle={ultimo
-              ? `${fmtFecha(ultimo.p.fecha)} · semana ${ultimo.semana.semana} de ${ultimo.semana.etapa}`
+              ? <>
+                  {fmtFecha(ultimo.p.fecha)} · semana {ultimo.semana.semana} de {ultimo.semana.etapa}
+                  {ultimo.guia && (
+                    <span className={`block ${ultimo.guia.estado ? COLOR_ESTADO[ultimo.guia.estado] : ''}`}>
+                      Guía semana {ultimo.guia.vida} de vida: {rangoGuia(ultimo.guia)}
+                    </span>
+                  )}
+                </>
               : 'Sin pesajes todavía'}
           />
           <Indicador
@@ -163,6 +191,7 @@ export default function TabPesajes({ loteActual }: { loteActual: LoteAves }) {
                     <TableHead>Semana</TableHead>
                     <TableHead className="text-right">Aves pesadas</TableHead>
                     <TableHead className="text-right">Peso promedio</TableHead>
+                    {conGuia && <TableHead className="text-right" title="Rango que espera la guía de la línea para esa semana de vida">Guía</TableHead>}
                     <TableHead className="text-right">Mín – máx</TableHead>
                     <TableHead className="text-right">Uniformidad</TableHead>
                     <TableHead className="text-right">Ganancia</TableHead>
@@ -180,7 +209,12 @@ export default function TabPesajes({ loteActual }: { loteActual: LoteAves }) {
                         {f.semana.semana} <span className="text-xs text-gray-400">· {f.semana.etapa}</span>
                       </TableCell>
                       <TableCell className="py-2 text-right text-sm tabular-nums">{f.p.aves_pesadas.toLocaleString('es-CO')}</TableCell>
-                      <TableCell className="py-2 text-right text-sm font-semibold tabular-nums">{fmtG(f.promedio)}</TableCell>
+                      <TableCell className={`py-2 text-right text-sm font-semibold tabular-nums ${f.guia?.estado ? COLOR_ESTADO[f.guia.estado] : ''}`}>{fmtG(f.promedio)}</TableCell>
+                      {conGuia && (
+                        <TableCell className="py-2 text-right text-xs text-gray-500 tabular-nums">
+                          {f.guia ? <>{rangoGuia(f.guia)}<span className="block text-gray-400">semana {f.guia.vida} de vida</span></> : '—'}
+                        </TableCell>
+                      )}
                       <TableCell className="py-2 text-right text-sm text-gray-600 tabular-nums">
                         {f.p.peso_minimo_g != null || f.p.peso_maximo_g != null
                           ? `${f.p.peso_minimo_g != null ? Number(f.p.peso_minimo_g).toLocaleString('es-CO') : '—'} – ${f.p.peso_maximo_g != null ? Number(f.p.peso_maximo_g).toLocaleString('es-CO') : '—'}`

@@ -19,6 +19,8 @@ import type { Database } from '@/types/database'
 import { Ic, type NombreIcono } from '@/components/ui/icon'
 import { nombreSeccion } from '@/lib/especies'
 import { recalcularStockAlimentoAves } from '@/lib/inventario'
+import { semanaDeVida } from '@/lib/referencias'
+import { hoyLocal } from '@/lib/fechas'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 type Instalacion = Database['public']['Tables']['instalaciones']['Row']
@@ -200,6 +202,7 @@ export default function AvesPonedorasPage() {
           <p className="text-xs text-gray-500">
             {loteActual.linea_genetica && `${loteActual.linea_genetica} · `}
             {loteActual.aves_actuales.toLocaleString('es-CO')} aves activas
+            {loteActual.fecha_nacimiento && ` · semana ${semanaDeVida(loteActual.fecha_nacimiento, hoyLocal()) ?? '—'} de vida`}
             {loteActual.origen_aves && ` · ${loteActual.origen_aves}`}
           </p>
         )}

@@ -9,6 +9,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import type { Database } from '@/types/database'
 import { Ic } from '@/components/ui/icon'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { LINEAS_PONEDORAS, nacimientoDesdeEdad, semanaDeVida } from '@/lib/referencias'
+import { hoyLocal } from '@/lib/fechas'
+import SelectorReferencia from '../referencias/SelectorReferencia'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 
@@ -20,6 +24,13 @@ interface Props {
   onDeleted: () => void
 }
 
+/** Semanas cumplidas con que llegaron, a partir de la fecha de nacimiento guardada */
+function edadAlLlegar(lote: LoteAves): string {
+  if (!lote.fecha_nacimiento) return ''
+  const dias = (new Date(lote.fecha_inicio + 'T00:00:00').getTime() - new Date(lote.fecha_nacimiento + 'T00:00:00').getTime()) / 86_400_000
+  return String(Math.round((dias / 7) * 10) / 10)
+}
+
 export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, onDeleted }: Props) {
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
@@ -28,6 +39,9 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, 
   const [form, setForm] = useState({
     area_galpon_m2: '',
     fecha_inicio: '',
+    linea_genetica: '',
+    referencia_id: '',
+    edad_llegada: '',
     fecha_inicio_postura: '',
     fecha_salida_programada: '',
     semanas_ciclo_postura: '',
@@ -41,6 +55,9 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, 
     setForm({
       area_galpon_m2: lote.area_galpon_m2 != null ? String(lote.area_galpon_m2) : '',
       fecha_inicio: lote.fecha_inicio ?? '',
+      linea_genetica: lote.linea_genetica ?? '',
+      referencia_id: lote.referencia_id ?? '',
+      edad_llegada: edadAlLlegar(lote),
       fecha_inicio_postura: lote.fecha_inicio_postura ?? '',
       fecha_salida_programada: lote.fecha_salida_programada ?? '',
       semanas_ciclo_postura: lote.semanas_ciclo_postura != null ? String(lote.semanas_ciclo_postura) : '60',
@@ -70,14 +87,36 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, 
   // En levante la postura todavía no existe: sus campos se configuran al marcar el inicio
   const enLevante = lote.estado === 'preparacion'
 
+  // La línea guardada se muestra aunque no esté en la lista (lotes viejos con otro nombre)
+  const lineas = form.linea_genetica && !LINEAS_PONEDORAS.includes(form.linea_genetica)
+    ? [form.linea_genetica, ...LINEAS_PONEDORAS]
+    : LINEAS_PONEDORAS
+  const edadHoy = form.edad_llegada.trim() !== '' && Number(form.edad_llegada) >= 0
+    ? semanaDeVida(nacimientoDesdeEdad(form.fecha_inicio || lote.fecha_inicio, Number(form.edad_llegada)), hoyLocal())
+    : null
+
   const densidad = form.area_galpon_m2 && Number(form.area_galpon_m2) > 0
     ? (lote.aves_actuales / Number(form.area_galpon_m2)).toFixed(1)
     : null
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    const edad = form.edad_llegada.trim()
+    if (edad !== '' && (!Number.isFinite(Number(edad)) || Number(edad) < 0 || Number(edad) > 120)) {
+      toast.error('La edad al llegar debe estar entre 0 y 120 semanas'); return
+    }
+    // La fecha de nacimiento solo se recalcula si cambió la edad o la entrada: si no, se respeta la guardada
+    const fechaInicio = form.fecha_inicio || lote.fecha_inicio
+    const fecha_nacimiento = edad === ''
+      ? null
+      : edad === edadAlLlegar(lote) && fechaInicio === lote.fecha_inicio
+        ? lote.fecha_nacimiento
+        : nacimientoDesdeEdad(fechaInicio, Number(edad))
     setLoading(true)
     const payload = {
+      linea_genetica: form.linea_genetica || null,
+      referencia_id: form.referencia_id || null,
+      fecha_nacimiento,
       area_galpon_m2: form.area_galpon_m2 ? Number(form.area_galpon_m2) : null,
       // La fecha de entrada se puede corregir: de ella cuelgan la edad y las semanas
       ...(form.fecha_inicio ? { fecha_inicio: form.fecha_inicio } : {}),
@@ -136,6 +175,27 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, 
                 De esta fecha salen la edad del lote y las semanas de preparación: corrígela si se digitó mal.
               </p>
             </div>
+            <div className="space-y-1">
+              <Label>Edad al llegar (semanas)</Label>
+              <Input type="number" min="0" max="120" step="0.1" placeholder="Ej: 0" value={form.edad_llegada} onChange={e => set('edad_llegada', e.target.value)} />
+              <p className="text-xs text-gray-400">
+                {edadHoy != null ? `Hoy van en la semana ${edadHoy} de vida.` : 'Sin la edad no se puede comparar con la guía de la línea.'}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <Label>Línea genética</Label>
+              <Select value={form.linea_genetica} onValueChange={v => set('linea_genetica', v)} items={Object.fromEntries(lineas.map(l => [l, l]))}>
+                <SelectTrigger className="w-full"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                <SelectContent>{lineas.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <SelectorReferencia
+              fincaId={lote.finca_id}
+              lineaGenetica={form.linea_genetica}
+              value={form.referencia_id}
+              onChange={v => set('referencia_id', v)}
+              seguirLinea={false}
+            />
             {enLevante ? (
               <div className="space-y-1">
                 <Label>¿Cuándo se espera que pongan?</Label>

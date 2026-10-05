@@ -8,6 +8,11 @@ import { cn } from '@/lib/utils'
 import { hoyLocal } from '@/lib/fechas'
 import { resumenSemanal, type FilaSemana, type DiaProduccion } from '@/lib/resumenSemanal'
 import type { Database } from '@/types/database'
+import {
+  compararConRango, compararMortalidad, esperadoDeSemana, mortalidadEsperadaDesde, semanaDeVida,
+  type EstadoComparacion, type FilaReferencia,
+} from '@/lib/referencias'
+import { useReferencia } from '@/lib/useReferencia'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 
@@ -15,24 +20,79 @@ const n0 = (v: number) => v.toLocaleString('es-CO', { maximumFractionDigits: 0 }
 const n1 = (v: number) => v.toLocaleString('es-CO', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 const n2 = (v: number) => v.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
+const num = (v: number | null) => (v == null ? null : Number(v))
+
 function fechaCorta(f: string) {
   return new Date(f + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })
 }
 
-const COLUMNAS: { titulo: string; ayuda: string; valor: (f: FilaSemana) => string }[] = [
+/** Lo que la guía espera para una fila, ya resuelto para pintarlo */
+interface Guia { texto: string; estado: EstadoComparacion | null }
+
+interface Contexto {
+  ref: Map<number, FilaReferencia>
+  /** Semana de vida con que entraron al galpón */
+  semanaEntrada: number
+  vida: number
+}
+
+const COLOR_ESTADO: Record<EstadoComparacion, string> = {
+  ok: 'text-green-700',
+  atento: 'text-amber-600',
+  alerta: 'text-red-600 font-semibold',
+}
+
+const COLUMNAS: { titulo: string; ayuda: string; valor: (f: FilaSemana) => string; guia?: (f: FilaSemana, c: Contexto) => Guia | null }[] = [
   { titulo: 'Producción huevos sem.', ayuda: 'Huevos puestos en la semana', valor: f => n0(f.huevos) },
   { titulo: 'Huevos acumulados', ayuda: 'Desde que entró el lote', valor: f => n0(f.huevosAcumulados) },
   { titulo: 'Saldo aves', ayuda: 'Aves al cerrar la semana', valor: f => n0(f.saldoAves) },
   { titulo: 'Mortalidad aves/sem.', ayuda: 'Muertes de la semana, también las de eventos clínicos', valor: f => n0(f.muertes) },
   { titulo: 'Consumo kg', ayuda: 'Alimento de la semana (el consumo registrado rige hasta el siguiente)', valor: f => f.consumoKg > 0 ? n1(f.consumoKg) : '—' },
-  { titulo: 'Peso aves g', ayuda: 'Último pesaje de la semana', valor: f => f.pesoAveG != null ? n0(f.pesoAveG) : '—' },
-  { titulo: 'Peso huevo g', ayuda: 'Estimado por gramaje (B 49,5 · A 56,5 · AA 63,5 · AAA 72,5 · Jumbo 80)', valor: f => f.pesoHuevoG != null ? n1(f.pesoHuevoG) : '—' },
+  {
+    titulo: 'Peso aves g', ayuda: 'Último pesaje de la semana', valor: f => f.pesoAveG != null ? n0(f.pesoAveG) : '—',
+    guia: (f, c) => {
+      const e = esperadoDeSemana(c.ref, c.vida)
+      if (e?.pesoAve == null) return null
+      return { texto: n0(e.pesoAve), estado: compararConRango(f.pesoAveG, e.pesoAveMin, e.pesoAveMax) }
+    },
+  },
+  {
+    titulo: 'Peso huevo g', ayuda: 'Estimado por gramaje (B 49,5 · A 56,5 · AA 63,5 · AAA 72,5 · Jumbo 80)', valor: f => f.pesoHuevoG != null ? n1(f.pesoHuevoG) : '—',
+    guia: (f, c) => {
+      const fila = c.ref.get(c.vida)
+      const e = esperadoDeSemana(c.ref, c.vida)
+      if (e?.pesoHuevo == null || !fila) return null
+      return { texto: n1(e.pesoHuevo), estado: compararConRango(f.pesoHuevoG, num(fila.peso_huevo_min_g), num(fila.peso_huevo_max_g), { tolerancia: 4 }) }
+    },
+  },
   { titulo: 'Aves encasetadas', ayuda: 'Las que entraron al galpón', valor: f => n0(f.avesEncasetadas) },
-  { titulo: '% postura real', ayuda: 'Huevos ÷ aves de cada día de la semana', valor: f => f.posturaPct != null ? n1(f.posturaPct) : '—' },
+  {
+    titulo: '% postura real', ayuda: 'Huevos ÷ aves de cada día de la semana', valor: f => f.posturaPct != null ? n1(f.posturaPct) : '—',
+    guia: (f, c) => {
+      const e = esperadoDeSemana(c.ref, c.vida)
+      if (e?.postura == null) return null
+      return { texto: n1(e.postura), estado: compararConRango(f.posturaPct, e.posturaMin, e.posturaMax, { mejorArriba: true }) }
+    },
+  },
   { titulo: 'H.A.A', ayuda: 'Huevos acumulados por ave encasetada', valor: f => n1(f.haa) },
-  { titulo: 'Consumo ave g/d', ayuda: 'Gramos por ave al día', valor: f => f.consumoAveGDia != null ? n1(f.consumoAveGDia) : '—' },
+  {
+    titulo: 'Consumo ave g/d', ayuda: 'Gramos por ave al día', valor: f => f.consumoAveGDia != null ? n1(f.consumoAveGDia) : '—',
+    guia: (f, c) => {
+      const fila = c.ref.get(c.vida)
+      const e = esperadoDeSemana(c.ref, c.vida)
+      if (e?.consumo == null || !fila) return null
+      return { texto: n1(e.consumo), estado: compararConRango(f.consumoAveGDia, num(fila.consumo_min_g), num(fila.consumo_max_g), { tolerancia: 8 }) }
+    },
+  },
   { titulo: '% mortalidad', ayuda: 'Muertes de la semana ÷ aves al empezarla', valor: f => f.mortalidadPct != null ? n2(f.mortalidadPct) : '—' },
-  { titulo: '% mort. acumulada', ayuda: 'Muertes acumuladas ÷ aves encasetadas', valor: f => n2(f.mortalidadAcumPct) },
+  {
+    titulo: '% mort. acumulada', ayuda: 'Muertes acumuladas ÷ aves encasetadas', valor: f => n2(f.mortalidadAcumPct),
+    guia: (f, c) => {
+      const esperada = mortalidadEsperadaDesde(c.ref, c.semanaEntrada, c.vida)
+      if (esperada == null) return null
+      return { texto: n2(esperada), estado: compararMortalidad(f.mortalidadAcumPct, esperada) }
+    },
+  },
   { titulo: 'Conversión', ayuda: 'Kg de alimento por kg de huevo', valor: f => f.conversion != null ? n2(f.conversion) : '—' },
 ]
 
@@ -43,6 +103,8 @@ const COLUMNAS: { titulo: string; ayuda: string; valor: (f: FilaSemana) => strin
 export default function TabResumenSemanal({ loteActual }: { loteActual: LoteAves }) {
   const [filas, setFilas] = useState<FilaSemana[]>([])
   const [cargando, setCargando] = useState(true)
+  const ref = useReferencia(loteActual.referencia_id)
+  const [comparar, setComparar] = useState(true)
 
   useEffect(() => {
     let vigente = true
@@ -75,6 +137,15 @@ export default function TabResumenSemanal({ loteActual }: { loteActual: LoteAves
   // La semana más reciente arriba
   const visibles = [...filas].reverse()
 
+  // Para comparar con la guía hacen falta la edad (fecha de nacimiento) y la referencia
+  const semanaEntrada = semanaDeVida(loteActual.fecha_nacimiento, loteActual.fecha_inicio)
+  const puedeComparar = ref.size > 0 && semanaEntrada != null
+  const conGuia = puedeComparar && comparar
+  const contexto = (f: FilaSemana): Contexto | null => {
+    const vida = semanaDeVida(loteActual.fecha_nacimiento, f.desde)
+    return conGuia && vida != null && semanaEntrada != null ? { ref, semanaEntrada, vida } : null
+  }
+
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -83,6 +154,22 @@ export default function TabResumenSemanal({ loteActual }: { loteActual: LoteAves
           Promedios de cada 7 días. En levante la semana cuenta desde la entrada al galpón; en postura, desde que empezó a poner.
           Pasa el cursor sobre cada columna para ver cómo se calcula.
         </p>
+        {puedeComparar ? (
+          <label className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-gray-600">
+            <input type="checkbox" checked={comparar} onChange={e => setComparar(e.target.checked)} className="accent-green-700" />
+            Comparar con la guía de la línea
+            {conGuia && (
+              <span className="text-gray-400">
+                · debajo de cada valor, lo esperado: <span className="text-green-700">en rango</span> · <span className="text-amber-600">cerca</span> · <span className="text-red-600">lejos</span>.
+                Son señales para revisar, no un diagnóstico.
+              </span>
+            )}
+          </label>
+        ) : (
+          <p className="mt-1 text-xs text-gray-400">
+            Para comparar con la guía de la línea, indica la edad con que llegaron las aves y la referencia en la configuración del galpón.
+          </p>
+        )}
       </CardHeader>
       <CardContent className="p-0">
         {cargando ? (
@@ -95,6 +182,7 @@ export default function TabResumenSemanal({ loteActual }: { loteActual: LoteAves
               <thead className="sticky top-0 z-10 bg-gray-50 text-gray-500">
                 <tr>
                   <th className="sticky left-0 z-20 bg-gray-50 px-2.5 py-2 text-left font-medium">Semana</th>
+                  {conGuia && <th title="Semana de vida de las aves: con ella se lee la guía" className="cursor-help px-2 py-2 text-right align-bottom font-medium">Vida</th>}
                   {COLUMNAS.map(c => (
                     <th key={c.titulo} title={c.ayuda} className="cursor-help px-2 py-2 text-right align-bottom font-medium leading-tight whitespace-normal">
                       {c.titulo}
@@ -105,6 +193,7 @@ export default function TabResumenSemanal({ loteActual }: { loteActual: LoteAves
               <tbody>
                 {visibles.map((f, i) => {
                   const cambioEtapa = i > 0 && visibles[i - 1].etapa !== f.etapa
+                  const ctx = contexto(f)
                   return (
                     <tr key={f.clave} className={cn('border-t border-gray-100 hover:bg-gray-50/70', cambioEtapa && 'border-t-2 border-t-green-200')}>
                       <td className="sticky left-0 bg-white px-2.5 py-1.5 whitespace-nowrap">
@@ -114,9 +203,16 @@ export default function TabResumenSemanal({ loteActual }: { loteActual: LoteAves
                         </span>
                         <span className="block text-[0.625rem] text-gray-400">{fechaCorta(f.desde)} – {fechaCorta(f.hasta)}</span>
                       </td>
-                      {COLUMNAS.map(c => (
-                        <td key={c.titulo} className="px-2 py-1.5 text-right text-gray-700">{c.valor(f)}</td>
-                      ))}
+                      {conGuia && <td className="px-2 py-1.5 text-right text-gray-500">{ctx?.vida ?? '—'}</td>}
+                      {COLUMNAS.map(c => {
+                        const g = ctx && c.guia ? c.guia(f, ctx) : null
+                        return (
+                          <td key={c.titulo} className="px-2 py-1.5 text-right text-gray-700">
+                            <span className={g?.estado ? COLOR_ESTADO[g.estado] : undefined}>{c.valor(f)}</span>
+                            {g && <span className="block text-[0.625rem] text-gray-400">guía {g.texto}</span>}
+                          </td>
+                        )
+                      })}
                     </tr>
                   )
                 })}
