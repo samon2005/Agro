@@ -96,9 +96,9 @@ export interface Database {
         Relationships: []
       }
       tareas_operarios: {
-        Row: { id: string; finca_id: string; operario_id: string | null; descripcion: string; fecha: string; hora_inicio: string | null; hora_fin: string | null; estado: string; created_at: string }
-        Insert: { id?: string; finca_id: string; operario_id?: string | null; descripcion: string; fecha?: string; hora_inicio?: string | null; hora_fin?: string | null; estado?: string; created_at?: string }
-        Update: { id?: string; finca_id?: string; operario_id?: string | null; descripcion?: string; fecha?: string; hora_inicio?: string | null; hora_fin?: string | null; estado?: string; created_at?: string }
+        Row: { id: string; finca_id: string; operario_id: string | null; descripcion: string; fecha: string; hora_inicio: string | null; hora_fin: string | null; estado: string; created_at: string; instalacion_id: string | null; prioridad: 'normal' | 'alta'; repetir: 'no' | 'diaria' | 'semanal'; notas: string | null; completada_en: string | null; completada_por: string | null; viene_de: string | null }
+        Insert: { id?: string; finca_id: string; operario_id?: string | null; descripcion: string; fecha?: string; hora_inicio?: string | null; hora_fin?: string | null; estado?: string; created_at?: string; instalacion_id?: string | null; prioridad?: 'normal' | 'alta'; repetir?: 'no' | 'diaria' | 'semanal'; notas?: string | null; completada_en?: string | null; completada_por?: string | null; viene_de?: string | null }
+        Update: { id?: string; finca_id?: string; operario_id?: string | null; descripcion?: string; fecha?: string; hora_inicio?: string | null; hora_fin?: string | null; estado?: string; created_at?: string; instalacion_id?: string | null; prioridad?: 'normal' | 'alta'; repetir?: 'no' | 'diaria' | 'semanal'; notas?: string | null; completada_en?: string | null; completada_por?: string | null; viene_de?: string | null }
         Relationships: []
       }
       // ── Aves Ponedoras ────────────────────────────────────────────────

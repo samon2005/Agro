@@ -5,12 +5,11 @@ import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Ic } from '@/components/ui/icon'
+import TareasEquipo from './TareasEquipo'
 
 type Perfil = { full_name: string | null; cargo: string | null; pago_monto: number | null; pago_periodo: string | null }
 type Turno = { id: string; fecha: string; hora_inicio: string; hora_fin: string | null; area: string | null }
-type Tarea = { id: string; descripcion: string; fecha: string; estado: string }
 
 const PERIODO_LABEL: Record<string, string> = {
   mensual: 'mensual', quincenal: 'quincenal', semanal: 'semanal', diario: 'diario', por_tarea: 'por tarea',
@@ -30,7 +29,7 @@ export default function MiPerfilOperario({ fincaId }: Props) {
   const supabase = createClient()
   const [perfil, setPerfil] = useState<Perfil | null>(null)
   const [turnos, setTurnos] = useState<Turno[]>([])
-  const [tareas, setTareas] = useState<Tarea[]>([])
+  const [userId, setUserId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   const fetchAll = useCallback(async () => {
@@ -38,23 +37,17 @@ export default function MiPerfilOperario({ fincaId }: Props) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setLoading(false); return }
 
-    const [perfilRes, turnosRes, tareasRes] = await Promise.all([
+    setUserId(user.id)
+    const [perfilRes, turnosRes] = await Promise.all([
       supabase.from('profiles').select('full_name, cargo, pago_monto, pago_periodo').eq('id', user.id).single(),
       supabase.from('turnos_operarios').select('id, fecha, hora_inicio, hora_fin, area').eq('finca_id', fincaId).eq('operario_id', user.id).order('fecha', { ascending: false }).limit(30),
-      supabase.from('tareas_operarios').select('id, descripcion, fecha, estado').eq('finca_id', fincaId).eq('operario_id', user.id).order('fecha', { ascending: false }).limit(30),
     ])
     setPerfil(perfilRes.data ?? null)
     setTurnos(turnosRes.data ?? [])
-    setTareas(tareasRes.data ?? [])
     setLoading(false)
   }, [fincaId, supabase])
 
   useEffect(() => { fetchAll() }, [fetchAll])
-
-  async function cambiarEstadoTarea(id: string, estado: string) {
-    await supabase.from('tareas_operarios').update({ estado }).eq('id', id)
-    setTareas(prev => prev.map(t => t.id === id ? { ...t, estado } : t))
-  }
 
   if (loading) return <div className="p-8 space-y-4"><Skeleton className="h-24 rounded-xl" /><Skeleton className="h-48 rounded-xl" /></div>
 
@@ -100,36 +93,17 @@ export default function MiPerfilOperario({ fincaId }: Props) {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold text-gray-700"><Ic n="diario" /> Mis tareas</CardTitle></CardHeader>
-        <CardContent className="p-0">
-          {tareas.length === 0 ? (
-            <div className="py-10 text-center text-gray-400"><p className="text-3xl mb-2"><Ic n="diario" /></p><p>Sin tareas asignadas</p></div>
-          ) : (
-            <Table>
-              <TableHeader><TableRow><TableHead>Fecha</TableHead><TableHead>Descripción</TableHead><TableHead>Estado</TableHead></TableRow></TableHeader>
-              <TableBody>
-                {tareas.map(t => (
-                  <TableRow key={t.id}>
-                    <TableCell className="text-sm">{fmt(t.fecha)}</TableCell>
-                    <TableCell className="text-sm font-medium">{t.descripcion}</TableCell>
-                    <TableCell>
-                      <Select value={t.estado} onValueChange={v => v && cambiarEstadoTarea(t.id, v)}>
-                        <SelectTrigger className="h-7 text-xs w-36"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="pendiente">Pendiente</SelectItem>
-                          <SelectItem value="en_progreso">En progreso</SelectItem>
-                          <SelectItem value="completada">Completada</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+      <div className="space-y-2">
+        <p className="text-sm font-semibold text-gray-700"><Ic n="diario" /> Mis tareas</p>
+        {userId && (
+          <TareasEquipo
+            fincaId={fincaId}
+            operarios={[{ id: userId, full_name: perfil?.full_name ?? null }]}
+            soloDe={userId}
+            puedeEditar={false}
+          />
+        )}
+      </div>
     </div>
   )
 }

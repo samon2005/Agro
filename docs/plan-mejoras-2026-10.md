@@ -140,6 +140,6 @@ separado.
 | 7. Ventas de huevo | hecho: ventas y encargos salen del huevo de toda la finca (por tamaño, sin galpón; las de antes conservan el suyo), un solo saldo de huevo en inventario, producción de cada galpón en Huevos de la finca, clientes con precio propio o contrato, compras y variación de precios, y utilidad estimada por venta |
 | 8. Calendario sanitario | hecho: página Calendario sanitario con vacunas (y siguientes dosis), tratamientos, dosis por aplicar, retiros, eventos, desinfecciones, pesajes, cambios de alimento, inicio de postura, entradas, salidas y vacío sanitario, cada uno con su color; vista por mes y lista de lo que viene, filtro por galpón y por categoría |
 | 9. Reportes | hecho: página Reportes estilo Power BI (período y galpones, indicadores contra el período anterior, gráficas conectadas: huevos, postura, comparación de galpones, mortalidad, costos por categoría y enfermedades); radar del perfil de cada galpón frente a la guía en el Resumen; vistas tabla/gráfica, imprimir y Excel (.xlsx propio) en Resumen semanal, Rentabilidad, Finanzas y Ventas. Power BI real: se lleva con el Excel |
-| 10. Operarios | pendiente (WhatsApp y RFID después) |
+| 10. Operarios | hecho: tareas del equipo con galpón, hora, urgencia y repetición (diaria o semanal: al completarla se crea la siguiente), quién y cuándo la hizo, filtros hoy/próximas/hechas, la vista propia de cada operario y aviso de tareas pendientes. WhatsApp y RFID quedan para después (decidido) |
 | 11. Plataforma | pendiente |
 | 12. Investigación | pendiente |

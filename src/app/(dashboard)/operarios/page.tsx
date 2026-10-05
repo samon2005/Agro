@@ -8,6 +8,7 @@ import { getOperarios, actualizarEstadoOperario } from '@/lib/supabase/actions'
 import InvitarOperarioModal from '@/components/agro/operarios/InvitarOperarioModal'
 import EditarOperarioModal from '@/components/agro/operarios/EditarOperarioModal'
 import MiPerfilOperario from '@/components/agro/operarios/MiPerfilOperario'
+import TareasEquipo from '@/components/agro/operarios/TareasEquipo'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -30,7 +31,6 @@ function cop(n: number) {
   return n.toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })
 }
 type Turno = { id: string; operario_id: string; fecha: string; hora_inicio: string; hora_fin: string | null; area: string | null }
-type Tarea = { id: string; operario_id: string | null; descripcion: string; fecha: string; estado: string }
 
 type Tab = 'turnos' | 'tareas'
 
@@ -45,29 +45,24 @@ export default function OperariosPage() {
 
   const [operarios, setOperarios] = useState<Operario[]>([])
   const [turnos, setTurnos] = useState<Turno[]>([])
-  const [tareas, setTareas] = useState<Tarea[]>([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<Tab>('turnos')
   const [modalOperario, setModalOperario] = useState(false)
   const [operarioEditar, setOperarioEditar] = useState<Operario | null>(null)
 
   const [formTurno, setFormTurno] = useState({ operario_id: '', fecha: hoyLocal(), hora_inicio: '', hora_fin: '', area: '' })
-  const [formTarea, setFormTarea] = useState({ operario_id: '', descripcion: '', fecha: hoyLocal() })
   const [showFormTurno, setShowFormTurno] = useState(false)
-  const [showFormTarea, setShowFormTarea] = useState(false)
   const [saving, setSaving] = useState(false)
 
   const fetchAll = useCallback(async () => {
     if (!fincaActual) return
     setLoading(true)
-    const [ops, t, ta] = await Promise.all([
+    const [ops, t] = await Promise.all([
       getOperarios(fincaActual.id),
       supabase.from('turnos_operarios').select('*').eq('finca_id', fincaActual.id).order('fecha', { ascending: false }).limit(50),
-      supabase.from('tareas_operarios').select('*').eq('finca_id', fincaActual.id).order('fecha', { ascending: false }).limit(50),
     ])
     setOperarios(ops)
     setTurnos(t.data ?? [])
-    setTareas(ta.data ?? [])
     setLoading(false)
   }, [fincaActual, supabase])
 
@@ -95,27 +90,6 @@ export default function OperariosPage() {
     setShowFormTurno(false)
     setFormTurno({ operario_id: '', fecha: hoyLocal(), hora_inicio: '', hora_fin: '', area: '' })
     fetchAll()
-  }
-
-  async function guardarTarea(e: React.FormEvent) {
-    e.preventDefault()
-    if (!fincaActual || !formTarea.descripcion.trim()) return
-    setSaving(true)
-    await supabase.from('tareas_operarios').insert({
-      finca_id: fincaActual.id,
-      operario_id: formTarea.operario_id || null,
-      descripcion: formTarea.descripcion.trim(),
-      fecha: formTarea.fecha,
-    })
-    setSaving(false)
-    setShowFormTarea(false)
-    setFormTarea({ operario_id: '', descripcion: '', fecha: hoyLocal() })
-    fetchAll()
-  }
-
-  async function cambiarEstadoTarea(id: string, estado: string) {
-    await supabase.from('tareas_operarios').update({ estado }).eq('id', id)
-    setTareas(prev => prev.map(t => t.id === id ? { ...t, estado } : t))
   }
 
   function nombreOperario(id: string | null) {
@@ -240,62 +214,9 @@ export default function OperariosPage() {
             )}
           </CardContent></Card>
         </div>
-      ) : (
-        <div className="space-y-3">
-          <div className="flex justify-end">
-            <Button variant="outline" className="text-sm" onClick={() => setShowFormTarea(v => !v)}>+ Registrar tarea</Button>
-          </div>
-          {showFormTarea && (
-            <Card className="border-green-200"><CardContent className="p-4">
-              <form onSubmit={guardarTarea} className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div className="col-span-2 space-y-1"><Label className="text-xs">Descripción *</Label><Input placeholder="Ej: Limpiar galpón 1" value={formTarea.descripcion} onChange={e => setFormTarea(p => ({ ...p, descripcion: e.target.value }))} /></div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Asignar a</Label>
-                  <Select value={formTarea.operario_id} onValueChange={v => setFormTarea(p => ({ ...p, operario_id: v ?? '' }))}>
-                    <SelectTrigger><SelectValue placeholder="Sin asignar" /></SelectTrigger>
-                    <SelectContent>{operarios.map(o => <SelectItem key={o.id} value={o.id}>{o.full_name}</SelectItem>)}</SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1"><Label className="text-xs">Fecha</Label><Input type="date" value={formTarea.fecha} onChange={e => setFormTarea(p => ({ ...p, fecha: e.target.value }))} /></div>
-                <div className="col-span-2 md:col-span-4 flex justify-end gap-2">
-                  <Button type="button" variant="outline" onClick={() => setShowFormTarea(false)}>Cancelar</Button>
-                  <Button type="submit" disabled={saving} className="bg-green-700 hover:bg-green-800 text-white">{saving ? 'Guardando...' : 'Guardar'}</Button>
-                </div>
-              </form>
-            </CardContent></Card>
-          )}
-          <Card><CardContent className="p-0">
-            {tareas.length === 0 ? (
-              <div className="py-10 text-center text-gray-400"><p className="text-3xl mb-2"><Ic n="diario" /></p><p>Sin tareas registradas</p></div>
-            ) : (
-              <Table>
-                <TableHeader><TableRow><TableHead>Fecha</TableHead><TableHead>Descripción</TableHead><TableHead>Operario</TableHead><TableHead>Estado</TableHead></TableRow></TableHeader>
-                <TableBody>
-                  {tareas.map(t => (
-                    <TableRow key={t.id}>
-                      <TableCell className="text-sm">{fmt(t.fecha)}</TableCell>
-                      <TableCell className="text-sm font-medium">{t.descripcion}</TableCell>
-                      <TableCell className="text-sm text-gray-500">{nombreOperario(t.operario_id)}</TableCell>
-                      <TableCell>
-                        <Select value={t.estado} onValueChange={v => v && cambiarEstadoTarea(t.id, v)}>
-                          <SelectTrigger className="h-7 text-xs w-36">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="pendiente">Pendiente</SelectItem>
-                            <SelectItem value="en_progreso">En progreso</SelectItem>
-                            <SelectItem value="completada">Completada</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent></Card>
-        </div>
-      )}
+      ) : fincaActual ? (
+        <TareasEquipo fincaId={fincaActual.id} operarios={operarios} puedeEditar />
+      ) : null}
 
       {fincaActual && (
         <>

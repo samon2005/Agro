@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { aFechaLocal } from '@/lib/fechas'
 import { Ic } from '@/components/ui/icon'
 
-type Notificacion = { tipo: 'stock' | 'equipo' | 'recoleccion' | 'postura' | 'ventas'; mensaje: string; href: string }
+type Notificacion = { tipo: 'stock' | 'equipo' | 'recoleccion' | 'postura' | 'ventas' | 'tarea'; mensaje: string; href: string }
 
 export default function NotificacionesPanel() {
   const { fincaActual } = useFinca()
@@ -21,6 +21,21 @@ export default function NotificacionesPanel() {
     if (!fincaActual) return
     const supabase = createClient()
     const notifs: Notificacion[] = []
+
+    // Las tareas propias de hoy o atrasadas
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const { data: tareas } = await supabase.from('tareas_operarios').select('fecha')
+        .eq('finca_id', fincaActual.id).eq('operario_id', user.id).neq('estado', 'completada').lte('fecha', aFechaLocal())
+      const atrasadas = (tareas ?? []).filter(x => x.fecha < aFechaLocal()).length
+      if ((tareas ?? []).length > 0) {
+        notifs.push({
+          tipo: 'tarea',
+          mensaje: `Tienes ${(tareas ?? []).length} tarea${(tareas ?? []).length === 1 ? '' : 's'} pendiente${(tareas ?? []).length === 1 ? '' : 's'}${atrasadas ? ` (${atrasadas} atrasada${atrasadas === 1 ? '' : 's'})` : ' para hoy'}`,
+          href: '/operarios',
+        })
+      }
+    }
 
     const { data: inventario } = await supabase
       .from('inventario')
