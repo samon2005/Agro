@@ -39,6 +39,8 @@ export default function ResumenGalponesFinca({ finca, onEditar }: { finca: Finca
   const [galpones, setGalpones] = useState<Instalacion[]>([])
   const [lotes, setLotes] = useState<Lote[]>([])
   const [lotesCerdos, setLotesCerdos] = useState<LoteCerdo[]>([])
+  // Galpones de aves en vacío sanitario: hasta qué día
+  const [vacio, setVacio] = useState<Record<string, string>>({})
   const [cargando, setCargando] = useState(true)
   const especie = (finca.tipo_produccion?.[0] ?? null) as EspecieFinca | null
   const infoEspecie = ESPECIES_FINCA.find(e => e.value === especie)
@@ -57,11 +59,20 @@ export default function ResumenGalponesFinca({ finca, onEditar }: { finca: Finca
         ? supabase.from('lotes_cerdos').select('id, instalacion_id, nombre, sistema, animales_actuales, fecha_ingreso')
           .eq('finca_id', finca.id).eq('estado', 'activo')
         : Promise.resolve({ data: [] as LoteCerdo[] }),
-    ]).then(([inst, lot, cer]) => {
+      especie === 'aves_ponedoras'
+        ? supabase.from('lotes_aves').select('instalacion_id, vacio_sanitario_hasta')
+          .eq('finca_id', finca.id).in('estado', ['vendido', 'finalizado']).gt('vacio_sanitario_hasta', hoyLocal())
+        : Promise.resolve({ data: [] as { instalacion_id: string | null; vacio_sanitario_hasta: string | null }[] }),
+    ]).then(([inst, lot, cer, cerrados]) => {
       if (!vigente) return
       setGalpones((inst.data ?? []).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { numeric: true })))
       setLotes((lot.data ?? []) as Lote[])
       setLotesCerdos((cer.data ?? []) as LoteCerdo[])
+      const v: Record<string, string> = {}
+      for (const c of cerrados.data ?? []) {
+        if (c.instalacion_id && c.vacio_sanitario_hasta && (!v[c.instalacion_id] || v[c.instalacion_id] < c.vacio_sanitario_hasta)) v[c.instalacion_id] = c.vacio_sanitario_hasta
+      }
+      setVacio(v)
       setCargando(false)
     })
     return () => { vigente = false }
@@ -126,6 +137,10 @@ export default function ResumenGalponesFinca({ finca, onEditar }: { finca: Finca
                       <p className="mt-1 text-xs text-gray-600">
                         {l.aves_actuales.toLocaleString('es-CO')} aves{area > 0 && ` · ${(l.aves_actuales / area).toLocaleString('es-CO', { maximumFractionDigits: 1 })}/m²`}
                         {semana && <span className="block text-gray-400">Semana {semana.semana} de {semana.etapa}{l.linea_genetica ? ` · ${l.linea_genetica}` : ''}</span>}
+                      </p>
+                    ) : vacio[g.id] ? (
+                      <p className="mt-1 text-xs text-amber-700">
+                        Vacío sanitario hasta el {new Date(vacio[g.id] + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}
                       </p>
                     ) : (
                       <p className="mt-1 text-xs text-green-700">Registrar aves →</p>

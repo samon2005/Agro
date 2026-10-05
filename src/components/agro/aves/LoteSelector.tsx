@@ -23,6 +23,15 @@ interface Props {
   onRegistrarAves: (galponId: string | null) => void
   onDatosFinca: () => void
   loading: boolean
+  /** Galpones vacíos en vacío sanitario, con la fecha en que terminan */
+  vacioSanitario?: Record<string, string>
+  /** Cuántos lotes ya salieron */
+  anteriores?: number
+  onLotesAnteriores?: () => void
+}
+
+function fechaCorta(f: string) {
+  return new Date(f + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })
 }
 
 /**
@@ -30,7 +39,7 @@ interface Props {
  * está vacío ofrece registrar las que entran. Los lotes que quedaron sin galpón
  * (anteriores a esta forma de trabajar) se muestran igual para no perderlos.
  */
-export default function LoteSelector({ galpones, lotes, loteActual, onSelect, onRegistrarAves, onDatosFinca, loading }: Props) {
+export default function LoteSelector({ galpones, lotes, loteActual, onSelect, onRegistrarAves, onDatosFinca, loading, vacioSanitario = {}, anteriores = 0, onLotesAnteriores }: Props) {
   if (loading) {
     return (
       <div className="flex flex-wrap gap-2">
@@ -73,16 +82,24 @@ export default function LoteSelector({ galpones, lotes, loteActual, onSelect, on
         {galpones.map(g => {
           const lote = lotePorGalpon.get(g.id)
           if (lote) return <BotonLote key={g.id} lote={lote} />
+          const vacioHasta = vacioSanitario[g.id]
           return (
             <button
               key={g.id}
               onClick={() => onRegistrarAves(g.id)}
-              title="Galpón sin aves: registrar las que entran"
-              className="inline-flex h-9 items-center gap-2 rounded-xl border border-dashed border-gray-300 px-3.5 text-sm text-gray-500 transition-colors hover:border-green-500 hover:text-green-800"
+              title={vacioHasta
+                ? `En vacío sanitario (limpieza y desinfección) hasta el ${fechaCorta(vacioHasta)}`
+                : 'Galpón sin aves: registrar las que entran'}
+              className={cn(
+                'inline-flex h-9 items-center gap-2 rounded-xl border border-dashed px-3.5 text-sm transition-colors',
+                vacioHasta
+                  ? 'border-amber-300 bg-amber-50/60 text-amber-800 hover:border-amber-500'
+                  : 'border-gray-300 text-gray-500 hover:border-green-500 hover:text-green-800',
+              )}
             >
-              <Ic n="casa" className="size-4" />
+              <Ic n={vacioHasta ? 'desinfeccion' : 'casa'} className="size-4" />
               {g.nombre}
-              <span className="text-xs">· vacío</span>
+              <span className="text-xs">· {vacioHasta ? `vacío sanitario hasta ${fechaCorta(vacioHasta)}` : 'vacío'}</span>
             </button>
           )
         })}
@@ -96,6 +113,14 @@ export default function LoteSelector({ galpones, lotes, loteActual, onSelect, on
             className="inline-flex h-9 items-center gap-1.5 rounded-xl px-3 text-sm font-medium text-green-800 transition-colors hover:bg-green-50"
           >
             <Ic n="mas" className="size-4" /> Registrar aves
+          </button>
+        )}
+        {anteriores > 0 && onLotesAnteriores && (
+          <button
+            onClick={onLotesAnteriores}
+            className="inline-flex h-9 items-center gap-1.5 rounded-xl px-3 text-sm text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-800"
+          >
+            <Ic n="agenda" className="size-4" /> Lotes anteriores ({anteriores})
           </button>
         )}
         <button

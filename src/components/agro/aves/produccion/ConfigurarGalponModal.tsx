@@ -13,6 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { LINEAS_PONEDORAS, nacimientoDesdeEdad, semanaDeVida } from '@/lib/referencias'
 import { hoyLocal } from '@/lib/fechas'
 import SelectorReferencia from '../referencias/SelectorReferencia'
+import CerrarLoteModal from '../CerrarLoteModal'
+import { PROPOSITOS, type Proposito } from '@/lib/lotesAves'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 
@@ -36,11 +38,13 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, 
   const [loading, setLoading] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [confirmarNombre, setConfirmarNombre] = useState('')
+  const [cerrando, setCerrando] = useState(false)
   const [form, setForm] = useState({
     area_galpon_m2: '',
     fecha_inicio: '',
     linea_genetica: '',
     referencia_id: '',
+    proposito: 'ciclo_completo' as Proposito,
     edad_llegada: '',
     fecha_inicio_postura: '',
     fecha_salida_programada: '',
@@ -57,6 +61,7 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, 
       fecha_inicio: lote.fecha_inicio ?? '',
       linea_genetica: lote.linea_genetica ?? '',
       referencia_id: lote.referencia_id ?? '',
+      proposito: lote.proposito,
       edad_llegada: edadAlLlegar(lote),
       fecha_inicio_postura: lote.fecha_inicio_postura ?? '',
       fecha_salida_programada: lote.fecha_salida_programada ?? '',
@@ -116,6 +121,7 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, 
     const payload = {
       linea_genetica: form.linea_genetica || null,
       referencia_id: form.referencia_id || null,
+      proposito: form.proposito,
       fecha_nacimiento,
       area_galpon_m2: form.area_galpon_m2 ? Number(form.area_galpon_m2) : null,
       // La fecha de entrada se puede corregir: de ella cuelgan la edad y las semanas
@@ -189,6 +195,20 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, 
                 <SelectContent>{lineas.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}</SelectContent>
               </Select>
             </div>
+            <div className="space-y-1">
+              <Label>Propósito del lote</Label>
+              <Select
+                value={form.proposito}
+                onValueChange={v => v && setForm(p => ({ ...p, proposito: v as Proposito }))}
+                items={Object.fromEntries(PROPOSITOS.map(o => [o.v, o.t]))}
+              >
+                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent alignItemWithTrigger={false}>
+                  {PROPOSITOS.map(o => <SelectItem key={o.v} value={o.v} disabled={o.v === 'venta_levante' && !enLevante}>{o.t}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-400">{PROPOSITOS.find(o => o.v === form.proposito)?.d}</p>
+            </div>
             <SelectorReferencia
               fincaId={lote.finca_id}
               lineaGenetica={form.linea_genetica}
@@ -213,7 +233,7 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, 
               <Label>Salida programada del lote</Label>
               <Input type="date" value={form.fecha_salida_programada} onChange={e => set('fecha_salida_programada', e.target.value)} />
               <p className="text-xs text-gray-400">
-                {enLevante ? 'Si las pollas se van a vender (hacia las 14–15 semanas)' : 'Cuándo se piensa sacar el lote'}
+                {form.proposito === 'ciclo_completo' ? 'Cuándo se piensa descartar' : 'Fecha aproximada de venta'}
               </p>
             </div>
             {!enLevante && (
@@ -248,11 +268,22 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, 
               <Input type="number" min="0" step="1" placeholder="Ej: 40" value={form.peso_bulto_alimento_kg} onChange={e => set('peso_bulto_alimento_kg', e.target.value)} />
             </div>
           </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 p-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-gray-800"><Ic n="salir" /> Salida del lote</p>
+              <p className="text-xs text-gray-500">
+                Cuando las aves se van (descarte, venta de pollas o de gallinas), el lote se cierra con todo su historial
+                y el galpón entra en vacío sanitario.
+              </p>
+            </div>
+            <Button type="button" variant="outline" onClick={() => setCerrando(true)}>Sacar las aves</Button>
+          </div>
+
           <div className="border border-red-200 bg-red-50 rounded-lg p-3 space-y-2">
             <p className="text-sm font-semibold text-red-800"><Ic n="alerta" /> Zona de peligro</p>
             <p className="text-xs text-red-600">
-              Eliminar este lote borra para siempre sus aves y todo su historial (producción, sanidad, costos, equipos).
-              El galpón sigue en la finca, vacío. No se puede deshacer.
+              Solo para un lote registrado por error: eliminarlo borra para siempre sus aves y todo su historial
+              (producción, sanidad, costos, equipos). Si las aves salieron, usa <strong>Sacar las aves</strong>. No se puede deshacer.
             </p>
             <div className="flex items-center gap-2">
               <Input
@@ -279,6 +310,12 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, 
             </Button>
           </DialogFooter>
         </form>
+        {cerrando && <CerrarLoteModal
+          open={cerrando}
+          onClose={() => setCerrando(false)}
+          lote={lote}
+          onCerrado={() => { onDeleted(); onClose() }}
+        />}
       </DialogContent>
     </Dialog>
   )

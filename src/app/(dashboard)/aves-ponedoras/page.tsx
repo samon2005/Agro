@@ -6,6 +6,8 @@ import { useFinca } from '@/components/agro/FincaProvider'
 import { cn } from '@/lib/utils'
 import LoteSelector from '@/components/agro/aves/LoteSelector'
 import CrearLoteModal from '@/components/agro/aves/CrearLoteModal'
+import LotesAnterioresModal from '@/components/agro/aves/LotesAnterioresModal'
+import { PROPOSITO_LABEL } from '@/lib/lotesAves'
 import EditarFincaModal from '@/components/agro/EditarFincaModal'
 import TabProduccion from '@/components/agro/aves/produccion/TabProduccion'
 import TabAmbiental from '@/components/agro/aves/ambiental/TabAmbiental'
@@ -48,6 +50,9 @@ export default function AvesPonedorasPage() {
   const supabase = createClient()
 
   const [lotes, setLotes] = useState<LoteAves[]>([])
+  // Los que ya salieron: su historial y el vacío sanitario de su galpón
+  const [cerrados, setCerrados] = useState<LoteAves[]>([])
+  const [verAnteriores, setVerAnteriores] = useState(false)
   const [loteActual, setLoteActual] = useState<LoteAves | null>(null)
   const [loadingLotes, setLoadingLotes] = useState(true)
   const [activeTab, setActiveTab] = useState<Tab>('produccion')
@@ -66,7 +71,7 @@ export default function AvesPonedorasPage() {
     if (!fincaActual) return
     setLoadingLotes(true)
     await recalcularStockAlimentoAves(supabase, fincaActual.id)
-    const [{ data }, { data: inst }] = await Promise.all([
+    const [{ data }, { data: inst }, { data: salieron }] = await Promise.all([
       supabase
         .from('lotes_aves')
         .select('*')
@@ -79,8 +84,15 @@ export default function AvesPonedorasPage() {
         .eq('finca_id', fincaActual.id)
         .eq('especie', 'aves_ponedoras')
         .order('nombre'),
+      supabase
+        .from('lotes_aves')
+        .select('*')
+        .eq('finca_id', fincaActual.id)
+        .in('estado', ['vendido', 'finalizado'])
+        .order('fecha_fin', { ascending: false, nullsFirst: false }),
     ])
     setLotes(data ?? [])
+    setCerrados(salieron ?? [])
     setGalpones(inst ?? [])
     if (data && data.length > 0) {
       if (!loteActual) {
@@ -140,6 +152,15 @@ export default function AvesPonedorasPage() {
     evalAlertas()
   }, [loteActual?.id, supabase, alertasVersion])
 
+  const ocupados = new Set(lotes.map(l => l.instalacion_id).filter((x): x is string => Boolean(x)))
+  // Galpones vacíos que todavía están en limpieza y desinfección: hasta qué día
+  const vacioSanitario: Record<string, string> = {}
+  for (const l of cerrados) {
+    const g = l.instalacion_id
+    if (!g || ocupados.has(g) || !l.vacio_sanitario_hasta || l.vacio_sanitario_hasta <= hoyLocal()) continue
+    if (!vacioSanitario[g] || vacioSanitario[g] < l.vacio_sanitario_hasta) vacioSanitario[g] = l.vacio_sanitario_hasta
+  }
+
   if (fincaLoading) {
     return <div className="p-6 text-gray-500">Cargando...</div>
   }
@@ -192,6 +213,9 @@ export default function AvesPonedorasPage() {
         <LoteSelector
           galpones={galpones}
           lotes={lotes}
+          vacioSanitario={vacioSanitario}
+          anteriores={cerrados.length}
+          onLotesAnteriores={() => setVerAnteriores(true)}
           loteActual={loteActual}
           onSelect={l => { setLoteActual(l); setAlertas([]) }}
           onRegistrarAves={galponId => { setGalponParaRegistrar(galponId); setModalNuevoLote(true) }}
@@ -203,6 +227,8 @@ export default function AvesPonedorasPage() {
             {loteActual.linea_genetica && `${loteActual.linea_genetica} · `}
             {loteActual.aves_actuales.toLocaleString('es-CO')} aves activas
             {loteActual.fecha_nacimiento && ` · semana ${semanaDeVida(loteActual.fecha_nacimiento, hoyLocal()) ?? '—'} de vida`}
+            {loteActual.proposito !== 'ciclo_completo' && ` · ${PROPOSITO_LABEL[loteActual.proposito]}`}
+            {loteActual.fecha_salida_programada && ` · salida ${new Date(loteActual.fecha_salida_programada + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}`}
             {loteActual.origen_aves && ` · ${loteActual.origen_aves}`}
           </p>
         )}
@@ -294,12 +320,15 @@ export default function AvesPonedorasPage() {
         </>
       )}
 
+      <LotesAnterioresModal open={verAnteriores} onClose={() => setVerAnteriores(false)} lotes={cerrados} />
+
       <CrearLoteModal
         open={modalNuevoLote}
         onClose={() => { setModalNuevoLote(false); setGalponParaRegistrar(null) }}
         fincaId={fincaActual.id}
         galpones={galpones}
-        ocupados={new Set(lotes.map(l => l.instalacion_id).filter((x): x is string => Boolean(x)))}
+        ocupados={ocupados}
+        vacioSanitario={vacioSanitario}
         galponInicialId={galponParaRegistrar}
         onCreated={lote => {
           setLotes(prev => [...prev, lote].sort((a, b) => a.nombre.localeCompare(b.nombre)))

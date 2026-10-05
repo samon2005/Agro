@@ -100,7 +100,7 @@ const COLUMNAS: { titulo: string; ayuda: string; valor: (f: FilaSemana) => strin
  * El lote semana a semana en una tabla compacta, con los promedios de 7 días.
  * En levante las semanas van desde la entrada; en postura, desde que empezó a poner.
  */
-export default function TabResumenSemanal({ loteActual }: { loteActual: LoteAves }) {
+export default function TabResumenSemanal({ loteActual, hasta }: { loteActual: LoteAves; /** Último día (un lote cerrado llega hasta su salida) */ hasta?: string }) {
   const [filas, setFilas] = useState<FilaSemana[]>([])
   const [cargando, setCargando] = useState(true)
   const ref = useReferencia(loteActual.referencia_id)
@@ -127,12 +127,12 @@ export default function TabResumenSemanal({ loteActual }: { loteActual: LoteAves
         (ventas.data ?? []).filter(v => v.tipo === 'descarte' || v.tipo === 'pollas')
           .map(v => ({ fecha: v.fecha, cantidad: Number(v.cantidad) })),
         (pesos.data ?? []).map(p => ({ fecha: p.fecha, peso_promedio_g: Number(p.peso_promedio_g) })),
-        hoyLocal(),
+        hasta ?? hoyLocal(),
       ))
       setCargando(false)
     })
     return () => { vigente = false }
-  }, [loteActual])
+  }, [loteActual, hasta])
 
   // La semana más reciente arriba
   const visibles = [...filas].reverse()

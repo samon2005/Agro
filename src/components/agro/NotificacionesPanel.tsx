@@ -57,7 +57,7 @@ export default function NotificacionesPanel() {
     await Promise.all(tareas)
 
     if (especies.includes('aves_ponedoras')) {
-      const { data: lotes } = await supabase.from('lotes_aves').select('id, nombre, estado, fecha_inicio_postura').eq('finca_id', fincaActual.id).in('estado', ['activo', 'preparacion'])
+      const { data: lotes } = await supabase.from('lotes_aves').select('id, nombre, estado, fecha_inicio_postura, fecha_salida_programada, proposito').eq('finca_id', fincaActual.id).in('estado', ['activo', 'preparacion'])
 
       for (const lote of lotes ?? []) {
         const [{ data: horarios }, { data: hoyProd }] = await Promise.all([
@@ -72,7 +72,26 @@ export default function NotificacionesPanel() {
           }
         }
 
-        if (lote.estado === 'preparacion' && lote.fecha_inicio_postura) {
+        // La salida que se programó (venta de pollas, de gallinas o descarte)
+        if (lote.fecha_salida_programada) {
+          const diasSalida = Math.round((new Date(lote.fecha_salida_programada + 'T00:00:00').getTime() - new Date(aFechaLocal(hoy) + 'T00:00:00').getTime()) / (24 * 60 * 60 * 1000))
+          if (diasSalida >= 0 && diasSalida <= 7) {
+            notifs.push({
+              tipo: 'postura',
+              mensaje: `La salida de "${lote.nombre}" está programada ${diasSalida === 0 ? 'para hoy' : `en ${diasSalida} día${diasSalida === 1 ? '' : 's'}`}`,
+              href: `/aves-ponedoras?lote=${lote.id}`,
+            })
+          } else if (diasSalida < 0) {
+            notifs.push({
+              tipo: 'postura',
+              mensaje: `Ya pasó la salida programada de "${lote.nombre}": si las aves salieron, ciérralo desde Configurar galpón`,
+              href: `/aves-ponedoras?lote=${lote.id}`,
+            })
+          }
+        }
+
+        // Las pollas que se venden antes de poner no tienen postura que esperar
+        if (lote.estado === 'preparacion' && lote.fecha_inicio_postura && lote.proposito !== 'venta_levante') {
           const fechaPostura = new Date(lote.fecha_inicio_postura + 'T00:00:00')
           const diasFaltan = Math.round((fechaPostura.getTime() - hoy.getTime()) / (24 * 60 * 60 * 1000))
           if (diasFaltan >= 0 && diasFaltan <= 14) {

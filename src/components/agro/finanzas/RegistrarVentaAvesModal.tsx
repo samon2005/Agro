@@ -11,6 +11,7 @@ import { CurrencyInput } from '@/components/ui/currency-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { hoyLocal } from '@/lib/fechas'
 import { cop } from '@/lib/huevos'
+import { dbGenerico } from '@/lib/especiesConfig'
 import type { VentaAvesLote } from '@/lib/finanzas'
 
 type Tipo = VentaAvesLote['tipo']
@@ -161,10 +162,15 @@ export default function RegistrarVentaAvesModal({ open, onClose, fincaId, ventaE
   async function cerrarLote() {
     if (!loteVacio) return
     setGuardando(true)
-    const { error } = await supabase.from('lotes_aves').update({ estado: 'vendido' }).eq('id', loteVacio.id)
+    // El mismo cierre que en el galpón: deja la fecha, el motivo y el vacío sanitario
+    const { error } = await dbGenerico(supabase).rpc('cerrar_lote_aves', {
+      p_lote: loteVacio.id,
+      p_fecha: form.fecha > hoyLocal() ? hoyLocal() : form.fecha,
+      p_motivo: form.tipo === 'pollas' ? 'venta_pollas' : loteVacio.estado === 'activo' && form.tipo === 'descarte' ? 'fin_ciclo' : 'otro',
+    })
     setGuardando(false)
-    if (error) { toast.error('No se pudo cerrar el lote'); return }
-    toast.success(`Lote cerrado: ${loteVacio.nombre} quedó libre para nuevas aves`)
+    if (error) { toast.error(error.hint === 'lote_cerrado' || error.hint === 'fecha' ? error.message : 'No se pudo cerrar el lote'); return }
+    toast.success(`Lote cerrado: ${loteVacio.nombre} quedó libre y en vacío sanitario`)
     onGuardado()
     onClose()
   }

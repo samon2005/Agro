@@ -26,6 +26,8 @@ type Finca = {
   precio_huevo_aa?: number | null
   precio_huevo_aaa?: number | null
   precio_huevo_jumbo?: number | null
+  /** Días de limpieza y desinfección del galpón entre un lote y el siguiente */
+  dias_vacio_sanitario?: number
 }
 
 type FincaContextType = {
