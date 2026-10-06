@@ -136,3 +136,28 @@ export function seriesSemanales(d: DatosTablero, desde: string, hasta: string, g
     muertes: semanas.map(s => ({ semana: etiqueta(s), ...muertes.get(s)! }) as Fila),
   }
 }
+
+/** Totales de la selección semana a semana, para las tendencias de los indicadores */
+export function totalesSemanales(d: DatosTablero, desde: string, hasta: string, galpones: Set<string> | null) {
+  const semanas: string[] = []
+  for (let s = lunesDe(desde); s <= hasta; s = aFechaLocal(new Date(new Date(s + 'T00:00:00').getTime() + 7 * 86_400_000))) semanas.push(s)
+  const enGalpon = (g: string) => !galpones || galpones.has(g)
+  const nombreDe = (id: string | null) => (id ? d.galponDeLote.get(id) ?? 'Galpón' : 'Toda la finca')
+  return semanas.map(s => {
+    const fin = aFechaLocal(new Date(new Date(s + 'T00:00:00').getTime() + 6 * 86_400_000))
+    const dias = d.dias.filter(x => x.fecha >= s && x.fecha <= fin && x.fecha >= desde && enGalpon(x.galpon))
+    const avesDia = dias.reduce((a, x) => a + (x.aves ?? 0), 0)
+    const huevosConAves = dias.filter(x => x.aves).reduce((a, x) => a + x.huevos, 0)
+    const muertesEv = d.eventos.filter(e => e.fecha >= s && e.fecha <= fin && e.fecha >= desde && enGalpon(e.galpon)).reduce((a, e) => a + e.muertas, 0)
+    const costos = d.costos.filter(c => c.fecha >= s && c.fecha <= fin && c.fecha >= desde && (!galpones || galpones.has(nombreDe(c.lote_id)))).reduce((a, c) => a + Number(c.monto), 0)
+    const ingresos = d.ingresos.filter(i => i.fecha >= s && i.fecha <= fin && i.fecha >= desde && (!galpones || galpones.has(nombreDe(i.lote_id)))).reduce((a, i) => a + i.monto, 0)
+    return {
+      semana: s,
+      huevos: dias.reduce((a, x) => a + x.huevos, 0),
+      postura: avesDia > 0 ? (huevosConAves / avesDia) * 100 : null,
+      muertes: dias.reduce((a, x) => a + x.muertes, 0) + muertesEv,
+      alimentoKg: dias.reduce((a, x) => a + x.alimentoKg, 0),
+      costos, ingresos, utilidad: ingresos - costos,
+    }
+  })
+}

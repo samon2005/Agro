@@ -1,7 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { ComposedChart, Line, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine, ResponsiveContainer } from 'recharts'
+import { ComposedChart, Line, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from 'recharts'
+import { TooltipGrafico } from '@/components/ui/graficos/TooltipGrafico'
+import { Leyenda } from '@/components/ui/graficos/PanelDatos'
+import { EJE, EJE_Y, REJILLA, SERIES, TINTA } from '@/components/ui/graficos/paleta'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -191,20 +194,25 @@ export default function PrediccionPostura({ lote, version }: { lote: LoteAves; v
 
         <div className="h-72">
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={datos} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="x" type="number" domain={['dataMin', 'dataMax']} tick={{ fontSize: 11 }} label={{ value: 'Semana de vida', position: 'insideBottom', offset: -2, fontSize: 11 }} />
-              <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} unit="%" />
-              <Tooltip formatter={(v) => (v == null ? '—' : `${n1(Number(v))} %`)} labelFormatter={l => `Semana ${l} de vida`} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              {guia.length > 0 && <Line dataKey="guia" name="Guía" stroke="#9CA3AF" strokeDasharray="4 4" dot={false} connectNulls />}
-              <Line dataKey="curva" name="Curva estimada" stroke="#15803D" strokeWidth={2} dot={false} />
-              <Scatter dataKey="real" name="Real" fill="#D97706" />
-              {equilibrio != null && <ReferenceLine y={equilibrio} stroke="#DC2626" strokeDasharray="6 3" label={{ value: 'Equilibrio', fontSize: 10, fill: '#DC2626', position: 'insideTopRight' }} />}
-              <ReferenceLine x={vidaHoy} stroke="#6B7280" label={{ value: 'Hoy', fontSize: 10, position: 'insideTop' }} />
+            <ComposedChart data={datos} margin={{ top: 12, right: 8, left: -8, bottom: 0 }}>
+              <CartesianGrid {...REJILLA} />
+              <XAxis dataKey="x" type="number" domain={['dataMin', 'dataMax']} {...EJE} tickFormatter={v => `S${v}`} />
+              <YAxis {...EJE_Y} domain={[0, 100]} tickFormatter={v => `${v} %`} />
+              <Tooltip content={<TooltipGrafico formato={v => `${n1(v)} %`} titulo={l => `Semana ${l} de vida`} />} />
+              {guia.length > 0 && <Line dataKey="guia" name="Guía" stroke={TINTA.tenue} strokeWidth={1.5} dot={false} connectNulls isAnimationActive={false} />}
+              <Line dataKey="curva" name="Curva estimada" stroke={SERIES[0]} strokeWidth={2} dot={false} isAnimationActive={false} />
+              <Scatter dataKey="real" name="Real" fill={SERIES[1]} isAnimationActive={false} />
+              {equilibrio != null && <ReferenceLine y={equilibrio} stroke={SERIES[7]} strokeWidth={1} label={{ value: 'Equilibrio', fontSize: 10, fill: TINTA.secundaria, position: 'insideTopRight' }} />}
+              <ReferenceLine x={vidaHoy} stroke={TINTA.eje} label={{ value: 'Hoy', fontSize: 10, fill: TINTA.secundaria, position: 'top' }} />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
+        <Leyenda items={[
+          ...(guia.length > 0 ? [{ nombre: 'Guía', color: TINTA.tenue }] : []),
+          { nombre: 'Curva estimada', color: SERIES[0] },
+          { nombre: 'Real', color: SERIES[1] },
+          ...(equilibrio != null ? [{ nombre: 'Equilibrio', color: SERIES[7] }] : []),
+        ]} />
       </CardContent>
     </Card>
   )

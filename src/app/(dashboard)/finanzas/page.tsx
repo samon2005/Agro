@@ -1,7 +1,10 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
+import { TooltipGrafico } from '@/components/ui/graficos/TooltipGrafico'
+import { Leyenda } from '@/components/ui/graficos/PanelDatos'
+import { BARRA, EJE, EJE_Y, REJILLA, SERIES, TINTA, pesosCompacto } from '@/components/ui/graficos/paleta'
 import { BarraExportar, type Vista } from '@/components/ui/barra-exportar'
 import Link from 'next/link'
 import { toast } from 'sonner'
@@ -285,17 +288,18 @@ export default function FinanzasPage() {
                   {porMes.length === 0 ? <Vacio texto="Sin movimientos con estos filtros" /> : vistaMes === 'grafica' ? (
                     <div className="h-72 p-4">
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={[...porMes].reverse().map(m => ({ mes: nombreMes(m.mes), Ventas: m.ingresos, Costos: m.costos, Utilidad: m.utilidad }))} margin={{ top: 5, right: 10, left: 10, bottom: 0 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                          <XAxis dataKey="mes" tick={{ fontSize: 10 }} />
-                          <YAxis tick={{ fontSize: 10 }} tickFormatter={v => `$${(Number(v) / 1000).toLocaleString('es-CO')}k`} />
-                          <Tooltip formatter={v => cop(Number(v))} />
-                          <Legend wrapperStyle={{ fontSize: 12 }} />
-                          <Bar dataKey="Ventas" fill="#86EFAC" />
-                          <Bar dataKey="Costos" fill="#FCA5A5" />
-                          <Bar dataKey="Utilidad" fill="#15803D" />
+                        <BarChart data={[...porMes].reverse().map(m => ({ mes: nombreMes(m.mes), Ventas: m.ingresos, Costos: m.costos, Utilidad: m.utilidad }))} margin={{ top: 4, right: 4, left: -4, bottom: 0 }} barGap={2}>
+                          <CartesianGrid {...REJILLA} />
+                          <XAxis dataKey="mes" {...EJE} />
+                          <YAxis {...EJE_Y} width={56} tickFormatter={pesosCompacto} />
+                          <Tooltip cursor={{ fill: 'rgb(0 0 0 / 4%)' }} content={<TooltipGrafico formato={v => cop(v)} />} />
+                          <ReferenceLine y={0} stroke={TINTA.eje} />
+                          <Bar dataKey="Ventas" fill={SERIES[0]} {...BARRA} isAnimationActive={false} />
+                          <Bar dataKey="Costos" fill={SERIES[1]} {...BARRA} isAnimationActive={false} />
+                          <Bar dataKey="Utilidad" fill={SERIES[2]} {...BARRA} isAnimationActive={false} />
                         </BarChart>
                       </ResponsiveContainer>
+                      <Leyenda items={[{ nombre: 'Ventas', color: SERIES[0] }, { nombre: 'Costos', color: SERIES[1] }, { nombre: 'Utilidad', color: SERIES[2] }]} />
                     </div>
                   ) : (
                     <div className="overflow-x-auto">

@@ -1,7 +1,10 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { BarChart, LineChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts'
+import { TooltipGrafico } from '@/components/ui/graficos/TooltipGrafico'
+import { Leyenda } from '@/components/ui/graficos/PanelDatos'
+import { BARRA, EJE, EJE_Y, REJILLA, SERIES, TINTA, pesosCompacto } from '@/components/ui/graficos/paleta'
 import { BarraExportar, type Vista } from '@/components/ui/barra-exportar'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -56,6 +59,12 @@ export default function TabRentabilidad({ loteActual }: { loteActual: LoteAves }
   const margenValido = Number.isFinite(margenNum) && margenNum >= 0 && margenNum < 1000
   const porTamano = ultima?.costoGramo != null ? costoPorTamano(ultima.costoGramo) : null
   const visibles = [...r.semanas].reverse()
+  const puntos = r.semanas.filter(s => s.etapa === 'postura').map(s => ({
+    semana: `P${s.semana}`,
+    utilidad: s.utilidad != null ? Math.round(s.utilidad) : null,
+    postura: s.posturaPct != null ? Math.round(s.posturaPct * 10) / 10 : null,
+    equilibrio: s.equilibrioPct != null ? Math.round(s.equilibrioPct * 10) / 10 : null,
+  }))
   const sinPrecios = !hayPrecios(precios)
 
   return (
@@ -197,25 +206,43 @@ export default function TabRentabilidad({ loteActual }: { loteActual: LoteAves }
           {visibles.length === 0 ? (
             <p className="p-6 text-center text-sm text-gray-400">El lote todavía no tiene semanas</p>
           ) : vista === 'grafica' ? (
-            <div className="h-80 p-4">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={r.semanas.filter(s => s.etapa === 'postura').map(s => ({
-                  semana: `P${s.semana}`,
-                  utilidad: s.utilidad != null ? Math.round(s.utilidad) : null,
-                  postura: s.posturaPct != null ? Math.round(s.posturaPct * 10) / 10 : null,
-                  equilibrio: s.equilibrioPct != null ? Math.round(s.equilibrioPct * 10) / 10 : null,
-                }))} margin={{ top: 5, right: 10, left: 10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis dataKey="semana" tick={{ fontSize: 10 }} />
-                  <YAxis yAxisId="pesos" tick={{ fontSize: 10 }} tickFormatter={v => `$${(Number(v) / 1000).toLocaleString('es-CO')}k`} />
-                  <YAxis yAxisId="pct" orientation="right" domain={[0, 100]} tick={{ fontSize: 10 }} unit="%" />
-                  <Tooltip formatter={(v, n) => (v == null ? '—' : n === 'Utilidad' ? pesos(Number(v)) : `${Number(v).toLocaleString('es-CO')} %`)} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Bar yAxisId="pesos" dataKey="utilidad" name="Utilidad" fill="#86EFAC" />
-                  <Line yAxisId="pct" dataKey="postura" name="% postura" stroke="#15803D" strokeWidth={2} dot={false} connectNulls />
-                  <Line yAxisId="pct" dataKey="equilibrio" name="% equilibrio" stroke="#DC2626" strokeDasharray="5 3" dot={false} connectNulls />
-                </ComposedChart>
-              </ResponsiveContainer>
+            <div className="grid gap-6 p-4 lg:grid-cols-2">
+              {/* Dos gráficas con un eje cada una: % y pesos no comparten escala */}
+              <div>
+                <p className="text-xs font-medium text-gray-600">% de postura frente al equilibrio</p>
+                <p className="mb-2 text-[0.6875rem] text-gray-400">Por debajo de la línea gris el huevo no paga lo que cuesta</p>
+                <div className="h-60">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={puntos} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
+                      <CartesianGrid {...REJILLA} />
+                      <XAxis dataKey="semana" {...EJE} interval="preserveStartEnd" minTickGap={14} />
+                      <YAxis {...EJE_Y} domain={[0, 100]} tickFormatter={v => `${v} %`} />
+                      <Tooltip content={<TooltipGrafico formato={v => `${n1(v)} %`} titulo={l => `Semana ${String(l).slice(1)} de postura`} />} />
+                      <Line dataKey="postura" name="% postura" stroke={SERIES[0]} strokeWidth={2} dot={false} activeDot={{ r: 4, stroke: '#fff', strokeWidth: 2 }} connectNulls isAnimationActive={false} />
+                      <Line dataKey="equilibrio" name="% equilibrio" stroke={TINTA.tenue} strokeWidth={1.5} dot={false} connectNulls isAnimationActive={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+                <Leyenda items={[{ nombre: '% postura', color: SERIES[0] }, { nombre: '% equilibrio', color: TINTA.tenue }]} />
+              </div>
+              <div>
+                <p className="text-xs font-medium text-gray-600">Utilidad por semana</p>
+                <p className="mb-2 text-[0.6875rem] text-gray-400">Ingreso estimado menos el costo total</p>
+                <div className="h-60">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={puntos} margin={{ top: 4, right: 4, left: -8, bottom: 0 }}>
+                      <CartesianGrid {...REJILLA} />
+                      <XAxis dataKey="semana" {...EJE} interval="preserveStartEnd" minTickGap={14} />
+                      <YAxis {...EJE_Y} tickFormatter={pesosCompacto} />
+                      <Tooltip cursor={{ fill: 'rgb(0 0 0 / 4%)' }} content={<TooltipGrafico formato={pesos} titulo={l => `Semana ${String(l).slice(1)} de postura`} />} />
+                      <ReferenceLine y={0} stroke={TINTA.eje} />
+                      <Bar dataKey="utilidad" name="Utilidad" maxBarSize={BARRA.maxBarSize} radius={BARRA.radius} isAnimationActive={false}>
+                        {puntos.map(p => <Cell key={p.semana} fill={(p.utilidad ?? 0) >= 0 ? SERIES[2] : SERIES[7]} />)}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
             </div>
           ) : (
             <div className="max-h-[28rem] overflow-auto">

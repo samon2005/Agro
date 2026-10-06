@@ -1,7 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Legend, Tooltip, ResponsiveContainer } from 'recharts'
+import { RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Tooltip, ResponsiveContainer } from 'recharts'
+import { TooltipGrafico } from '@/components/ui/graficos/TooltipGrafico'
+import { Leyenda } from '@/components/ui/graficos/PanelDatos'
+import { SERIES, TINTA } from '@/components/ui/graficos/paleta'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -113,17 +116,17 @@ export default function RadarGalpones({ fincaId }: { fincaId: string }) {
         ) : (
           <div className="grid gap-4 md:grid-cols-[1fr_14rem]">
             <div className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="90%">
                 <RadarChart data={ejes.map(e => ({ ...e, guia: 100 }))} outerRadius="75%">
-                  <PolarGrid />
-                  <PolarAngleAxis dataKey="eje" tick={{ fontSize: 11 }} />
-                  <PolarRadiusAxis domain={[0, 150]} tick={{ fontSize: 9 }} angle={90} />
-                  <Radar name="Guía" dataKey="guia" stroke="#9CA3AF" fill="#9CA3AF" fillOpacity={0.1} strokeDasharray="4 4" />
-                  <Radar name="Galpón" dataKey="real" stroke="#15803D" fill="#15803D" fillOpacity={0.3} />
-                  <Tooltip formatter={(v, n) => (n === 'Galpón' ? `${n1(Number(v))}` : '100')} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <PolarGrid stroke={TINTA.rejilla} />
+                  <PolarAngleAxis dataKey="eje" tick={{ fontSize: 11, fill: TINTA.secundaria }} />
+                  <PolarRadiusAxis domain={[0, 150]} tick={false} axisLine={false} />
+                  <Radar name="Guía" dataKey="guia" stroke={TINTA.tenue} strokeWidth={1.5} fill="none" isAnimationActive={false} />
+                  <Radar name="Galpón" dataKey="real" stroke={SERIES[0]} strokeWidth={2} fill={SERIES[0]} fillOpacity={0.15} isAnimationActive={false} />
+                  <Tooltip content={<TooltipGrafico formato={v => n1(v)} />} />
                 </RadarChart>
               </ResponsiveContainer>
+              <Leyenda items={[{ nombre: 'Galpón', color: SERIES[0] }, { nombre: 'Guía (100)', color: TINTA.tenue }]} />
             </div>
             <ul className="space-y-1.5 self-center text-xs">
               {ejes.map(e => (

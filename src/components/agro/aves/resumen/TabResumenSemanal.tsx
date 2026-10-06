@@ -1,7 +1,10 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { TooltipGrafico } from '@/components/ui/graficos/TooltipGrafico'
+import { Leyenda } from '@/components/ui/graficos/PanelDatos'
+import { EJE, EJE_Y, REJILLA, SERIES, TINTA } from '@/components/ui/graficos/paleta'
 import { BarraExportar, type Vista } from '@/components/ui/barra-exportar'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -216,18 +219,18 @@ export default function TabResumenSemanal({ loteActual, hasta }: { loteActual: L
                     real: f[metrica] == null ? null : Math.round(Number(f[metrica]) * 100) / 100,
                     guia: (() => { const v = esperadoMetrica(metrica, contexto(f)); return v == null ? null : Math.round(v * 100) / 100 })(),
                   }))}
-                  margin={{ top: 5, right: 10, left: -10, bottom: 0 }}
+                  margin={{ top: 4, right: 8, left: -8, bottom: 0 }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis dataKey="semana" tick={{ fontSize: 10 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={v => (v == null ? '—' : `${Number(v).toLocaleString('es-CO')} ${METRICAS.find(m => m.v === metrica)?.unidad ?? ''}`)} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Line dataKey="real" name="Real" stroke="#15803D" strokeWidth={2} dot={{ r: 2 }} connectNulls />
-                  {conGuia && <Line dataKey="guia" name="Guía" stroke="#9CA3AF" strokeDasharray="4 4" dot={false} connectNulls />}
+                  <CartesianGrid {...REJILLA} />
+                  <XAxis dataKey="semana" {...EJE} interval="preserveStartEnd" minTickGap={14} />
+                  <YAxis {...EJE_Y} />
+                  <Tooltip content={<TooltipGrafico formato={v => `${v.toLocaleString('es-CO')} ${METRICAS.find(m => m.v === metrica)?.unidad ?? ''}`} />} />
+                  <Line dataKey="real" name="Real" stroke={SERIES[0]} strokeWidth={2} dot={false} activeDot={{ r: 4, stroke: '#fff', strokeWidth: 2 }} connectNulls isAnimationActive={false} />
+                  {conGuia && <Line dataKey="guia" name="Guía" stroke={TINTA.tenue} strokeWidth={1.5} dot={false} connectNulls isAnimationActive={false} />}
                 </LineChart>
               </ResponsiveContainer>
             </div>
+            <Leyenda items={conGuia ? [{ nombre: 'Real', color: SERIES[0] }, { nombre: 'Guía', color: TINTA.tenue }] : []} />
             <p className="text-[0.6875rem] text-gray-400">L = semana de levante · P = semana de postura</p>
           </div>
         ) : (

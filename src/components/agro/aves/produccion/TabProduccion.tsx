@@ -1,7 +1,7 @@
 'use client'
 
-import { Indicador, GrupoIndicadores } from '@/components/ui/indicador'
-import { useState, useEffect, useCallback } from 'react'
+import { TarjetaKPI, cambioPct } from '@/components/ui/graficos/TarjetaKPI'
+import { useState, useEffect, useCallback, type ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -293,6 +293,25 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
     ? ((hoy.huevos_totales / metaHuevosDiaria) * 100).toFixed(0)
     : null
 
+  // ── Piezas de la vista ──
+  // Los últimos 14 días registrados, del más viejo al de hoy, para las tendencias
+  const ultimos14 = registros.filter(r => r.fecha <= hoyStr).slice(0, 14).reverse()
+  const definirMeta = (texto: string) => (
+    <button type="button" onClick={() => setConfigOpen(true)} className="font-medium text-green-700 hover:underline">{texto} →</button>
+  )
+  const botonAlimento = (texto: string, variant?: 'outline') => onIrAlimento
+    ? <Button size="sm" variant={variant} onClick={onIrAlimento}>{texto}</Button>
+    : <Link href={`/alimento?lote=${loteActual.id}`}><Button size="sm" variant={variant}>{texto}</Button></Link>
+  const tarjetaMortalidad = (
+    <TarjetaKPI
+      etiqueta="Mortalidad acumulada"
+      valor={mortAcum.toLocaleString('es-CO')}
+      nota={`${mortPct.replace('.', ',')} % del lote inicial`}
+      tendencia={ultimos14.map(r => r.muertes)}
+    />
+  )
+  const fechaCortaD = (d: Date) => d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })
+
   // ── Estado del lote: preparación (levante) vs activo (en postura) ──
   const semanasEnGalpon = Math.max(0, Math.floor(
     (hoyDate.getTime() - new Date(loteActual.fecha_inicio + 'T00:00:00').getTime()) / (7 * MS_DIA)
@@ -504,6 +523,26 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
     etiqueta: 'Entrada al galpón', fecha: loteActual.fecha_inicio,
   })
 
+  const tarjetaCiclo = diasAtraso > 0 ? (
+    <TarjetaKPI
+      etiqueta="Inicio de postura"
+      valor={`Atrasada ${textoAtraso}`}
+      nota={<span className="text-red-600">Estaba prevista para el {new Date(loteActual.fecha_inicio_postura + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'long' })}</span>}
+    />
+  ) : enPostura ? (
+    <TarjetaKPI
+      etiqueta="Semana de postura"
+      valor={semanaPostura != null ? String(semanaPostura) : '—'}
+      nota={inicioSemanaActual && finSemanaActual ? `${fechaCortaD(inicioSemanaActual)} – ${fechaCortaD(finSemanaActual)}` : 'Sin fecha de inicio'}
+    />
+  ) : (
+    <TarjetaKPI
+      etiqueta="Faltan para postura"
+      valor={semanasFaltantesPostura != null ? `${semanasFaltantesPostura} sem.` : '—'}
+      nota={semanasFaltantesPostura != null ? 'según la fecha tentativa' : 'Sin fecha tentativa'}
+    />
+  )
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -546,203 +585,120 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
       <SugerenciasLote lote={loteActual} version={`${registros.length}-${registros[0]?.id ?? ''}-${huevosAcumulados}`} />
 
       {!listoParaRegistrar && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-amber-50 px-4 py-3.5 ring-1 ring-amber-200/70">
-          <div className="flex items-start gap-3">
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
-              <Ic n="alerta" className="size-4" />
-            </span>
-            <div>
-              <p className="text-sm font-semibold text-gray-900">Este galpón todavía no tiene alimento registrado</p>
-              <p className="mt-0.5 text-xs text-gray-600">{faltaParaRegistrar}</p>
-            </div>
-          </div>
-          {onIrAlimento ? (
-            <Button size="sm" onClick={onIrAlimento}>Registrar alimento</Button>
-          ) : (
-            <Link href={`/alimento?lote=${loteActual.id}`}>
-              <Button size="sm">Registrar alimento</Button>
-            </Link>
-          )}
-        </div>
-      )}
-
-      {enPostura && (
-      <GrupoIndicadores titulo="Producción de hoy" columnas={5}>
-        {enPostura && (<>
-        <Indicador tono="amber" icono="huevo" etiqueta="Huevos puestos hoy" valor={hoy ? hoy.huevos_totales.toLocaleString('es-CO') : '—'} detalle={<>Comerciales: {hoy ? (hoy.huevos_totales - hoy.huevos_rotos - hoy.huevos_deformes).toLocaleString('es-CO') : '—'}</>} />
-        <Indicador
-          tono={metaHuevosDiaria && hoy && hoy.huevos_totales < metaHuevosDiaria ? 'red' : 'green'}
-          icono="meta"
-          etiqueta="Meta de huevos/día"
-          valor={metaHuevosDiaria ? metaHuevosDiaria.toLocaleString('es-CO') : '—'}
-          detalle={cumplimientoMeta ? `${cumplimientoMeta}% cumplido hoy` : metaHuevosDiaria ? 'Sin registro de hoy' : (
-            <button type="button" onClick={() => setConfigOpen(true)} className="font-medium text-green-700 hover:underline">
-              Definir la meta de huevos/día →
-            </button>
-          )}
-        />
-        <Indicador
-          tono={hayMetaPostura && posturaHoy && Number(posturaHoy) < metaPostura ? 'red' : 'green'}
-          icono="huevo"
-          etiqueta="% Postura hoy"
-          valor={posturaHoy ? `${posturaHoy}%` : '—'}
-          detalle={loteActual.meta_postura_pct != null ? <>Meta lote: {metaPostura}%</> : (
-            <button type="button" onClick={() => setConfigOpen(true)} className="font-medium text-green-700 hover:underline">
-              Definir la meta de % postura →
-            </button>
-          )}
-        >
-          {diffPuntosHoy != null && (
-            <p className={`mt-1 text-xs font-medium ${diffPuntosHoy < 0 ? 'text-red-600' : 'text-green-600'}`}>
-              {diffPuntosHoy < 0
-                ? `Faltan ${Math.abs(diffPuntosHoy).toFixed(1)} pts (${Math.round(perdidaHoy).toLocaleString('es-CO')} huevos bajo la meta)`
-                : `+${diffPuntosHoy.toFixed(1)} pts (${Math.round(excedenteHoy).toLocaleString('es-CO')} huevos sobre la meta)`}
-            </p>
-          )}
-        </Indicador>
-        <Indicador
-          tono="blue"
-          icono="huevo"
-          etiqueta="HAA · huevos por ave alojada"
-          valor={haa ?? '—'}
-          detalle={`${huevosAcumulados.toLocaleString('es-CO')} huevos ÷ ${loteActual.aves_iniciales.toLocaleString('es-CO')} aves alojadas`}
-        />
-        </>)}
-        <Indicador tono="gray" icono="muerte" etiqueta="Mortalidad acumulada" valor={mortAcum} detalle={<>{mortPct}% del lote inicial</>} />
-      </GrupoIndicadores>
-      )}
-
-      {/* Ciclo de postura y densidad. En preparación también lleva la mortalidad,
-          así el lote se lee en un solo bloque y no queda una tarjeta suelta. */}
-      <GrupoIndicadores titulo={enPostura ? 'Ciclo y galpón' : 'Estado del lote'} columnas={5}>
-        {diasAtraso > 0 ? (
-          <Indicador
-            tono="red"
-            icono="reloj"
-            etiqueta="Postura"
-            valor={<span className="text-red-700">Atrasada {textoAtraso}</span>}
-            detalle={<>Estaba prevista para el {new Date(loteActual.fecha_inicio_postura + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'long' })}. Marca el inicio cuando empiece o cambia la fecha en &quot;Configurar galpón&quot;.</>}
-          />
-        ) : (
-        <Indicador tono="purple" icono="reloj" etiqueta={semanaPostura != null && enPostura ? 'Semana de postura' : 'Postura'} valor={semanaPostura ?? (semanasFaltantesPostura != null ? `Faltan ${semanasFaltantesPostura}` : '—')} detalle={<>{inicioSemanaActual && finSemanaActual
-                ? `${inicioSemanaActual.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })} – ${finSemanaActual.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}`
-                : semanasFaltantesPostura != null ? `semana${semanasFaltantesPostura === 1 ? '' : 's'} para iniciar` : 'Sin fecha de inicio'}</>}>
-          {fechaFinEstimada && (
-          <p className="mt-0.5 text-xs text-gray-400">
-          Fin ciclo est.: {fechaFinEstimada.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-amber-50 px-4 py-2.5 text-sm ring-1 ring-amber-200/70">
+          <p className="flex items-center gap-2 text-amber-900">
+            <Ic n="alerta" className="size-4 shrink-0 text-amber-600" /> {faltaParaRegistrar}
           </p>
-          )}
-        </Indicador>
-        )}
-        {enPostura && (<>
-        <Indicador tono="green" icono="dinero" etiqueta="Ingreso por venta (hoy)" valor={ingresoHoy > 0 ? cop(ingresoHoy) : '—'} detalle={precioPromedio > 0 ? 'Según precio por tamaño configurado' : 'Define el precio del huevo en Ventas de la finca'} />
-        {hayMetaPostura ? (<>
-        <Indicador
-          tono={perdidaHoy > 0 ? 'red' : 'gray'}
-          icono="tendencia"
-          etiqueta="Pérdida por baja postura (hoy)"
-          valor={precioPromedio > 0
-            ? (valorPerdidoHoy > 0 ? cop(valorPerdidoHoy) : cop(0))
-            : `${Math.round(perdidaHoy).toLocaleString('es-CO')}`}
-          detalle={precioPromedio > 0
-            ? `${Math.round(perdidaHoy).toLocaleString('es-CO')} huevos bajo la meta`
-            : 'huevos bajo la meta · pon el precio en Ventas de la finca para verlo en pesos'}
-        />
-        <Indicador
-          tono={huevosPerdidos30 > 0 ? 'red' : 'gray'}
-          icono="calendario"
-          etiqueta="Pérdida acumulada (30d)"
-          valor={precioPromedio > 0
-            ? (valorPerdido30 > 0 ? cop(valorPerdido30) : cop(0))
-            : `${Math.round(huevosPerdidos30).toLocaleString('es-CO')}`}
-          detalle={precioPromedio > 0
-            ? `${Math.round(huevosPerdidos30).toLocaleString('es-CO')} huevos bajo la meta`
-            : 'huevos bajo la meta · pon el precio en Ventas de la finca para verlo en pesos'}
-        />
-        </>) : (
-        <Indicador
-          tono="gray"
-          icono="tendencia"
-          etiqueta="Pérdida por baja postura"
-          valor="—"
-          detalle={(
-            <button type="button" onClick={() => setConfigOpen(true)} className="font-medium text-green-700 hover:underline">
-              Define la meta de % postura para medirla →
-            </button>
-          )}
-        />
-        )}
-        </>)}
-        {!enPostura && (
-          <Indicador tono="blue" icono="calendario" etiqueta="Semana de preparación" valor={semanasEnGalpon + 1} detalle={diasAtraso > 0
-                  ? <span className="font-medium text-red-700">Postura atrasada {textoAtraso}</span>
-                  : semanasFaltantesPostura != null
-                  ? `Faltan ${semanasFaltantesPostura} semana${semanasFaltantesPostura === 1 ? '' : 's'} para postura`
-                  : 'Aún no inicia postura'}>
-            {loteActual.fecha_inicio_postura && (
-            <p className="mt-0.5 text-xs text-gray-400">
-            Tentativa: {new Date(loteActual.fecha_inicio_postura + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
-            </p>
-            )}
-          </Indicador>
-        )}
-        <Indicador tono="orange" icono="ubicacion" etiqueta="Densidad" valor={densidad ?? '—'} detalle="aves / m²" />
-        {!enPostura && (
-          <Indicador tono="gray" icono="muerte" etiqueta="Mortalidad acumulada" valor={mortAcum} detalle={<>{mortPct}% del lote inicial</>} />
-        )}
-      </GrupoIndicadores>
+          {botonAlimento('Registrar alimento')}
+        </div>
+      )}
 
-      {/* Alimento: costo, bultos, gramos/gallina y kg totales (consumo activo) */}
-      {/* Un solo cuadro con todo el alimento del día: qué come el galpón y cuánto */}
-      <section className="space-y-3">
-        <h3 className="text-sm font-semibold text-gray-800">Alimento</h3>
-        <div className="superficie rounded-2xl p-5">
-          <div className="flex items-center gap-3">
-            <span className="flex size-9 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
-              <Ic n="alimento" className="size-[18px]" />
-            </span>
-            <div>
-              <p className="text-xs font-medium text-gray-500">Alimento en uso</p>
-              <p className="text-base font-semibold text-gray-900">{tipoAlimentoActivo?.nombre ?? 'Sin alimento registrado'}</p>
-            </div>
-          </div>
-          <div className="mt-5 grid grid-cols-1 gap-4 border-t border-gray-100 pt-4 sm:grid-cols-3">
-            <div>
-              <p className="text-xs font-medium text-gray-500">Kg consumidos</p>
-              <p className={`mt-1 text-2xl tracking-tight tabular-nums ${kgTotalHoy != null ? 'font-semibold text-gray-900' : 'text-gray-300'}`}>
-                {kgTotalHoy != null ? kgTotalHoy.toFixed(1) : '—'}
-              </p>
-              <p className="mt-1 text-xs text-gray-500">kg por día, todo el galpón</p>
-            </div>
-            <div>
-              <p className="text-xs font-medium text-gray-500">Bultos</p>
-              <p className={`mt-1 text-2xl tracking-tight tabular-nums ${bultosHoy > 0 ? 'font-semibold text-gray-900' : 'text-gray-300'}`}>
-                {bultosHoy > 0 ? bultosHoy.toFixed(2) : '—'}
-              </p>
-              <p className="mt-1 text-xs text-gray-500">por día, bulto de {pesoBulto} kg</p>
-            </div>
-            <div>
-              <p className="text-xs font-medium text-gray-500">Alimento por gallina</p>
-              <p className={`mt-1 text-2xl tracking-tight tabular-nums ${gramosGallinaHoy != null ? 'font-semibold text-gray-900' : 'text-gray-300'}`}>
-                {gramosGallinaHoy != null ? gramosGallinaHoy.toFixed(0) : '—'}
-              </p>
-              <p className="mt-1 text-xs text-gray-500">gramos por gallina viva al día</p>
-            </div>
+      {/* Lo que se mira todos los días: cuatro números, nada más */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {enPostura ? (<>
+          <TarjetaKPI
+            etiqueta="Huevos hoy"
+            valor={hoy ? hoy.huevos_totales.toLocaleString('es-CO') : '—'}
+            cambio={hoy && metaHuevosDiaria ? cambioPct(hoy.huevos_totales, metaHuevosDiaria) : null}
+            contra="la meta"
+            tendencia={ultimos14.map(r => r.huevos_totales)}
+            nota={!hoy ? 'Sin registro de hoy' : metaHuevosDiaria ? undefined : definirMeta('Definir meta de huevos/día')}
+          />
+          <TarjetaKPI
+            etiqueta="% de postura hoy"
+            valor={posturaHoy ? `${posturaHoy.replace('.', ',')} %` : '—'}
+            cambio={diffPuntosHoy}
+            enPuntos
+            contra={`meta ${metaPostura} %`}
+            tendencia={ultimos14.map(r => (r.aves_en_dia ? (r.huevos_totales / r.aves_en_dia) * 100 : null))}
+            nota={!hoy ? 'Sin registro de hoy' : hayMetaPostura ? undefined : definirMeta('Definir meta de % postura')}
+          />
+          {tarjetaCiclo}
+          {tarjetaMortalidad}
+        </>) : (<>
+          <TarjetaKPI
+            etiqueta="Semana de preparación"
+            valor={String(semanasEnGalpon + 1)}
+            nota={loteActual.fecha_inicio_postura
+              ? `Postura tentativa: ${new Date(loteActual.fecha_inicio_postura + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}`
+              : 'Sin fecha tentativa de postura'}
+          />
+          {tarjetaCiclo}
+          <TarjetaKPI etiqueta="Densidad" valor={densidad ? `${densidad.replace('.', ',')}` : '—'} nota="aves por m²" />
+          {tarjetaMortalidad}
+        </>)}
+      </div>
+
+      {/* El alimento del galpón en una sola línea; el detalle vive en su pestaña */}
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-2xl bg-white px-4 py-3 ring-1 ring-black/5">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-700">
+            <Ic n="alimento" className="size-4" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-xs text-gray-500">Alimento en uso</p>
+            <p className="truncate text-sm font-semibold text-gray-900">{tipoAlimentoActivo?.nombre ?? 'Sin alimento registrado'}</p>
           </div>
         </div>
-      </section>
+        <dl className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+          {[
+            { t: 'kg al día', v: kgTotalHoy != null ? kgTotalHoy.toLocaleString('es-CO', { maximumFractionDigits: 1 }) : '—' },
+            { t: `bultos de ${pesoBulto} kg`, v: bultosHoy > 0 ? bultosHoy.toLocaleString('es-CO', { maximumFractionDigits: 2 }) : '—' },
+            { t: 'g por gallina', v: gramosGallinaHoy != null ? Math.round(gramosGallinaHoy).toLocaleString('es-CO') : '—' },
+          ].map(x => (
+            <div key={x.t} className="flex items-baseline gap-1.5">
+              <dd className="font-semibold tabular-nums text-gray-900">{x.v}</dd>
+              <dt className="text-xs text-gray-500">{x.t}</dt>
+            </div>
+          ))}
+        </dl>
+        {listoParaRegistrar && botonAlimento('Ver alimento', 'outline')}
+      </div>
+
+      {/* Lo demás, a un clic: no compite con lo de todos los días */}
+      {enPostura && (
+        <Plegable titulo="Más indicadores" detalle="Meta diaria, HAA, ingreso y pérdidas por baja postura, densidad">
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3 lg:grid-cols-4">
+            <Dato t="Meta de huevos/día" v={metaHuevosDiaria ? metaHuevosDiaria.toLocaleString('es-CO') : '—'}
+              d={cumplimientoMeta ? `${cumplimientoMeta} % cumplido hoy` : metaHuevosDiaria ? 'Sin registro de hoy' : definirMeta('Definir la meta')} />
+            <Dato t="HAA · huevos por ave alojada" v={haa ? haa.replace('.', ',') : '—'}
+              d={`${huevosAcumulados.toLocaleString('es-CO')} huevos ÷ ${loteActual.aves_iniciales.toLocaleString('es-CO')} aves`} />
+            <Dato t="Ingreso por venta hoy" v={ingresoHoy > 0 ? cop(ingresoHoy) : '—'}
+              d={precioPromedio > 0 ? 'Según el precio por tamaño' : 'Pon el precio en Ventas de la finca'} />
+            {hayMetaPostura ? (<>
+              <Dato t="Pérdida por baja postura hoy" malo={perdidaHoy > 0}
+                v={precioPromedio > 0 ? cop(valorPerdidoHoy) : Math.round(perdidaHoy).toLocaleString('es-CO')}
+                d={excedenteHoy > 0
+                  ? `${Math.round(excedenteHoy).toLocaleString('es-CO')} huevos sobre la meta`
+                  : `${Math.round(perdidaHoy).toLocaleString('es-CO')} huevos bajo la meta`} />
+              <Dato t="Pérdida últimos 30 días" malo={huevosPerdidos30 > 0}
+                v={precioPromedio > 0 ? cop(valorPerdido30) : Math.round(huevosPerdidos30).toLocaleString('es-CO')}
+                d={`${Math.round(huevosPerdidos30).toLocaleString('es-CO')} huevos bajo la meta`} />
+            </>) : (
+              <Dato t="Pérdida por baja postura" v="—" d={definirMeta('Define la meta de % postura')} />
+            )}
+            <Dato t="Densidad" v={densidad ? densidad.replace('.', ',') : '—'} d="aves por m²" />
+            {fechaFinEstimada && (
+              <Dato t="Fin del ciclo estimado" v={fechaFinEstimada.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
+                d={`${loteActual.semanas_ciclo_postura} semanas de postura`} />
+            )}
+          </dl>
+        </Plegable>
+      )}
 
       {enPostura && (
-        <>
-          <HorariosRecoleccion loteId={loteActual.id} fincaId={loteActual.finca_id} />
-          <RevisionCalidadHuevo
-            loteId={loteActual.id}
-            fincaId={loteActual.finca_id}
-            fechaInicioPostura={loteActual.fecha_inicio_postura}
-            fechaInicioLote={loteActual.fecha_inicio}
-            registros={registros}
-          />
-        </>
+        <Plegable titulo="Recolección y calidad del huevo" detalle="Horarios de recolección y revisión semanal por peso">
+          <div className="space-y-4">
+            <HorariosRecoleccion loteId={loteActual.id} fincaId={loteActual.finca_id} />
+            <RevisionCalidadHuevo
+              loteId={loteActual.id}
+              fincaId={loteActual.finca_id}
+              fechaInicioPostura={loteActual.fecha_inicio_postura}
+              fechaInicioLote={loteActual.fecha_inicio}
+              registros={registros}
+            />
+          </div>
+        </Plegable>
       )}
 
       <Card>
@@ -953,6 +909,33 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
         onUpdated={updated => onLoteUpdated(updated)}
         onDeleted={onLoteDeleted}
       />
+    </div>
+  )
+}
+
+/** Una sección que se abre con un clic, para lo que no se mira a diario */
+function Plegable({ titulo, detalle, children }: { titulo: string; detalle: string; children: ReactNode }) {
+  return (
+    <details className="group rounded-2xl bg-white ring-1 ring-black/5">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+        <span className="min-w-0">
+          <span className="block text-sm font-semibold text-gray-900">{titulo}</span>
+          <span className="block truncate text-xs text-gray-500">{detalle}</span>
+        </span>
+        <Ic n="flecha" className="size-4 shrink-0 text-gray-400 transition-transform group-open:rotate-90" />
+      </summary>
+      <div className="border-t border-gray-100 p-4">{children}</div>
+    </details>
+  )
+}
+
+/** Un dato chico dentro de "Más indicadores" */
+function Dato({ t, v, d, malo }: { t: string; v: ReactNode; d?: ReactNode; malo?: boolean }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-xs text-gray-500">{t}</dt>
+      <dd className={`mt-1 text-lg font-semibold tabular-nums ${malo ? 'text-red-700' : v === '—' ? 'text-gray-300' : 'text-gray-900'}`}>{v}</dd>
+      {d && <dd className="mt-0.5 text-xs text-gray-500">{d}</dd>}
     </div>
   )
 }

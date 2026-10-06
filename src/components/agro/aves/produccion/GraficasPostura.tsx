@@ -2,9 +2,12 @@
 
 import { useEffect, useState } from 'react'
 import {
-  ComposedChart, BarChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  ComposedChart, BarChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ReferenceLine, ResponsiveContainer,
 } from 'recharts'
+import { TooltipGrafico } from '@/components/ui/graficos/TooltipGrafico'
+import { Leyenda } from '@/components/ui/graficos/PanelDatos'
+import { BARRA, EJE, EJE_Y, REJILLA, SERIES, TINTA, compacto } from '@/components/ui/graficos/paleta'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -116,24 +119,19 @@ export default function GraficasPostura({ loteId, fechaInicioPostura, fechaInici
           ) : (
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={curva} margin={{ top: 8, right: 12, left: -16, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                  <XAxis dataKey="semana" tick={{ fontSize: 10 }} tickLine={false} />
-                  <YAxis domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} tick={{ fontSize: 10 }} tickLine={false} axisLine={false} unit="%" />
-                  <Tooltip
-                    formatter={((v: unknown) => [`${Number(v ?? 0).toLocaleString('es-CO')} %`, 'Postura real']) as (v: unknown) => [string, string]}
-                    labelFormatter={l => `Semana ${l} de postura`}
-                    contentStyle={{ fontSize: 12 }}
-                  />
+                <ComposedChart data={curva} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
+                  <CartesianGrid {...REJILLA} />
+                  <XAxis dataKey="semana" {...EJE} interval="preserveStartEnd" minTickGap={14} />
+                  <YAxis {...EJE_Y} domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} tickFormatter={v => `${v} %`} />
+                  <Tooltip content={<TooltipGrafico formato={v => `${v.toLocaleString('es-CO')} %`} titulo={l => `Semana ${l} de postura`} />} />
                   {meta != null && (
                     <ReferenceLine
                       y={meta}
-                      stroke="#16A34A"
-                      strokeDasharray="6 4"
-                      label={{ value: `Meta pico ${meta} %`, position: 'insideTopRight', fontSize: 10, fill: '#16A34A' }}
+                      stroke={TINTA.tenue}
+                      label={{ value: `Meta pico ${meta} %`, position: 'insideTopRight', fontSize: 10, fill: TINTA.secundaria }}
                     />
                   )}
-                  <Line type="monotone" dataKey="real" stroke="#DC2626" strokeWidth={2} dot={{ r: 2.5 }} connectNulls />
+                  <Line type="monotone" dataKey="real" name="Postura real" stroke={SERIES[0]} strokeWidth={2} dot={false} activeDot={{ r: 4, stroke: '#fff', strokeWidth: 2 }} connectNulls isAnimationActive={false} />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
@@ -169,21 +167,18 @@ export default function GraficasPostura({ loteId, fechaInicioPostura, fechaInici
               <div className="h-48">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={datosGramaje} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                    <XAxis dataKey="etiqueta" tick={{ fontSize: 10 }} tickLine={false} interval="preserveStartEnd" />
-                    <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false}
-                      tickFormatter={v => Number(v).toLocaleString('es-CO', { notation: 'compact' })} />
-                    <Tooltip
-                      formatter={((v: unknown, nombre: unknown) => [Number(v ?? 0).toLocaleString('es-CO'), String(nombre)]) as (v: unknown, n: unknown) => [string, string]}
-                      contentStyle={{ fontSize: 12 }}
-                    />
-                    <Legend wrapperStyle={{ fontSize: 11 }} iconSize={9} />
-                    {TAMANOS.map(t => (
-                      <Bar key={t.key} dataKey={t.key} name={t.label} stackId="g" fill={t.color} />
+                    <CartesianGrid {...REJILLA} />
+                    <XAxis dataKey="etiqueta" {...EJE} interval="preserveStartEnd" minTickGap={14} />
+                    <YAxis {...EJE_Y} tickFormatter={compacto} />
+                    <Tooltip cursor={{ fill: 'rgb(0 0 0 / 4%)' }} content={<TooltipGrafico />} />
+                    {TAMANOS.map((t, i) => (
+                      <Bar key={t.key} dataKey={t.key} name={t.label} stackId="g" fill={t.color} stroke="#fff" strokeWidth={1}
+                        maxBarSize={BARRA.maxBarSize} radius={i === TAMANOS.length - 1 ? BARRA.radius : 0} isAnimationActive={false} />
                     ))}
                   </BarChart>
                 </ResponsiveContainer>
               </div>
+              <Leyenda items={TAMANOS.map(t => ({ nombre: t.label, color: t.color }))} />
               <div className="mt-2 grid grid-cols-5 gap-1 text-center">
                 {totalPorTamano.map(t => (
                   <div key={t.key} className="rounded-md bg-gray-50 py-1">
