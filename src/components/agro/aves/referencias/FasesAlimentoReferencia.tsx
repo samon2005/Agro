@@ -42,6 +42,7 @@ function criterio(f: FaseAlimento) {
     const sem = `Semanas ${f.desde_semana}–${f.hasta_semana ?? '…'}`
     return f.peso_cambio_g != null ? `${sem} · cambia con ${Number(f.peso_cambio_g).toLocaleString('es-CO')} g` : sem
   }
+  if (f.desde_semana != null) return `Semanas ${f.desde_semana}–${f.hasta_semana ?? '…'} de vida`
   if (f.bajo_pico != null) return `Hasta ${Number(f.bajo_pico).toLocaleString('es-CO')} puntos bajo el pico`
   return Number(f.postura_min) > 0 ? `Postura desde ${Number(f.postura_min).toLocaleString('es-CO')} %` : 'Postura más baja'
 }
@@ -89,9 +90,18 @@ export default function FasesAlimentoReferencia({ lineaId, editable }: Props) {
         if (fila.hasta_semana != null && fila.hasta_semana < fila.desde_semana) { toast.error(`${fila.nombre}: la semana final es menor que la inicial`); return }
         fila.postura_min = null; fila.bajo_pico = null
       } else {
-        if (fila.postura_min == null && fila.bajo_pico == null) { toast.error(`${fila.nombre}: indica la postura mínima o los puntos bajo el pico`); return }
+        if (fila.postura_min == null && fila.bajo_pico == null && fila.desde_semana == null) {
+          toast.error(`${fila.nombre}: indica desde qué semana va, la postura mínima o los puntos bajo el pico`); return
+        }
+        if ([fila.desde_semana, fila.hasta_semana].some(s => s != null && (!Number.isInteger(s) || s < 1 || s > 120))) {
+          toast.error(`${fila.nombre}: las semanas son números enteros de 1 a 120`); return
+        }
+        if (fila.desde_semana != null && fila.hasta_semana != null && fila.hasta_semana < fila.desde_semana) {
+          toast.error(`${fila.nombre}: la semana final es menor que la inicial`); return
+        }
         if (fila.postura_min != null && fila.postura_min > 100) { toast.error(`${fila.nombre}: la postura no pasa de 100 %`); return }
-        fila.desde_semana = null; fila.hasta_semana = null; fila.peso_cambio_g = null
+        // En postura las semanas sí sirven (fases por edad); el peso de cambio no
+        fila.peso_cambio_g = null
       }
       filas.push(fila)
     }
@@ -170,7 +180,8 @@ export default function FasesAlimentoReferencia({ lineaId, editable }: Props) {
                 <>
                   <Input className="h-8 text-xs" inputMode="decimal" placeholder="Postura mín. %" value={b.posturaMin} onChange={e => cambiar(i, 'posturaMin', e.target.value)} />
                   <Input className="h-8 text-xs" inputMode="decimal" placeholder="Pts bajo pico" value={b.bajoPico} onChange={e => cambiar(i, 'bajoPico', e.target.value)} />
-                  <span className="hidden sm:block" />
+                  <Input className="h-8 text-xs" inputMode="numeric" placeholder="o desde sem." value={b.desde} onChange={e => cambiar(i, 'desde', e.target.value)} />
+                  <Input className="h-8 text-xs" inputMode="numeric" placeholder="hasta sem." value={b.hasta} onChange={e => cambiar(i, 'hasta', e.target.value)} />
                 </>
               )}
               <Input className="col-span-2 h-8 text-xs sm:col-span-5" placeholder="Nota" value={b.notas} onChange={e => cambiar(i, 'notas', e.target.value)} />
@@ -196,8 +207,9 @@ export default function FasesAlimentoReferencia({ lineaId, editable }: Props) {
             </div>
           </div>
           <p className="text-xs text-gray-400">
-            Levante: por semanas de vida (y el peso con que se pasa a la siguiente). Producción: la fase de pico va hasta que la
-            postura cae los puntos indicados bajo el pico; las demás, mientras la postura no baje de su mínimo. Van en orden.
+            Levante: por semanas de vida (y el peso con que se pasa a la siguiente). Producción: por semanas de vida (como Lohmann)
+            o por la postura del lote (como Hy-Line: la fase de pico va hasta que la postura cae los puntos indicados bajo el pico;
+            las demás, mientras la postura no baje de su mínimo). Van en orden.
           </p>
         </div>
       )}

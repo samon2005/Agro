@@ -77,17 +77,18 @@ export default function NotificacionesPanel() {
       const { data: lotes } = await supabase.from('lotes_aves').select('id, nombre, estado, fecha_inicio_postura, fecha_salida_programada, proposito, referencia_id, fecha_nacimiento').eq('finca_id', fincaActual.id).in('estado', ['activo', 'preparacion'])
 
       // Las fases de alimentación de las referencias de los lotes en levante
-      const refsLevante = [...new Set((lotes ?? []).filter(l => l.estado === 'preparacion' && l.referencia_id && l.fecha_nacimiento).map(l => l.referencia_id as string))]
+      const refsLevante = [...new Set((lotes ?? []).filter(l => l.referencia_id && l.fecha_nacimiento).map(l => l.referencia_id as string))]
       const { data: fasesRefs } = refsLevante.length
         ? await supabase.from('fases_alimento').select('*').in('linea_id', refsLevante)
         : { data: [] as FaseAlimento[] }
 
       for (const lote of lotes ?? []) {
         // Cambio de alimento por edad en la próxima semana
-        if (lote.estado === 'preparacion' && lote.referencia_id && lote.fecha_nacimiento) {
+        if (lote.referencia_id && lote.fecha_nacimiento) {
+          // En postura solo avisa si la guía cambia por edad (Lohmann); por % de postura no hay fecha
           const sug = faseSugerida((fasesRefs ?? []).filter(f => f.linea_id === lote.referencia_id), {
             vida: semanaDeVida(lote.fecha_nacimiento, aFechaLocal(hoy)),
-            enPostura: false, fechaNacimiento: lote.fecha_nacimiento, posturas: [], pesoG: null,
+            enPostura: lote.estado === 'activo', fechaNacimiento: lote.fecha_nacimiento, posturas: [], pesoG: null,
           })
           if (sug?.siguiente && sug.cambioDesde) {
             const dias = Math.round((new Date(sug.cambioDesde + 'T00:00:00').getTime() - new Date(aFechaLocal(hoy) + 'T00:00:00').getTime()) / 86_400_000)

@@ -56,11 +56,14 @@ export function faseSugerida(
   const produccion = ordenadas.filter(f => f.categoria === 'postura')
   const siguienteDe = (f: FaseAlimento) => ordenadas[ordenadas.indexOf(f) + 1] ?? null
 
+  // La fase que cubre la semana de vida (o la más cercana si la edad se sale de todas)
+  const porEdad = (lista: FaseAlimento[], vida: number) => lista.find(f => vida >= f.desde_semana! && vida <= (f.hasta_semana ?? 120))
+    ?? (vida < lista[0].desde_semana! ? lista[0] : lista[lista.length - 1])
+
   if (!ctx.enPostura) {
     if (levante.length === 0 || ctx.vida == null) return null
     const vida = ctx.vida
-    const fase = levante.find(f => vida >= f.desde_semana! && vida <= (f.hasta_semana ?? 120))
-      ?? (vida < levante[0].desde_semana! ? levante[0] : levante[levante.length - 1])
+    const fase = porEdad(levante, vida)
     const siguiente = siguienteDe(fase)
     const cambioDesde = siguiente?.desde_semana != null && ctx.fechaNacimiento
       ? fechaDeSemanaDeVida(ctx.fechaNacimiento, siguiente.desde_semana)
@@ -81,6 +84,20 @@ export function faseSugerida(
   }
 
   if (produccion.length === 0) return null
+
+  // Fases de producción por edad (como las de Lohmann: fase 1 hasta ~50 semanas, fase 2 hasta ~70…)
+  const produccionPorEdad = produccion.filter(f => f.desde_semana != null)
+  if (produccionPorEdad.length === produccion.length) {
+    // Sin la edad no se puede ubicar: mejor no sugerir que sugerir mal
+    if (ctx.vida == null) return null
+    const fase = porEdad(produccionPorEdad, ctx.vida)
+    const siguiente = siguienteDe(fase)
+    const cambioDesde = siguiente?.desde_semana != null && ctx.fechaNacimiento
+      ? fechaDeSemanaDeVida(ctx.fechaNacimiento, siguiente.desde_semana)
+      : null
+    return { fase, por: 'edad', siguiente, cambioDesde, notaPeso: null }
+  }
+
   const reales = ctx.posturas.filter((p): p is number => p != null && Number.isFinite(p))
   if (reales.length === 0) return { fase: produccion[0], por: 'postura', siguiente: siguienteDe(produccion[0]), cambioDesde: null, notaPeso: null }
 

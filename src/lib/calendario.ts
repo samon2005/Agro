@@ -96,7 +96,7 @@ export async function cargarCalendario(supabase: SupabaseClient<Database>, finca
   }
 
   // ── El ciclo de cada lote ──
-  const refs = [...new Set(lotes.filter(l => l.referencia_id && l.fecha_nacimiento && l.estado === 'preparacion').map(l => l.referencia_id as string))]
+  const refs = [...new Set(lotes.filter(l => l.referencia_id && l.fecha_nacimiento && (l.estado === 'preparacion' || l.estado === 'activo')).map(l => l.referencia_id as string))]
   const { data: fases } = refs.length
     ? await supabase.from('fases_alimento').select('*').in('linea_id', refs)
     : { data: [] as FaseAlimento[] }
@@ -116,9 +116,9 @@ export async function cargarCalendario(supabase: SupabaseClient<Database>, finca
         ev.push({ id: `vac-${l.id}`, categoria: 'vacio', fecha: sumarDias(l.fecha_fin, 1), hasta: l.vacio_sanitario_hasta, titulo: 'Vacío sanitario', detalle: 'Limpieza y desinfección del galpón', loteId: l.id, galpon: l.nombre, programado: l.vacio_sanitario_hasta >= hoy })
       }
     }
-    // Cambios de alimento por edad que vienen (levante)
-    if (l.estado === 'preparacion' && l.referencia_id && l.fecha_nacimiento) {
-      const propias = (fases ?? []).filter(f => f.linea_id === l.referencia_id && f.categoria !== 'postura' && f.desde_semana != null)
+    // Cambios de alimento por edad (en levante, y en postura si la guía los da por semanas, como Lohmann)
+    if (vivo && l.referencia_id && l.fecha_nacimiento) {
+      const propias = (fases ?? []).filter(f => f.linea_id === l.referencia_id && f.desde_semana != null)
       for (const f of propias) {
         const fecha = fechaDeSemanaDeVida(l.fecha_nacimiento, f.desde_semana!)
         if (fecha < l.fecha_inicio) continue
