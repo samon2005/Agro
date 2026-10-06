@@ -34,8 +34,8 @@ del stock de alimento.
 
 ## Migraciones
 
-- `supabase/migrations` va de `001_base.sql` a `066_seguridad_funciones.sql` y
+- `supabase/migrations` va de `001_base.sql` en adelante y
   reproduce la base en orden. En el historial de Supabase algunas versiones
   aparecen repetidas (se reintentaron al aplicarlas); los archivos son la fuente.
-- Las semillas de las guías (Hy-Line Brown y Lohmann Brown-Classic) están en
-  `060_referencias_lineas.sql`; las fases de Hy-Line en `062_fases_alimento.sql`.
+- Las semillas de las guías están en `060_referencias_lineas.sql` (Hy-Line Brown,
+  Lohmann Brown-Classic) y `067_referencias_isa_bovans.sql` (ISA Brown, Bovans Brown); las fases de Hy-Line en `062_fases_alimento.sql`.
