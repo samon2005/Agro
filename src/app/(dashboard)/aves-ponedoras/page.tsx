@@ -8,6 +8,7 @@ import LoteSelector from '@/components/agro/aves/LoteSelector'
 import CrearLoteModal from '@/components/agro/aves/CrearLoteModal'
 import LotesAnterioresModal from '@/components/agro/aves/LotesAnterioresModal'
 import TabRentabilidad from '@/components/agro/aves/rentabilidad/TabRentabilidad'
+import TableroReportes from '@/components/agro/reportes/TableroReportes'
 import { useRol } from '@/components/agro/RolProvider'
 import { PROPOSITO_LABEL } from '@/lib/lotesAves'
 import EditarFincaModal from '@/components/agro/EditarFincaModal'
@@ -33,7 +34,7 @@ type Equipo = Database['public']['Tables']['equipos_aves']['Row']
 type Ambiental = Database['public']['Tables']['parametros_ambientales_aves']['Row']
 type Produccion = Database['public']['Tables']['produccion_diaria_aves']['Row']
 
-type Tab = 'produccion' | 'alimento' | 'ambiental' | 'sanitario' | 'equipos' | 'pesajes' | 'semanal' | 'rentabilidad'
+type Tab = 'produccion' | 'alimento' | 'ambiental' | 'sanitario' | 'equipos' | 'pesajes' | 'semanal' | 'rentabilidad' | 'estadisticas'
 
 const TABS: { id: Tab; label: string; icon: NombreIcono }[] = [
   { id: 'produccion', label: 'Producción', icon: 'tendencia' },
@@ -44,6 +45,7 @@ const TABS: { id: Tab; label: string; icon: NombreIcono }[] = [
   { id: 'pesajes', label: 'Pesajes', icon: 'bascula' },
   { id: 'semanal', label: 'Resumen semanal', icon: 'resumen' },
   { id: 'rentabilidad', label: 'Rentabilidad', icon: 'dinero' },
+  { id: 'estadisticas', label: 'Estadísticas', icon: 'grafica' },
 ]
 
 interface Alerta { tipo: 'danger' | 'warning'; mensaje: string }
@@ -325,6 +327,10 @@ export default function AvesPonedorasPage() {
               {activeTab === 'pesajes' && <TabPesajes key={loteActual.id} loteActual={loteActual} />}
               {activeTab === 'semanal' && <TabResumenSemanal key={loteActual.id} loteActual={loteActual} />}
               {activeTab === 'rentabilidad' && puedeVerCostos && <TabRentabilidad key={loteActual.id} loteActual={loteActual} />}
+              {activeTab === 'estadisticas' && (
+                <TableroReportes key={loteActual.id} fincaId={fincaActual.id} fincaNombre={fincaActual.nombre} especies={['aves_ponedoras']}
+                  especie="aves_ponedoras" loteId={loteActual.id} verDinero={puedeVerCostos} />
+              )}
             </div>
           </div>
         </>

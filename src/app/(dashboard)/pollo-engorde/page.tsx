@@ -12,6 +12,7 @@ import TabProduccionPollo from '@/components/agro/pollo/produccion/TabProduccion
 import TabAmbientalPollo from '@/components/agro/pollo/ambiental/TabAmbientalPollo'
 import TabSanitarioPollo from '@/components/agro/pollo/sanitario/TabSanitarioPollo'
 import TabEquiposPollo from '@/components/agro/pollo/equipos/TabEquiposPollo'
+import TableroReportes from '@/components/agro/reportes/TableroReportes'
 import TabVentasGenerico from '@/components/agro/comun/TabVentasGenerico'
 import TabCostosGenerico from '@/components/agro/comun/TabCostosGenerico'
 import { CONFIG_ESPECIES } from '@/lib/especiesConfig'
@@ -20,7 +21,7 @@ import { Ic, type NombreIcono } from '@/components/ui/icon'
 import { nombreSeccion } from '@/lib/especies'
 
 type LotePollo = Database['public']['Tables']['lotes_pollo']['Row']
-type Tab = 'produccion' | 'ambiental' | 'sanitario' | 'ventas' | 'costos' | 'equipos'
+type Tab = 'produccion' | 'ambiental' | 'sanitario' | 'ventas' | 'costos' | 'equipos' | 'estadisticas'
 
 const TABS: { id: Tab; label: string; icon: NombreIcono }[] = [
   { id: 'produccion', label: 'Producción', icon: 'tendencia' },
@@ -29,6 +30,7 @@ const TABS: { id: Tab; label: string; icon: NombreIcono }[] = [
   { id: 'ventas',     label: 'Ventas', icon: 'recibo' },
   { id: 'costos',     label: 'Finanzas', icon: 'dinero' },
   { id: 'equipos',    label: 'Equipos', icon: 'ajustes' },
+  { id: 'estadisticas', label: 'Estadísticas', icon: 'grafica' },
 ]
 
 const CONFIG = CONFIG_ESPECIES.pollo_engorde
@@ -167,6 +169,10 @@ export default function PolloEngordePage() {
               <TabCostosGenerico loteId={loteActual.id} fincaId={loteActual.finca_id} config={CONFIG} />
             ))}
             {activeTab === 'equipos'    && <TabEquiposPollo loteActual={loteActual} />}
+            {activeTab === 'estadisticas' && (
+              <TableroReportes key={loteActual.id} fincaId={loteActual.finca_id} fincaNombre={fincaActual?.nombre ?? ''} especies={['pollo_engorde']}
+                especie="pollo_engorde" loteId={loteActual.id} verDinero={rol !== 'trabajador'} />
+            )}
           </div>
         </div>
       )}

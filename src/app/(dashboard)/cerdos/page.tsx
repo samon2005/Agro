@@ -10,6 +10,8 @@ import EditarFincaModal from '@/components/agro/EditarFincaModal'
 import TabDiarioCerdos from '@/components/agro/cerdos/diario/TabDiarioCerdos'
 import NavesCria from '@/components/agro/cerdos/corral/NavesCria'
 import AlimentoCorral from '@/components/agro/cerdos/corral/AlimentoCorral'
+import TableroReportes from '@/components/agro/reportes/TableroReportes'
+import { useRol } from '@/components/agro/RolProvider'
 import { edadTexto } from '@/lib/cerdos'
 import { usoCorralLabel } from '@/lib/instalaciones'
 import type { Database } from '@/types/database'
@@ -18,7 +20,7 @@ import { nombreSeccion } from '@/lib/especies'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
 type Instalacion = Database['public']['Tables']['instalaciones']['Row']
-type Tab = 'naves' | 'diario' | 'alimento'
+type Tab = 'naves' | 'diario' | 'alimento' | 'estadisticas'
 
 /**
  * Dentro del corral solo queda lo que se está montando: las naves de cerdas (en
@@ -29,11 +31,13 @@ function tabsDelLote(lote: LoteCerdos): { id: Tab; label: string; icon: NombreIc
     ...(lote.sistema === 'cria' ? [{ id: 'naves' as const, label: 'Naves', icon: 'cerdo' as const }] : []),
     { id: 'diario', label: 'Diario', icon: 'diario' },
     { id: 'alimento', label: 'Alimento', icon: 'alimento' },
+    { id: 'estadisticas', label: 'Estadísticas', icon: 'grafica' },
   ]
 }
 
 export default function CerdosPage() {
   const { fincaActual, loading: fincaLoading, refetch: refetchFinca } = useFinca()
+  const rol = useRol()
   const supabase = createClient()
   const [corrales, setCorrales] = useState<Instalacion[]>([])
   const [lotes, setLotes] = useState<LoteCerdos[]>([])
@@ -221,6 +225,10 @@ export default function CerdosPage() {
               <TabDiarioCerdos key={loteActual.id} loteActual={loteActual} onLoteUpdated={cargar} onIrAlimento={() => setActiveTab('alimento')} />
             )}
             {tabVisible === 'alimento' && <AlimentoCorral key={loteActual.id} lote={loteActual} onCambio={cargar} />}
+            {tabVisible === 'estadisticas' && (
+              <TableroReportes key={loteActual.id} fincaId={fincaActual.id} fincaNombre={fincaActual.nombre} especies={['cerdos']}
+                especie="cerdos" loteId={loteActual.id} verDinero={rol !== 'trabajador'} />
+            )}
           </div>
         </div>
       )}
