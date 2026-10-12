@@ -1,12 +1,11 @@
 'use client'
 
-import { TINTA } from './paleta'
-
 interface Entrada { name?: string | number; value?: number | string | null; color?: string; dataKey?: string | number; payload?: { fill?: string } }
 
 /**
- * El cuadro que aparece al pasar el cursor: blanco, con el color de cada serie
- * en un punto al lado (el texto va en tinta, nunca del color de la serie).
+ * El globo oscuro que aparece al pasar el cursor. Con un solo dato muestra el
+ * número grande y debajo de qué es; con varios, una fila por serie con su
+ * punto de color.
  */
 export function TooltipGrafico({ active, payload, label, formato, titulo }: {
   active?: boolean
@@ -16,20 +15,31 @@ export function TooltipGrafico({ active, payload, label, formato, titulo }: {
   titulo?: (label: string | number | undefined) => string
 }) {
   if (!active || !payload?.length) return null
-  const filas = payload.filter(p => p.value != null && p.value !== '')
+  const filas = payload.filter(p => p.value != null && p.value !== '' && p.dataKey !== 'guia_area')
   if (!filas.length) return null
+  const valor = (v: Entrada['value']) => (typeof v === 'number' ? (formato ? formato(v) : v.toLocaleString('es-CO')) : v)
+  const rotulo = label != null && label !== '' ? (titulo ? titulo(label) : String(label)) : null
+  const caja = 'rounded-xl bg-[#16231a] px-3 py-2 text-white shadow-[0_10px_30px_-10px_rgb(22_35_26/60%)]'
+
+  if (filas.length === 1) {
+    const p = filas[0]
+    return (
+      <div className={caja}>
+        <p className="text-sm font-semibold tabular-nums">{valor(p.value)}</p>
+        <p className="text-[0.6875rem] text-white/60">{rotulo ?? p.name}{rotulo && p.name ? ` · ${p.name}` : ''}</p>
+      </div>
+    )
+  }
   return (
-    <div className="min-w-36 rounded-lg bg-white px-3 py-2 text-xs shadow-[0_8px_24px_-8px_rgb(27_26_23/30%),0_0_0_1px_rgb(27_26_23/8%)]">
-      {label != null && label !== '' && <p className="mb-1 font-medium" style={{ color: TINTA.primaria }}>{titulo ? titulo(label) : label}</p>}
+    <div className={`${caja} min-w-40 text-xs`}>
+      {rotulo && <p className="mb-1.5 text-[0.6875rem] text-white/60">{rotulo}</p>}
       {filas.map((p, i) => (
-        <p key={i} className="flex items-center justify-between gap-4" style={{ color: TINTA.secundaria }}>
-          <span className="flex items-center gap-1.5">
-            <span className="size-2 rounded-full" style={{ background: p.color ?? p.payload?.fill }} />
+        <p key={i} className="flex items-center justify-between gap-4 py-0.5">
+          <span className="flex items-center gap-1.5 text-white/80">
+            <span className="size-2 rounded-full ring-1 ring-white/30" style={{ background: p.color ?? p.payload?.fill }} />
             {p.name}
           </span>
-          <span className="font-medium tabular-nums" style={{ color: TINTA.primaria }}>
-            {typeof p.value === 'number' ? (formato ? formato(p.value) : p.value.toLocaleString('es-CO')) : p.value}
-          </span>
+          <span className="font-semibold tabular-nums">{valor(p.value)}</span>
         </p>
       ))}
     </div>

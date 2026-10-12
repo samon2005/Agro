@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from 'react'
 import {
-  ComposedChart, BarChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+  ComposedChart, BarChart, Bar, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ReferenceLine, ResponsiveContainer,
 } from 'recharts'
 import { TooltipGrafico } from '@/components/ui/graficos/TooltipGrafico'
+import { Degradado } from '@/components/ui/graficos/Degradado'
 import { Leyenda } from '@/components/ui/graficos/PanelDatos'
-import { BARRA, EJE, EJE_Y, REJILLA, SERIES, TINTA, compacto } from '@/components/ui/graficos/paleta'
+import { BARRA, EJE, EJE_Y, REJILLA, C, CURSOR_BARRA, CURSOR_LINEA, estiloCurva, TINTA, compacto } from '@/components/ui/graficos/paleta'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -16,11 +17,11 @@ import { cn } from '@/lib/utils'
 import { semanaDePostura } from '@/lib/postura'
 
 const TAMANOS = [
-  { key: 'huevos_b', label: 'B', color: '#FCD34D' },
-  { key: 'huevos_a', label: 'A', color: '#F59E0B' },
-  { key: 'huevos_aa', label: 'AA', color: '#D97706' },
-  { key: 'huevos_aaa', label: 'AAA', color: '#B45309' },
-  { key: 'huevos_jumbo', label: 'Jumbo', color: '#78350F' },
+  { key: 'huevos_b', label: 'B', color: '#b6d6a6' },
+  { key: 'huevos_a', label: 'A', color: '#8cbd78' },
+  { key: 'huevos_aa', label: 'AA', color: '#62a24c' },
+  { key: 'huevos_aaa', label: 'AAA', color: '#337327' },
+  { key: 'huevos_jumbo', label: 'Jumbo', color: '#193617' },
 ] as const
 
 type Clave = typeof TAMANOS[number]['key']
@@ -120,10 +121,11 @@ export default function GraficasPostura({ loteId, fechaInicioPostura, fechaInici
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={curva} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
+                  <Degradado id="deg-postura" color={C.principal} />
                   <CartesianGrid {...REJILLA} />
                   <XAxis dataKey="semana" {...EJE} interval="preserveStartEnd" minTickGap={14} />
                   <YAxis {...EJE_Y} domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} tickFormatter={v => `${v} %`} />
-                  <Tooltip content={<TooltipGrafico formato={v => `${v.toLocaleString('es-CO')} %`} titulo={l => `Semana ${l} de postura`} />} />
+                  <Tooltip cursor={CURSOR_LINEA} content={<TooltipGrafico formato={v => `${v.toLocaleString('es-CO')} %`} titulo={l => `Semana ${l} de postura`} />} />
                   {meta != null && (
                     <ReferenceLine
                       y={meta}
@@ -131,7 +133,7 @@ export default function GraficasPostura({ loteId, fechaInicioPostura, fechaInici
                       label={{ value: `Meta pico ${meta} %`, position: 'insideTopRight', fontSize: 10, fill: TINTA.secundaria }}
                     />
                   )}
-                  <Line type="monotone" dataKey="real" name="Postura real" stroke={SERIES[0]} strokeWidth={2} dot={false} activeDot={{ r: 4, stroke: '#fff', strokeWidth: 2 }} connectNulls isAnimationActive={false} />
+                  <Area {...estiloCurva(C.principal, 'deg-postura', curva.length)} dataKey="real" name="Postura real" />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
@@ -170,7 +172,7 @@ export default function GraficasPostura({ loteId, fechaInicioPostura, fechaInici
                     <CartesianGrid {...REJILLA} />
                     <XAxis dataKey="etiqueta" {...EJE} interval="preserveStartEnd" minTickGap={14} />
                     <YAxis {...EJE_Y} tickFormatter={compacto} />
-                    <Tooltip cursor={{ fill: 'rgb(0 0 0 / 4%)' }} content={<TooltipGrafico />} />
+                    <Tooltip cursor={CURSOR_BARRA} content={<TooltipGrafico />} />
                     {TAMANOS.map((t, i) => (
                       <Bar key={t.key} dataKey={t.key} name={t.label} stackId="g" fill={t.color} stroke="#fff" strokeWidth={1}
                         maxBarSize={BARRA.maxBarSize} radius={i === TAMANOS.length - 1 ? BARRA.radius : 0} isAnimationActive={false} />

@@ -24,22 +24,22 @@ export function PanelDatos({ titulo, subtitulo, vistas = ['grafica', 'tabla'], i
 }) {
   const [vista, setVista] = useState<VistaDatos>(inicial ?? vistas[0])
   return (
-    <section className={cn('flex flex-col rounded-2xl bg-white p-4 ring-1 ring-black/5', className)}>
-      <header className="mb-3 flex flex-wrap items-start justify-between gap-2">
+    <section className={cn('flex flex-col rounded-2xl bg-white p-5 shadow-[0_1px_2px_rgb(22_35_26/4%),0_8px_24px_-12px_rgb(22_35_26/10%)] ring-1 ring-black/5', className)}>
+      <header className="mb-4 flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
-          <h3 className="text-sm font-semibold" style={{ color: TINTA.primaria }}>{titulo}</h3>
+          <h3 className="text-[0.9375rem] font-semibold tracking-tight" style={{ color: TINTA.primaria }}>{titulo}</h3>
           {subtitulo && <p className="text-xs" style={{ color: TINTA.tenue }}>{subtitulo}</p>}
         </div>
         <div className="flex items-center gap-2" data-no-imprimir>
           {accion}
           {vistas.length > 1 && (
-            <div className="inline-flex rounded-lg bg-gray-100 p-0.5" role="tablist" aria-label="Cómo ver el dato">
+            <div className="inline-flex rounded-full bg-gray-100 p-0.5" role="tablist" aria-label="Cómo ver el dato">
               {vistas.map(v => (
                 <button
                   key={v} type="button" role="tab" aria-selected={vista === v}
                   onClick={() => setVista(v)}
-                  className={cn('h-6 rounded-md px-2 text-[0.6875rem] font-medium transition-colors',
-                    vista === v ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800')}
+                  className={cn('h-6 rounded-full px-2.5 text-[0.6875rem] font-medium transition-colors',
+                    vista === v ? 'bg-white text-green-800 shadow-sm' : 'text-gray-500 hover:text-gray-800')}
                 >
                   {NOMBRE[v]}
                 </button>
@@ -62,29 +62,30 @@ export function TablaDatos({ columnas, filas, total }: {
   const celda = (v: string | number | null) => (v == null ? '—' : typeof v === 'number' ? v.toLocaleString('es-CO', { maximumFractionDigits: 1 }) : v)
   if (filas.length === 0) return <p className="py-10 text-center text-sm text-gray-400">Sin datos en el período</p>
   return (
-    <div className="max-h-72 overflow-auto">
+    <div className="max-h-80 overflow-auto rounded-xl ring-1 ring-black/5">
       <table className="w-full text-xs">
-        <thead className="sticky top-0 bg-white">
-          <tr className="border-b border-gray-100">
+        <thead className="sticky top-0 z-10 bg-green-50">
+          <tr>
             {columnas.map(c => (
-              <th key={c.titulo} className={cn('px-2 py-1.5 font-medium', c.numero ? 'text-right' : 'text-left')} style={{ color: TINTA.tenue }}>{c.titulo}</th>
+              <th key={c.titulo} className={cn('px-3 py-2 text-[0.6875rem] font-semibold tracking-wide whitespace-nowrap text-green-900/70 uppercase', c.numero ? 'text-right' : 'text-left')}>{c.titulo}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {filas.map((f, i) => (
-            <tr key={i} className="border-b border-gray-50 last:border-0">
+            <tr key={i} className="border-t border-gray-100 transition-colors hover:bg-green-50/50">
               {f.map((v, j) => (
-                <td key={j} className={cn('px-2 py-1.5', columnas[j]?.numero ? 'text-right tabular-nums' : 'text-left')} style={{ color: j === 0 ? TINTA.secundaria : TINTA.primaria }}>{celda(v)}</td>
+                <td key={j} className={cn('px-3 py-2', columnas[j]?.numero ? 'text-right tabular-nums' : 'text-left', j === 0 && 'font-medium')}
+                  style={{ color: j === 0 ? TINTA.primaria : TINTA.secundaria }}>{celda(v)}</td>
               ))}
             </tr>
           ))}
         </tbody>
         {total && (
-          <tfoot>
-            <tr className="border-t border-gray-200">
+          <tfoot className="sticky bottom-0 bg-white">
+            <tr className="border-t-2 border-green-100">
               {total.map((v, j) => (
-                <td key={j} className={cn('px-2 py-1.5 font-semibold', columnas[j]?.numero ? 'text-right tabular-nums' : 'text-left')} style={{ color: TINTA.primaria }}>{celda(v)}</td>
+                <td key={j} className={cn('px-3 py-2 font-semibold', columnas[j]?.numero ? 'text-right tabular-nums' : 'text-left')} style={{ color: TINTA.primaria }}>{celda(v)}</td>
               ))}
             </tr>
           </tfoot>
@@ -98,10 +99,10 @@ export function TablaDatos({ columnas, filas, total }: {
 export function Leyenda({ items }: { items: { nombre: string; color: string }[] }) {
   if (items.length < 2) return null
   return (
-    <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+    <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
       {items.map(i => (
-        <li key={i.nombre} className="flex items-center gap-1.5 text-[0.6875rem]" style={{ color: TINTA.secundaria }}>
-          <span className="size-2 rounded-full" style={{ background: i.color }} /> {i.nombre}
+        <li key={i.nombre} className="flex items-center gap-1.5 text-xs" style={{ color: TINTA.secundaria }}>
+          <span className="size-2.5 rounded-full" style={{ background: i.color }} /> {i.nombre}
         </li>
       ))}
     </ul>

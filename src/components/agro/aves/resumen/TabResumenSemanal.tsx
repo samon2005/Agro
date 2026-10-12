@@ -1,10 +1,11 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { TooltipGrafico } from '@/components/ui/graficos/TooltipGrafico'
+import { Degradado } from '@/components/ui/graficos/Degradado'
 import { Leyenda } from '@/components/ui/graficos/PanelDatos'
-import { EJE, EJE_Y, REJILLA, SERIES, TINTA } from '@/components/ui/graficos/paleta'
+import { EJE, EJE_Y, REJILLA, C, CURSOR_LINEA, estiloCurva, TINTA } from '@/components/ui/graficos/paleta'
 import { BarraExportar, type Vista } from '@/components/ui/barra-exportar'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -213,7 +214,7 @@ export default function TabResumenSemanal({ loteActual, hasta }: { loteActual: L
             </div>
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart
+                <ComposedChart
                   data={filas.map(f => ({
                     semana: `${f.etapa === 'postura' ? 'P' : 'L'}${f.semana}`,
                     real: f[metrica] == null ? null : Math.round(Number(f[metrica]) * 100) / 100,
@@ -224,13 +225,14 @@ export default function TabResumenSemanal({ loteActual, hasta }: { loteActual: L
                   <CartesianGrid {...REJILLA} />
                   <XAxis dataKey="semana" {...EJE} interval="preserveStartEnd" minTickGap={14} />
                   <YAxis {...EJE_Y} />
-                  <Tooltip content={<TooltipGrafico formato={v => `${v.toLocaleString('es-CO')} ${METRICAS.find(m => m.v === metrica)?.unidad ?? ''}`} />} />
-                  <Line dataKey="real" name="Real" stroke={SERIES[0]} strokeWidth={2} dot={false} activeDot={{ r: 4, stroke: '#fff', strokeWidth: 2 }} connectNulls isAnimationActive={false} />
-                  {conGuia && <Line dataKey="guia" name="Guía" stroke={TINTA.tenue} strokeWidth={1.5} dot={false} connectNulls isAnimationActive={false} />}
-                </LineChart>
+                  <Degradado id="deg-semanal" color={C.principal} />
+                  <Tooltip cursor={CURSOR_LINEA} content={<TooltipGrafico formato={v => `${v.toLocaleString('es-CO')} ${METRICAS.find(m => m.v === metrica)?.unidad ?? ''}`} />} />
+                  <Area {...estiloCurva(C.principal, 'deg-semanal', filas.length)} dataKey="real" name="Real" />
+                  {conGuia && <Line dataKey="guia" name="Guía" stroke={TINTA.tenue} strokeWidth={1.5} strokeDasharray="5 4" dot={false} connectNulls isAnimationActive={false} />}
+                </ComposedChart>
               </ResponsiveContainer>
             </div>
-            <Leyenda items={conGuia ? [{ nombre: 'Real', color: SERIES[0] }, { nombre: 'Guía', color: TINTA.tenue }] : []} />
+            <Leyenda items={conGuia ? [{ nombre: 'Real', color: C.principal }, { nombre: 'Guía', color: TINTA.tenue }] : []} />
             <p className="text-[0.6875rem] text-gray-400">L = semana de levante · P = semana de postura</p>
           </div>
         ) : (

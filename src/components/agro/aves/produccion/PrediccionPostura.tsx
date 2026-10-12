@@ -1,10 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { ComposedChart, Line, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from 'recharts'
+import { ComposedChart, Area, Line, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from 'recharts'
 import { TooltipGrafico } from '@/components/ui/graficos/TooltipGrafico'
+import { Degradado } from '@/components/ui/graficos/Degradado'
 import { Leyenda } from '@/components/ui/graficos/PanelDatos'
-import { EJE, EJE_Y, REJILLA, SERIES, TINTA } from '@/components/ui/graficos/paleta'
+import { EJE, EJE_Y, REJILLA, C, CURSOR_LINEA, estiloCurva, TINTA } from '@/components/ui/graficos/paleta'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -195,23 +196,24 @@ export default function PrediccionPostura({ lote, version }: { lote: LoteAves; v
         <div className="h-72">
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={datos} margin={{ top: 12, right: 8, left: -8, bottom: 0 }}>
+              <Degradado id="deg-prediccion" color={C.principal} fuerza={0.22} />
               <CartesianGrid {...REJILLA} />
               <XAxis dataKey="x" type="number" domain={['dataMin', 'dataMax']} {...EJE} tickFormatter={v => `S${v}`} />
               <YAxis {...EJE_Y} domain={[0, 100]} tickFormatter={v => `${v} %`} />
-              <Tooltip content={<TooltipGrafico formato={v => `${n1(v)} %`} titulo={l => `Semana ${l} de vida`} />} />
-              {guia.length > 0 && <Line dataKey="guia" name="Guía" stroke={TINTA.tenue} strokeWidth={1.5} dot={false} connectNulls isAnimationActive={false} />}
-              <Line dataKey="curva" name="Curva estimada" stroke={SERIES[0]} strokeWidth={2} dot={false} isAnimationActive={false} />
-              <Scatter dataKey="real" name="Real" fill={SERIES[1]} isAnimationActive={false} />
-              {equilibrio != null && <ReferenceLine y={equilibrio} stroke={SERIES[7]} strokeWidth={1} label={{ value: 'Equilibrio', fontSize: 10, fill: TINTA.secundaria, position: 'insideTopRight' }} />}
+              <Tooltip cursor={CURSOR_LINEA} content={<TooltipGrafico formato={v => `${n1(v)} %`} titulo={l => `Semana ${l} de vida`} />} />
+              {guia.length > 0 && <Line dataKey="guia" name="Guía" stroke={TINTA.tenue} strokeWidth={1.5} strokeDasharray="5 4" dot={false} connectNulls isAnimationActive={false} />}
+              <Area {...estiloCurva(C.principal, 'deg-prediccion', 99)} dataKey="curva" name="Curva estimada" />
+              <Scatter dataKey="real" name="Real" fill={C.claro} isAnimationActive={false} />
+              {equilibrio != null && <ReferenceLine y={equilibrio} stroke={C.falta} strokeWidth={1} label={{ value: 'Equilibrio', fontSize: 10, fill: TINTA.secundaria, position: 'insideTopRight' }} />}
               <ReferenceLine x={vidaHoy} stroke={TINTA.eje} label={{ value: 'Hoy', fontSize: 10, fill: TINTA.secundaria, position: 'top' }} />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
         <Leyenda items={[
           ...(guia.length > 0 ? [{ nombre: 'Guía', color: TINTA.tenue }] : []),
-          { nombre: 'Curva estimada', color: SERIES[0] },
-          { nombre: 'Real', color: SERIES[1] },
-          ...(equilibrio != null ? [{ nombre: 'Equilibrio', color: SERIES[7] }] : []),
+          { nombre: 'Curva estimada', color: C.principal },
+          { nombre: 'Real', color: C.claro },
+          ...(equilibrio != null ? [{ nombre: 'Equilibrio', color: C.falta }] : []),
         ]} />
       </CardContent>
     </Card>

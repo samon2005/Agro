@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { TooltipGrafico } from '@/components/ui/graficos/TooltipGrafico'
 import { Leyenda } from '@/components/ui/graficos/PanelDatos'
-import { SERIES, TINTA } from '@/components/ui/graficos/paleta'
+import { C, TINTA } from '@/components/ui/graficos/paleta'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -122,11 +122,11 @@ export default function RadarGalpones({ fincaId }: { fincaId: string }) {
                   <PolarAngleAxis dataKey="eje" tick={{ fontSize: 11, fill: TINTA.secundaria }} />
                   <PolarRadiusAxis domain={[0, 150]} tick={false} axisLine={false} />
                   <Radar name="Guía" dataKey="guia" stroke={TINTA.tenue} strokeWidth={1.5} fill="none" isAnimationActive={false} />
-                  <Radar name="Galpón" dataKey="real" stroke={SERIES[0]} strokeWidth={2} fill={SERIES[0]} fillOpacity={0.15} isAnimationActive={false} />
+                  <Radar name="Galpón" dataKey="real" stroke={C.principal} strokeWidth={2} fill={C.principal} fillOpacity={0.15} isAnimationActive={false} />
                   <Tooltip content={<TooltipGrafico formato={v => n1(v)} />} />
                 </RadarChart>
               </ResponsiveContainer>
-              <Leyenda items={[{ nombre: 'Galpón', color: SERIES[0] }, { nombre: 'Guía (100)', color: TINTA.tenue }]} />
+              <Leyenda items={[{ nombre: 'Galpón', color: C.principal }, { nombre: 'Guía (100)', color: TINTA.tenue }]} />
             </div>
             <ul className="space-y-1.5 self-center text-xs">
               {ejes.map(e => (

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine, LabelList } from 'recharts'
+import { BarChart, Bar, ComposedChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine, LabelList } from 'recharts'
 import { createClient } from '@/lib/supabase/client'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
@@ -10,7 +10,8 @@ import { TarjetaKPI, cambioPct } from '@/components/ui/graficos/TarjetaKPI'
 import { PanelDatos, TablaDatos, Leyenda, type VistaDatos } from '@/components/ui/graficos/PanelDatos'
 import { Torta } from '@/components/ui/graficos/Torta'
 import { TooltipGrafico } from '@/components/ui/graficos/TooltipGrafico'
-import { BARRA, BARRA_H, EJE, EJE_Y, REJILLA, SERIES, TINTA, colorDe, compacto, pesosCompacto } from '@/components/ui/graficos/paleta'
+import { Degradado } from '@/components/ui/graficos/Degradado'
+import { BARRA, BARRA_H, EJE, EJE_Y, REJILLA, C, CURSOR_BARRA, CURSOR_LINEA, estiloCurva, tonoPorRecencia, tonosPorOrden, TINTA, colorDe, compacto, pesosCompacto } from '@/components/ui/graficos/paleta'
 import { hoyLocal } from '@/lib/fechas'
 import { ESPECIES_FINCA, type EspecieFinca } from '@/lib/especies'
 import {
@@ -329,9 +330,9 @@ export default function TableroReportes({ fincaId, fincaNombre, especies, especi
                         <CartesianGrid stroke={REJILLA.stroke} horizontal={false} />
                         <XAxis type="number" {...EJE} tickFormatter={kg} />
                         <YAxis type="category" dataKey="nombre" {...EJE} axisLine={false} width={120} />
-                        <Tooltip cursor={{ fill: 'rgb(0 0 0 / 4%)' }} content={<TooltipGrafico formato={kg} />} />
+                        <Tooltip cursor={CURSOR_BARRA} content={<TooltipGrafico formato={kg} />} />
                         <Bar dataKey="kg" name="Consumido" {...BARRA_H} isAnimationActive={false}>
-                          {comida.map((c, i) => <Cell key={c.nombre} fill={colorDe(i)} />)}
+                          {comida.map((c, i) => <Cell key={c.nombre} fill={tonosPorOrden(comida.length)[i]} />)}
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
@@ -371,9 +372,9 @@ export default function TableroReportes({ fincaId, fincaNombre, especies, especi
                         <CartesianGrid stroke={REJILLA.stroke} horizontal={false} />
                         <XAxis type="number" {...EJE} tickFormatter={pesosCompacto} />
                         <YAxis type="category" dataKey="categoria" {...EJE} axisLine={false} width={120} />
-                        <Tooltip cursor={{ fill: 'rgb(0 0 0 / 4%)' }} content={<TooltipGrafico formato={pesosCompacto} />} />
+                        <Tooltip cursor={CURSOR_BARRA} content={<TooltipGrafico formato={pesosCompacto} />} />
                         <Bar dataKey="total" name="Costo" {...BARRA_H} isAnimationActive={false}>
-                          {categorias.map((c, i) => <Cell key={c.categoria} fill={colorDe(i)} />)}
+                          {categorias.map((c, i) => <Cell key={c.categoria} fill={tonosPorOrden(categorias.length)[i]} />)}
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
@@ -388,9 +389,9 @@ export default function TableroReportes({ fincaId, fincaNombre, especies, especi
             <PanelDatos titulo="¿Alcanza?" subtitulo="Lo que entró frente a lo que costó" vistas={['grafica', 'tabla']}>
               {v => {
                 const filas = [
-                  { concepto: 'Ingresos', valor: Math.round(actual.ingresos), color: SERIES[0] },
-                  { concepto: 'Costos', valor: Math.round(actual.costos), color: SERIES[1] },
-                  { concepto: 'Utilidad', valor: Math.round(actual.utilidad), color: actual.utilidad >= 0 ? SERIES[2] : SERIES[7] },
+                  { concepto: 'Ingresos', valor: Math.round(actual.ingresos), color: C.principal },
+                  { concepto: 'Costos', valor: Math.round(actual.costos), color: C.claro },
+                  { concepto: 'Utilidad', valor: Math.round(actual.utilidad), color: actual.utilidad >= 0 ? C.bien : C.falta },
                 ]
                 const datosExtra: [string, string][] = [
                   ['Margen', margen != null ? `${n1(margen)} %` : '—'],
@@ -407,7 +408,7 @@ export default function TableroReportes({ fincaId, fincaNombre, especies, especi
                         <CartesianGrid stroke={REJILLA.stroke} horizontal={false} />
                         <XAxis type="number" {...EJE} tickFormatter={pesosCompacto} />
                         <YAxis type="category" dataKey="concepto" {...EJE} axisLine={false} width={72} />
-                        <Tooltip cursor={{ fill: 'rgb(0 0 0 / 4%)' }} content={<TooltipGrafico formato={pesos} />} />
+                        <Tooltip cursor={CURSOR_BARRA} content={<TooltipGrafico formato={pesos} />} />
                         <ReferenceLine x={0} stroke={TINTA.eje} />
                         <Bar dataKey="valor" name="Valor" {...BARRA_H} isAnimationActive={false}>
                           {filas.map(f => <Cell key={f.concepto} fill={f.color} />)}
@@ -444,14 +445,14 @@ export default function TableroReportes({ fincaId, fincaNombre, especies, especi
                       <CartesianGrid {...REJILLA} />
                       <XAxis dataKey="mes" {...EJE} />
                       <YAxis {...EJE_Y} width={56} tickFormatter={pesosCompacto} />
-                      <Tooltip cursor={{ fill: 'rgb(0 0 0 / 4%)' }} content={<TooltipGrafico formato={pesosCompacto} />} />
+                      <Tooltip cursor={CURSOR_BARRA} content={<TooltipGrafico formato={pesosCompacto} />} />
                       <ReferenceLine y={0} stroke={TINTA.eje} />
-                      <Bar dataKey="ingresos" name="Ingresos" fill={SERIES[0]} {...BARRA} isAnimationActive={false} />
-                      <Bar dataKey="costos" name="Costos" fill={SERIES[1]} {...BARRA} isAnimationActive={false} />
+                      <Bar dataKey="ingresos" name="Ingresos" fill={C.principal} {...BARRA} isAnimationActive={false} />
+                      <Bar dataKey="costos" name="Costos" fill={C.claro} {...BARRA} isAnimationActive={false} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
-                <Leyenda items={[{ nombre: 'Ingresos', color: SERIES[0] }, { nombre: 'Costos', color: SERIES[1] }]} />
+                <Leyenda items={[{ nombre: 'Ingresos', color: C.principal }, { nombre: 'Costos', color: C.claro }]} />
               </>) : (
                 <TablaDatos columnas={[{ titulo: 'Mes' }, { titulo: 'Ingresos', numero: true }, { titulo: 'Costos', numero: true }, { titulo: 'Utilidad', numero: true }]}
                   filas={meses.map(m => [m.mes, m.ingresos, m.costos, m.utilidad])}
@@ -470,14 +471,14 @@ export default function TableroReportes({ fincaId, fincaNombre, especies, especi
                           <CartesianGrid {...REJILLA} />
                           <XAxis dataKey="nombre" {...EJE} />
                           <YAxis {...EJE_Y} width={56} tickFormatter={pesosCompacto} />
-                          <Tooltip cursor={{ fill: 'rgb(0 0 0 / 4%)' }} content={<TooltipGrafico formato={pesosCompacto} />} />
+                          <Tooltip cursor={CURSOR_BARRA} content={<TooltipGrafico formato={pesosCompacto} />} />
                           <ReferenceLine y={0} stroke={TINTA.eje} />
-                          <Bar dataKey="ingresos" name="Ingresos" fill={SERIES[0]} {...BARRA} isAnimationActive={false} />
-                          <Bar dataKey="costos" name="Costos" fill={SERIES[1]} {...BARRA} isAnimationActive={false} />
+                          <Bar dataKey="ingresos" name="Ingresos" fill={C.principal} {...BARRA} isAnimationActive={false} />
+                          <Bar dataKey="costos" name="Costos" fill={C.claro} {...BARRA} isAnimationActive={false} />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
-                    <Leyenda items={[{ nombre: 'Ingresos', color: SERIES[0] }, { nombre: 'Costos', color: SERIES[1] }]} />
+                    <Leyenda items={[{ nombre: 'Ingresos', color: C.principal }, { nombre: 'Costos', color: C.claro }]} />
                   </>) : (
                     <TablaDatos columnas={[{ titulo: 'Especie' }, { titulo: 'Ingresos', numero: true }, { titulo: 'Costos', numero: true }, { titulo: 'Utilidad', numero: true }]}
                       filas={filas.map(f => [f.nombre, Math.round(f.ingresos), Math.round(f.costos), Math.round(f.utilidad)])} />
@@ -508,9 +509,9 @@ export default function TableroReportes({ fincaId, fincaNombre, especies, especi
                         <CartesianGrid stroke={REJILLA.stroke} horizontal={false} />
                         <XAxis type="number" {...EJE} allowDecimals={false} />
                         <YAxis type="category" dataKey="causa" {...EJE} axisLine={false} width={120} />
-                        <Tooltip cursor={{ fill: 'rgb(0 0 0 / 4%)' }} content={<TooltipGrafico />} />
+                        <Tooltip cursor={CURSOR_BARRA} content={<TooltipGrafico />} />
                         <Bar dataKey="muertes" name="Muertes" {...BARRA_H} isAnimationActive={false}>
-                          {causas.map((c, i) => <Cell key={c.causa} fill={colorDe(i)} />)}
+                          {causas.map((c, i) => <Cell key={c.causa} fill={tonosPorOrden(causas.length)[i]} />)}
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
@@ -532,9 +533,9 @@ export default function TableroReportes({ fincaId, fincaNombre, especies, especi
                         <CartesianGrid stroke={REJILLA.stroke} horizontal={false} />
                         <XAxis type="number" {...EJE} allowDecimals={false} />
                         <YAxis type="category" dataKey="tipo" {...EJE} axisLine={false} width={120} />
-                        <Tooltip cursor={{ fill: 'rgb(0 0 0 / 4%)' }} content={<TooltipGrafico />} />
+                        <Tooltip cursor={CURSOR_BARRA} content={<TooltipGrafico />} />
                         <Bar dataKey="casos" name="Casos" {...BARRA_H} isAnimationActive={false}>
-                          {enfermedades.map((e, i) => <Cell key={e.tipo} fill={colorDe(i)} />)}
+                          {enfermedades.map((e, i) => <Cell key={e.tipo} fill={tonosPorOrden(enfermedades.length)[i]} />)}
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
@@ -570,7 +571,7 @@ export default function TableroReportes({ fincaId, fincaNombre, especies, especi
  * guía, con la línea del 100 %. Debajo de 95 % falta, arriba de 120 % sobra.
  */
 function PanelBalanceDieta({ balance, esAves }: { balance: ReturnType<typeof balanceNutricional>; esAves: boolean }) {
-  const estado = (pct: number) => (pct < 95 ? { t: 'Falta', c: SERIES[7] } : pct > 120 ? { t: 'Sobra', c: SERIES[3] } : { t: 'Bien', c: SERIES[2] })
+  const estado = (pct: number) => (pct < 95 ? { t: 'Falta', c: C.falta } : pct > 120 ? { t: 'Sobra', c: C.sobra } : { t: 'Bien', c: C.bien })
   const filas = balance.nutrientes.map(n => ({ ...n, pctVista: Math.min(n.pct, 200) }))
   const tope = Math.ceil(Math.max(150, ...filas.map(f => f.pctVista + 15)) / 50) * 50
   const marcas = Array.from({ length: tope / 50 + 1 }, (_, i) => i * 50)
@@ -591,7 +592,7 @@ function PanelBalanceDieta({ balance, esAves }: { balance: ReturnType<typeof bal
               <CartesianGrid stroke={REJILLA.stroke} horizontal={false} />
               <XAxis type="number" {...EJE} domain={[0, tope]} ticks={marcas} tickFormatter={v => `${v} %`} />
               <YAxis type="category" dataKey="nombre" {...EJE} axisLine={false} width={72} />
-              <Tooltip cursor={{ fill: 'rgb(0 0 0 / 4%)' }} content={<TooltipGrafico formato={v => `${n1(v)} %`} />} />
+              <Tooltip cursor={CURSOR_BARRA} content={<TooltipGrafico formato={v => `${n1(v)} %`} />} />
               <ReferenceLine x={100} stroke={TINTA.secundaria} label={{ value: 'Lo que pide', position: 'top', fontSize: 10, fill: TINTA.secundaria }} />
               <Bar dataKey="pctVista" name="% cubierto" {...BARRA_H} isAnimationActive={false}>
                 {filas.map(f => <Cell key={f.id} fill={estado(f.pct).c} />)}
@@ -600,7 +601,7 @@ function PanelBalanceDieta({ balance, esAves }: { balance: ReturnType<typeof bal
             </BarChart>
           </ResponsiveContainer>
         </div>
-        <Leyenda items={[{ nombre: 'Falta (< 95 %)', color: SERIES[7] }, { nombre: 'Bien', color: SERIES[2] }, { nombre: 'Sobra (> 120 %)', color: SERIES[3] }]} />
+        <Leyenda items={[{ nombre: 'Falta (< 95 %)', color: C.falta }, { nombre: 'Bien', color: C.bien }, { nombre: 'Sobra (> 120 %)', color: C.sobra }]} />
         {esAves && !balance.conGuia && (
           <p className="mt-2 text-[0.6875rem] text-gray-400">Con los valores de mantenimiento por defecto: define los requerimientos del galpón en su pestaña Alimento.</p>
         )}
@@ -636,7 +637,7 @@ function PanelComparacion({ titulo, subtitulo, filas, color, filtro, onClic, for
               <CartesianGrid stroke={REJILLA.stroke} horizontal={false} />
               <XAxis type="number" {...EJE} tickFormatter={formato} />
               <YAxis type="category" dataKey="nombre" {...EJE} axisLine={false} width={96} />
-              <Tooltip cursor={{ fill: 'rgb(0 0 0 / 4%)' }} content={<TooltipGrafico formato={formato} />} />
+              <Tooltip cursor={CURSOR_BARRA} content={<TooltipGrafico formato={formato} />} />
               {filas.some(f => f.valor < 0) && <ReferenceLine x={0} stroke={TINTA.eje} />}
               <Bar dataKey="valor" name={titulo} {...BARRA_H} cursor="pointer" isAnimationActive={false}
                 onClick={(_, i) => { const f = filas[i]; if (f) onClic(f.id) }}>
@@ -677,6 +678,7 @@ function PanelSemanal({ titulo, subtitulo, filas, series, tipo, formato = compac
   const totalDe = (id: string) => filas.reduce((a, s) => a + Number(s[id] ?? 0), 0)
   const vistas: VistaDatos[] = ['grafica', ...(sumable && varios ? ['torta' as const] : []), 'tabla']
   const titulo1 = (l: string | number | undefined) => `Semana del ${l}`
+  const idPanel = titulo.replace(/[^a-z0-9]/gi, '')
   return (
     <PanelDatos titulo={titulo} subtitulo={subtitulo} vistas={vistas}>
       {v => vacio ? <Vacio>{vacio}</Vacio> : v === 'grafica' ? (<>
@@ -687,23 +689,25 @@ function PanelSemanal({ titulo, subtitulo, filas, series, tipo, formato = compac
                 <CartesianGrid {...REJILLA} />
                 <XAxis dataKey="semana" {...EJE} interval="preserveStartEnd" minTickGap={18} />
                 <YAxis {...EJE_Y} tickFormatter={formato} allowDecimals={false} />
-                <Tooltip cursor={{ fill: 'rgb(0 0 0 / 4%)' }} content={<TooltipGrafico formato={formato} titulo={titulo1} />} />
+                <Tooltip cursor={CURSOR_BARRA} content={<TooltipGrafico formato={formato} titulo={titulo1} />} />
                 {series.map((g, i) => (
-                  <Bar key={g.id} dataKey={g.id} name={g.nombre} stackId="s" fill={g.color} stroke="#fff" strokeWidth={varios ? 1 : 0}
-                    maxBarSize={BARRA.maxBarSize} radius={i === series.length - 1 ? BARRA.radius : 0} isAnimationActive={false} />
+                  <Bar key={g.id} dataKey={g.id} name={g.nombre} stackId="s" fill={g.color} stroke="#fff" strokeWidth={varios ? 1.5 : 0}
+                    maxBarSize={BARRA.maxBarSize} radius={i === series.length - 1 ? BARRA.radius : 0} isAnimationActive={false}>
+                    {!varios && filas.map((_, k) => <Cell key={k} fill={tonoPorRecencia(k, filas.length)} />)}
+                  </Bar>
                 ))}
               </BarChart>
             ) : (
-              <LineChart data={filas} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
+              <ComposedChart data={filas} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
+                {series.map(g => <Degradado key={g.id} id={`deg-${idPanel}-${g.id}`} color={g.color} fuerza={varios ? 0.12 : 0.28} />)}
                 <CartesianGrid {...REJILLA} />
                 <XAxis dataKey="semana" {...EJE} interval="preserveStartEnd" minTickGap={18} />
                 <YAxis {...EJE_Y} domain={dominio ?? ['auto', 'auto']} tickFormatter={formato} />
-                <Tooltip content={<TooltipGrafico formato={formato} titulo={titulo1} />} />
+                <Tooltip cursor={CURSOR_LINEA} content={<TooltipGrafico formato={formato} titulo={titulo1} />} />
                 {series.map(g => (
-                  <Line key={g.id} dataKey={g.id} name={g.nombre} stroke={g.color} strokeWidth={2} connectNulls isAnimationActive={false}
-                    dot={{ r: 3, strokeWidth: 2, stroke: '#fff', fill: g.color }} activeDot={{ r: 5, stroke: '#fff', strokeWidth: 2 }} />
+                  <Area key={g.id} {...estiloCurva(g.color, `deg-${idPanel}-${g.id}`, filas.length)} dataKey={g.id} name={g.nombre} />
                 ))}
-              </LineChart>
+              </ComposedChart>
             )}
           </ResponsiveContainer>
         </div>

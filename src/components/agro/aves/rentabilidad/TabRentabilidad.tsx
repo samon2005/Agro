@@ -1,10 +1,11 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { BarChart, LineChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts'
+import { BarChart, ComposedChart, Bar, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Cell } from 'recharts'
 import { TooltipGrafico } from '@/components/ui/graficos/TooltipGrafico'
+import { Degradado } from '@/components/ui/graficos/Degradado'
 import { Leyenda } from '@/components/ui/graficos/PanelDatos'
-import { BARRA, EJE, EJE_Y, REJILLA, SERIES, TINTA, pesosCompacto } from '@/components/ui/graficos/paleta'
+import { BARRA, EJE, EJE_Y, REJILLA, C, CURSOR_BARRA, CURSOR_LINEA, estiloCurva, TINTA, pesosCompacto } from '@/components/ui/graficos/paleta'
 import { BarraExportar, type Vista } from '@/components/ui/barra-exportar'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -213,17 +214,18 @@ export default function TabRentabilidad({ loteActual }: { loteActual: LoteAves }
                 <p className="mb-2 text-[0.6875rem] text-gray-400">Por debajo de la línea gris el huevo no paga lo que cuesta</p>
                 <div className="h-60">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={puntos} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
+                    <ComposedChart data={puntos} margin={{ top: 4, right: 8, left: -8, bottom: 0 }}>
+                      <Degradado id="deg-rent" color={C.principal} />
                       <CartesianGrid {...REJILLA} />
                       <XAxis dataKey="semana" {...EJE} interval="preserveStartEnd" minTickGap={14} />
                       <YAxis {...EJE_Y} domain={[0, 100]} tickFormatter={v => `${v} %`} />
-                      <Tooltip content={<TooltipGrafico formato={v => `${n1(v)} %`} titulo={l => `Semana ${String(l).slice(1)} de postura`} />} />
-                      <Line dataKey="postura" name="% postura" stroke={SERIES[0]} strokeWidth={2} dot={false} activeDot={{ r: 4, stroke: '#fff', strokeWidth: 2 }} connectNulls isAnimationActive={false} />
-                      <Line dataKey="equilibrio" name="% equilibrio" stroke={TINTA.tenue} strokeWidth={1.5} dot={false} connectNulls isAnimationActive={false} />
-                    </LineChart>
+                      <Tooltip cursor={CURSOR_LINEA} content={<TooltipGrafico formato={v => `${n1(v)} %`} titulo={l => `Semana ${String(l).slice(1)} de postura`} />} />
+                      <Area {...estiloCurva(C.principal, 'deg-rent', puntos.length)} dataKey="postura" name="% postura" />
+                      <Line dataKey="equilibrio" name="% equilibrio" stroke={TINTA.tenue} strokeWidth={1.5} strokeDasharray="5 4" dot={false} connectNulls isAnimationActive={false} />
+                    </ComposedChart>
                   </ResponsiveContainer>
                 </div>
-                <Leyenda items={[{ nombre: '% postura', color: SERIES[0] }, { nombre: '% equilibrio', color: TINTA.tenue }]} />
+                <Leyenda items={[{ nombre: '% postura', color: C.principal }, { nombre: '% equilibrio', color: TINTA.tenue }]} />
               </div>
               <div>
                 <p className="text-xs font-medium text-gray-600">Utilidad por semana</p>
@@ -234,10 +236,10 @@ export default function TabRentabilidad({ loteActual }: { loteActual: LoteAves }
                       <CartesianGrid {...REJILLA} />
                       <XAxis dataKey="semana" {...EJE} interval="preserveStartEnd" minTickGap={14} />
                       <YAxis {...EJE_Y} tickFormatter={pesosCompacto} />
-                      <Tooltip cursor={{ fill: 'rgb(0 0 0 / 4%)' }} content={<TooltipGrafico formato={pesos} titulo={l => `Semana ${String(l).slice(1)} de postura`} />} />
+                      <Tooltip cursor={CURSOR_BARRA} content={<TooltipGrafico formato={pesos} titulo={l => `Semana ${String(l).slice(1)} de postura`} />} />
                       <ReferenceLine y={0} stroke={TINTA.eje} />
                       <Bar dataKey="utilidad" name="Utilidad" maxBarSize={BARRA.maxBarSize} radius={BARRA.radius} isAnimationActive={false}>
-                        {puntos.map(p => <Cell key={p.semana} fill={(p.utilidad ?? 0) >= 0 ? SERIES[2] : SERIES[7]} />)}
+                        {puntos.map(p => <Cell key={p.semana} fill={(p.utilidad ?? 0) >= 0 ? C.bien : C.falta} />)}
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>

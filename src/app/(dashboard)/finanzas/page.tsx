@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
 import { TooltipGrafico } from '@/components/ui/graficos/TooltipGrafico'
 import { Leyenda } from '@/components/ui/graficos/PanelDatos'
-import { BARRA, EJE, EJE_Y, REJILLA, SERIES, TINTA, pesosCompacto } from '@/components/ui/graficos/paleta'
+import { BARRA, EJE, EJE_Y, REJILLA, C, CURSOR_BARRA, TINTA, pesosCompacto } from '@/components/ui/graficos/paleta'
 import { BarraExportar, type Vista } from '@/components/ui/barra-exportar'
 import Link from 'next/link'
 import { toast } from 'sonner'
@@ -292,14 +292,14 @@ export default function FinanzasPage() {
                           <CartesianGrid {...REJILLA} />
                           <XAxis dataKey="mes" {...EJE} />
                           <YAxis {...EJE_Y} width={56} tickFormatter={pesosCompacto} />
-                          <Tooltip cursor={{ fill: 'rgb(0 0 0 / 4%)' }} content={<TooltipGrafico formato={v => cop(v)} />} />
+                          <Tooltip cursor={CURSOR_BARRA} content={<TooltipGrafico formato={v => cop(v)} />} />
                           <ReferenceLine y={0} stroke={TINTA.eje} />
-                          <Bar dataKey="Ventas" fill={SERIES[0]} {...BARRA} isAnimationActive={false} />
-                          <Bar dataKey="Costos" fill={SERIES[1]} {...BARRA} isAnimationActive={false} />
-                          <Bar dataKey="Utilidad" fill={SERIES[2]} {...BARRA} isAnimationActive={false} />
+                          <Bar dataKey="Ventas" fill={C.principal} {...BARRA} isAnimationActive={false} />
+                          <Bar dataKey="Costos" fill={C.claro} {...BARRA} isAnimationActive={false} />
+                          <Bar dataKey="Utilidad" fill={C.bien} {...BARRA} isAnimationActive={false} />
                         </BarChart>
                       </ResponsiveContainer>
-                      <Leyenda items={[{ nombre: 'Ventas', color: SERIES[0] }, { nombre: 'Costos', color: SERIES[1] }, { nombre: 'Utilidad', color: SERIES[2] }]} />
+                      <Leyenda items={[{ nombre: 'Ventas', color: C.principal }, { nombre: 'Costos', color: C.claro }, { nombre: 'Utilidad', color: C.bien }]} />
                     </div>
                   ) : (
                     <div className="overflow-x-auto">
