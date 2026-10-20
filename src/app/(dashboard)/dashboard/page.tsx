@@ -4,28 +4,13 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useFinca } from '@/components/agro/FincaProvider'
 import CrearFincaModal from '@/components/agro/CrearFincaModal'
-import ResumenEspecies from '@/components/agro/ResumenEspecies'
-import ResumenFinanciero from '@/components/agro/ResumenFinanciero'
-import ResumenAlimentoGalpones from '@/components/agro/ResumenAlimentoGalpones'
-import ResumenGalponesFinca from '@/components/agro/ResumenGalponesFinca'
-import RadarGalpones from '@/components/agro/aves/resumen/RadarGalpones'
 import EditarFincaModal from '@/components/agro/EditarFincaModal'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import TableroInicio from '@/components/agro/resumen/TableroInicio'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import type { EspecieFinca } from '@/lib/especies'
-import { Ic, type NombreIcono } from '@/components/ui/icon'
-import { Indicador } from '@/components/ui/indicador'
-
-type Stats = {
-  totalAnimales: number
-  totalInventario: number
-  animalesBajos: number
-}
 
 export default function DashboardPage() {
   const { fincas, fincaActual, loading, refetch } = useFinca()
-  const [stats, setStats] = useState<Stats | null>(null)
   const [userName, setUserName] = useState('')
   const [fincaAEditar, setFincaAEditar] = useState<typeof fincas[number] | null>(null)
 
@@ -36,37 +21,6 @@ export default function DashboardPage() {
       setUserName(name)
     })
   }, [])
-
-  useEffect(() => {
-    if (!fincaActual) return
-    fetchStats()
-  }, [fincaActual])
-
-  async function fetchStats() {
-    if (!fincaActual) return
-    const supabase = createClient()
-    // Los animales de la finca son los de sus lotes vivos (galpones o corrales)
-    const especie = fincaActual.tipo_produccion?.[0]
-    const [aves, cerdos, pollos, inventarioRes] = await Promise.all([
-      especie === 'aves_ponedoras'
-        ? supabase.from('lotes_aves').select('aves_actuales').eq('finca_id', fincaActual.id).in('estado', ['activo', 'preparacion'])
-        : Promise.resolve({ data: [] as { aves_actuales: number }[] }),
-      especie === 'cerdos'
-        ? supabase.from('lotes_cerdos').select('animales_actuales').eq('finca_id', fincaActual.id).eq('estado', 'activo')
-        : Promise.resolve({ data: [] as { animales_actuales: number }[] }),
-      especie === 'pollo_engorde'
-        ? supabase.from('lotes_pollo').select('pollos_actuales').eq('finca_id', fincaActual.id).eq('estado', 'activo')
-        : Promise.resolve({ data: [] as { pollos_actuales: number }[] }),
-      supabase.from('inventario').select('id', { count: 'exact', head: true }).eq('finca_id', fincaActual.id),
-    ])
-    setStats({
-      totalAnimales: (aves.data ?? []).reduce((s, l) => s + (l.aves_actuales ?? 0), 0)
-        + (cerdos.data ?? []).reduce((s, l) => s + (l.animales_actuales ?? 0), 0)
-        + (pollos.data ?? []).reduce((s, l) => s + (l.pollos_actuales ?? 0), 0),
-      totalInventario: inventarioRes.count ?? 0,
-      animalesBajos: 0,
-    })
-  }
 
   if (loading) return <DashboardSkeleton />
 
@@ -84,119 +38,31 @@ export default function DashboardPage() {
 
       <CrearFincaModal open={!loading && fincas.length === 0} onCreated={refetch} />
 
-      <div className="p-8">
-        <div className="mb-8">
+      <div className="p-4 md:p-8">
+        <div className="mb-5">
           <h2 className="font-heading text-3xl font-medium text-gray-900">
             Bienvenido, {userName}
           </h2>
           {fincaActual && (
-            <p className="text-gray-500 mt-1">
-              Finca: <span className="font-medium text-green-700">{fincaActual.nombre}</span>
-              {fincaActual.municipio && ` · ${fincaActual.municipio}, ${fincaActual.departamento}`}
+            <p className="mt-1 text-gray-500">
+              Finca <span className="font-medium text-green-700">{fincaActual.nombre}</span> · {new Date().toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' })}
             </p>
           )}
         </div>
 
-        {/* La finca tal como se registró: sus datos y cada galpón, con aves o vacío */}
-        {fincaActual && (
-          <ResumenGalponesFinca finca={fincaActual} onEditar={() => setFincaAEditar(fincaActual)} />
+        {fincaActual ? (
+          <TableroInicio
+            finca={fincaActual}
+            fincas={fincas}
+            onEditarFinca={() => setFincaAEditar(fincaActual)}
+            onEditarOtra={f => setFincaAEditar(f)}
+          />
+        ) : (
+          <EmptyState message="No hay fincas registradas" hint="Se abrirá el formulario de creación" />
         )}
-
-        {fincaActual && (
-          <ResumenEspecies fincaId={fincaActual.id} especies={(fincaActual.tipo_produccion ?? []) as EspecieFinca[]} />
-        )}
-
-        {/* El perfil de cada galpón frente a la guía de su línea */}
-        {fincaActual && (fincaActual.tipo_produccion ?? []).includes('aves_ponedoras') && (
-          <RadarGalpones fincaId={fincaActual.id} />
-        )}
-
-        {/* Cómo va el alimento en cada galpón: lo que se mira para saber cuándo pedir */}
-        {fincaActual && (fincaActual.tipo_produccion ?? []).includes('aves_ponedoras') && (
-          <ResumenAlimentoGalpones fincaId={fincaActual.id} />
-        )}
-
-        {fincaActual && (
-          <ResumenFinanciero fincaId={fincaActual.id} especies={(fincaActual.tipo_produccion ?? []) as EspecieFinca[]} />
-        )}
-
-        <div className="mb-8 grid grid-cols-[repeat(auto-fit,minmax(13rem,1fr))] gap-3">
-          <StatCard title="Total Animales" value={stats?.totalAnimales ?? '—'} icon="ganado" description="Animales activos" color="green" />
-          <StatCard title="Ítems en Inventario" value={stats?.totalInventario ?? '—'} icon="caja" description="Alimento, huevos, fármacos y otros" color="blue" />
-          <StatCard title="Fincas" value={fincas.length} icon="hoja" description="Registradas" color="yellow" />
-          <StatCard title="Alertas Stock" value={stats?.animalesBajos ?? '—'} icon="alerta" description="Por debajo del mínimo" color="red" />
-        </div>
-
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Ic n="hoja" className="size-4 text-green-700" /> Tus Fincas
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {fincas.length === 0 ? (
-                <EmptyState message="No hay fincas registradas" hint="Se abrirá el formulario de creación" />
-              ) : (
-                <div className="space-y-2">
-                  {fincas.map(f => (
-                    <div key={f.id} className="flex items-center justify-between rounded-xl bg-gray-50 p-3">
-                      <div>
-                        <p className="font-medium text-green-900">{f.nombre}</p>
-                        {f.municipio && <p className="text-xs text-gray-500">{f.municipio}, {f.departamento}</p>}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {f.area_valor && <Badge variant="secondary">{f.area_valor} {f.area_unidad === 'ha' ? 'ha' : f.area_unidad === 'm2' ? 'm²' : f.area_unidad}</Badge>}
-                        <button
-                          type="button"
-                          onClick={() => setFincaAEditar(f)}
-                          className="text-xs text-gray-500 hover:text-gray-800 border border-gray-200 rounded px-2 py-1 bg-white"
-                        >
-                          <Ic n="ajustes" /> Configurar
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <span><Ic n="diario" /></span> Guía de Inicio Rápido
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ol className="space-y-3">
-                {[
-                  { step: '1', text: 'Crea tu finca', done: fincas.length > 0 },
-                  { step: '2', text: 'Registra tus animales', done: (stats?.totalAnimales ?? 0) > 0 },
-                  { step: '3', text: 'Agrega inventario', done: (stats?.totalInventario ?? 0) > 0 },
-                  { step: '4', text: 'Registra producción diaria', done: false },
-                ].map(item => (
-                  <li key={item.step} className="flex items-center gap-3">
-                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${item.done ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-600'}`}>
-                      {item.done ? '' : item.step}
-                    </span>
-                    <span className={item.done ? 'line-through text-gray-400' : 'text-gray-700'}>{item.text}</span>
-                  </li>
-                ))}
-              </ol>
-            </CardContent>
-          </Card>
-        </div>
       </div>
     </>
   )
-}
-
-function StatCard({ title, value, icon, description, color }: {
-  title: string; value: number | string; icon: NombreIcono; description: string; color: 'green' | 'blue' | 'yellow' | 'red'
-}) {
-  const tono = { green: 'green', blue: 'blue', yellow: 'amber', red: 'red' } as const
-  return <Indicador tono={tono[color]} icono={icon} etiqueta={title} valor={value} detalle={description} />
 }
 
 function EmptyState({ message, hint }: { message: string; hint: string }) {

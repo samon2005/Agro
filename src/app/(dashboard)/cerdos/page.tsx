@@ -17,6 +17,8 @@ import { usoCorralLabel } from '@/lib/instalaciones'
 import type { Database } from '@/types/database'
 import { Ic, type NombreIcono } from '@/components/ui/icon'
 import { nombreSeccion } from '@/lib/especies'
+import { SelectorUnidades, type Unidad } from '@/components/ui/widgets/Selector'
+import { Pildora } from '@/components/ui/widgets/Widget'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
 type Instalacion = Database['public']['Tables']['instalaciones']['Row']
@@ -97,87 +99,69 @@ export default function CerdosPage() {
 
   return (
     <div className="flex-1 space-y-5 overflow-auto p-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-3xl font-medium text-gray-900">{nombreSeccion('cerdos', fincaActual.tipo_produccion)}</h1>
-          <p className="text-sm text-gray-500">{fincaActual.nombre} · corrales de la finca</p>
+          <p className="text-sm text-gray-500">{fincaActual.nombre} · {lotes.length} {lotes.length === 1 ? 'lote' : 'lotes'} de cerdos · {corrales.length} {corrales.length === 1 ? 'corral' : 'corrales'}</p>
         </div>
-        <button
-          onClick={() => setModalFinca(true)}
-          className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700"
-        >
-          <Ic n="ubicacion" /> Datos de la finca
+        <button onClick={() => setModalFinca(true)}
+          className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm text-gray-500 transition-colors hover:bg-white hover:text-gray-800">
+          <Ic n="ajustes" className="size-4" /> Corrales y finca
         </button>
       </div>
 
-      {/* Corrales: lugares fijos, cada uno con su tipo de producción debajo */}
-      <div className="superficie space-y-3 rounded-2xl p-4">
-        {cargando ? (
-          <div className="flex gap-2">{[...Array(3)].map((_, i) => <div key={i} data-slot="skeleton" className="h-12 w-32 rounded-xl" />)}</div>
-        ) : (
-          <div className="flex flex-wrap items-center gap-2">
-            {corrales.length === 0 && lotes.length === 0 && <span className="text-sm text-gray-500">La finca todavía no tiene corrales.</span>}
-            {corrales.map(c => {
-              const lote = lotePorCorral.get(c.id)
-              const activo = seleccion === c.id
-              return (
-                <button
-                  key={c.id}
-                  onClick={() => elegirCorral(c)}
-                  title={lote ? undefined : 'Corral vacío: agregar su lote'}
-                  className={cn(
-                    'flex min-w-28 flex-col items-start rounded-xl px-3.5 py-2 text-left transition-colors',
-                    activo ? 'bg-orange-600 text-white shadow-[0_6px_16px_-10px_rgb(0_0_0/40%)]'
-                      : lote ? 'bg-gray-100 text-gray-800 hover:bg-gray-200/70'
-                        : 'border border-dashed border-gray-300 text-gray-500 hover:border-orange-400 hover:text-orange-800',
-                  )}
-                >
-                  <span className="flex items-center gap-1.5 text-sm font-medium"><Ic n="cerdo" className="size-4" /> {c.nombre}</span>
-                  <span className={cn('text-[0.6875rem]', activo ? 'text-orange-100' : 'text-gray-500')}>
-                    {usoCorralLabel(c.uso)?.toLowerCase() ?? 'sin tipo'}{lote ? ` · ${lote.animales_actuales.toLocaleString('es-CO')}` : ' · vacío'}
-                  </span>
-                </button>
-              )
-            })}
-            {lotesSueltos.map(l => (
-              <button
-                key={l.id}
-                onClick={() => { setSeleccion(`lote:${l.id}`); setActiveTab(l.sistema === 'cria' ? 'naves' : 'diario') }}
-                className={cn(
-                  'flex flex-col items-start rounded-xl px-3.5 py-2 text-left',
-                  seleccion === `lote:${l.id}` ? 'bg-orange-600 text-white' : 'bg-gray-100 text-gray-800 hover:bg-gray-200/70',
-                )}
-              >
-                <span className="flex items-center gap-1.5 text-sm font-medium"><Ic n="cerdo" className="size-4" /> {l.nombre}</span>
-                <span className="text-[0.6875rem] opacity-80">sin corral</span>
-              </button>
-            ))}
-            <button
-              onClick={() => setModalFinca(true)}
-              className="ml-auto inline-flex h-9 items-center gap-1.5 rounded-xl px-3 text-sm text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-800"
-            >
-              <Ic n="ajustes" className="size-4" /> Corrales
-            </button>
-          </div>
-        )}
+      {/* Los corrales: cada uno con su mini anillo (animales frente a los que entraron) */}
+      {cargando ? (
+        <div className="flex gap-2">{[...Array(3)].map((_, i) => <div key={i} data-slot="skeleton" className="h-[60px] w-44 rounded-2xl" />)}</div>
+      ) : corrales.length === 0 && lotes.length === 0 ? null : (
+        <SelectorUnidades
+          icono="cerdo"
+          elegida={seleccion}
+          onElegir={id => {
+            if (id.startsWith('lote:')) {
+              const l = lotes.find(x => `lote:${x.id}` === id)
+              setSeleccion(id)
+              if (l) setActiveTab(l.sistema === 'cria' ? 'naves' : 'diario')
+              return
+            }
+            const c = corrales.find(x => x.id === id)
+            if (c) elegirCorral(c)
+          }}
+          unidades={[
+            ...corrales.map((c): Unidad => {
+              const l = lotePorCorral.get(c.id)
+              const uso = usoCorralLabel(c.uso)?.toLowerCase() ?? 'sin tipo'
+              if (!l) return { id: c.id, nombre: c.nombre, estado: 'vacio', sub: `${uso} · vacío` }
+              const pct = l.numero_animales > 0 ? (l.animales_actuales / l.numero_animales) * 100 : null
+              return {
+                id: c.id, nombre: c.nombre, estado: 'activo', pct, centro: l.animales_actuales.toLocaleString('es-CO'),
+                sub: `${uso} · ${l.animales_actuales.toLocaleString('es-CO')} ${l.sistema === 'cria' ? 'hembras' : 'cerdos'}`,
+              }
+            }),
+            ...lotesSueltos.map((l): Unidad => ({
+              id: `lote:${l.id}`, nombre: l.nombre, estado: 'activo', sub: 'sin corral',
+              pct: l.numero_animales > 0 ? (l.animales_actuales / l.numero_animales) * 100 : null, centro: l.animales_actuales.toLocaleString('es-CO'),
+            })),
+          ]}
+        />
+      )}
 
-        {loteActual && (
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-3">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
-              <span className="text-sm font-medium text-gray-800">{loteActual.nombre}</span>
-              <span>{loteActual.animales_actuales.toLocaleString('es-CO')} {loteActual.sistema === 'cria' ? 'hembras' : 'animales'}</span>
-              {loteActual.fecha_nacimiento && <span>· {edadTexto(loteActual.fecha_nacimiento)} de edad</span>}
-              {loteActual.linea_genetica && <span>· {loteActual.linea_genetica}</span>}
-            </div>
-            <button
-              onClick={() => setConfigOpen(true)}
-              className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700"
-            >
-              <Ic n="ajustes" /> Configurar lote
-            </button>
+      {/* El lote del corral elegido: sus datos en píldoras */}
+      {loteActual && (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="mr-1 text-sm font-semibold text-gray-800">{loteActual.nombre}</span>
+            <Pildora tono="verde" icono="cerdo">{loteActual.sistema === 'cria' ? 'Cría' : 'Engorde'}</Pildora>
+            <Pildora>{loteActual.animales_actuales.toLocaleString('es-CO')} {loteActual.sistema === 'cria' ? 'hembras' : 'animales'}</Pildora>
+            {loteActual.fecha_nacimiento && <Pildora icono="calendario">{edadTexto(loteActual.fecha_nacimiento)} de edad</Pildora>}
+            {loteActual.linea_genetica && <Pildora>{loteActual.linea_genetica}</Pildora>}
           </div>
-        )}
-      </div>
+          <button onClick={() => setConfigOpen(true)}
+            className="inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs text-gray-500 transition-colors hover:bg-white hover:text-gray-800">
+            <Ic n="ajustes" /> Configurar lote
+          </button>
+        </div>
+      )}
 
       {!cargando && !loteActual && (
         <div className="py-16 text-center">
@@ -209,12 +193,12 @@ export default function CerdosPage() {
 
       {loteActual && (
         <div className="space-y-5">
-          <div className="superficie flex gap-1 overflow-x-auto rounded-2xl p-1.5 [scrollbar-width:none]">
+          <div className="flex gap-1 overflow-x-auto border-b border-gray-200 [scrollbar-width:none]">
             {tabs.map(tab => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                className={cn('inline-flex flex-shrink-0 items-center gap-2 whitespace-nowrap rounded-xl px-3.5 py-2 text-[0.8125rem] font-medium transition-colors',
-                  tabVisible === tab.id ? 'bg-orange-50 text-orange-900' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800')}>
-                <Ic n={tab.icon} className={cn('size-4', tabVisible === tab.id ? 'text-orange-600' : 'text-gray-400')} />
+                className={cn('-mb-px inline-flex flex-shrink-0 items-center gap-2 border-b-2 px-3 pb-2.5 pt-1 text-[0.8125rem] font-medium whitespace-nowrap transition-colors',
+                  tabVisible === tab.id ? 'border-green-700 text-green-900' : 'border-transparent text-gray-500 hover:text-gray-800')}>
+                <Ic n={tab.icon} className={cn('size-4', tabVisible === tab.id ? 'text-green-700' : 'text-gray-400')} />
                 {tab.label}
               </button>
             ))}

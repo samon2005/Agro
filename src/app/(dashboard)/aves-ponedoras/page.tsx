@@ -4,7 +4,9 @@ import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useFinca } from '@/components/agro/FincaProvider'
 import { cn } from '@/lib/utils'
-import LoteSelector from '@/components/agro/aves/LoteSelector'
+import { SelectorUnidades, type Unidad } from '@/components/ui/widgets/Selector'
+import { Pildora } from '@/components/ui/widgets/Widget'
+import { BandejaAlertas } from '@/components/ui/widgets/Alertas'
 import CrearLoteModal from '@/components/agro/aves/CrearLoteModal'
 import LotesAnterioresModal from '@/components/agro/aves/LotesAnterioresModal'
 import TabRentabilidad from '@/components/agro/aves/rentabilidad/TabRentabilidad'
@@ -68,6 +70,8 @@ export default function AvesPonedorasPage() {
   const [galpones, setGalpones] = useState<Instalacion[]>([])
   const [galponParaRegistrar, setGalponParaRegistrar] = useState<string | null>(null)
   const [modalFinca, setModalFinca] = useState(false)
+  // Lo de hoy de cada galpón: su postura y si ya se registró el día
+  const [hoyPorLote, setHoyPorLote] = useState<Record<string, { huevos: number; aves: number | null }>>({})
 
   // Alertas cross-módulo
   const [alertas, setAlertas] = useState<Alerta[]>([])
@@ -101,6 +105,11 @@ export default function AvesPonedorasPage() {
     setLotes(data ?? [])
     setCerrados(salieron ?? [])
     setGalpones(inst ?? [])
+    if (data && data.length > 0) {
+      const { data: deHoy } = await supabase.from('produccion_diaria_aves').select('lote_id, huevos_totales, aves_en_dia')
+        .in('lote_id', data.map(l => l.id)).eq('fecha', hoyLocal())
+      setHoyPorLote(Object.fromEntries((deHoy ?? []).map(r => [r.lote_id, { huevos: r.huevos_totales, aves: r.aves_en_dia }])))
+    }
     if (data && data.length > 0) {
       if (!loteActual) {
         // Al volver desde Alimento (?lote=), se abre el galpón del que se venía
@@ -172,6 +181,26 @@ export default function AvesPonedorasPage() {
     if (!vacioSanitario[g] || vacioSanitario[g] < l.vacio_sanitario_hasta) vacioSanitario[g] = l.vacio_sanitario_hasta
   }
 
+  function unidadDeLote(l: LoteAves): Unidad {
+    const h = hoyPorLote[l.id]
+    const postura = h && h.aves ? (h.huevos / h.aves) * 100 : null
+    if (l.estado === 'activo') {
+      return {
+        id: l.id, nombre: l.nombre, estado: 'activo', pct: postura, centro: postura != null ? `${Math.round(postura)}%` : undefined,
+        sub: `en postura · ${l.aves_actuales.toLocaleString('es-CO')} aves`, aviso: !h,
+      }
+    }
+    const semana = Math.floor((new Date(hoyLocal() + 'T00:00:00').getTime() - new Date(l.fecha_inicio + 'T00:00:00').getTime()) / (7 * 86_400_000)) + 1
+    // En levante el anillo es el camino hacia la postura (si tiene fecha tentativa)
+    const total = l.fecha_inicio_postura
+      ? Math.max(1, Math.round((new Date(l.fecha_inicio_postura + 'T00:00:00').getTime() - new Date(l.fecha_inicio + 'T00:00:00').getTime()) / (7 * 86_400_000)))
+      : null
+    return {
+      id: l.id, nombre: l.nombre, estado: 'levante', sub: `levante · semana ${semana}`, aviso: !h,
+      pct: total ? (semana / total) * 100 : null, centro: `S${semana}`,
+    }
+  }
+
   if (fincaLoading) {
     return <div className="p-6 text-gray-500">Cargando...</div>
   }
@@ -190,60 +219,81 @@ export default function AvesPonedorasPage() {
   return (
     <div className="flex-1 overflow-auto p-6 space-y-5">
       {/* Encabezado */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-3xl font-medium text-gray-900">{nombreSeccion('aves_ponedoras', fincaActual.tipo_produccion)}</h1>
-          <p className="text-sm text-gray-500">{fincaActual.nombre} · Gestión integral de lotes</p>
+          <p className="text-sm text-gray-500">{fincaActual.nombre} · {lotes.length} {lotes.length === 1 ? 'galpón' : 'galpones'} con aves de {galpones.length}</p>
         </div>
-        <button
-          onClick={() => setModalFinca(true)}
-          className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors"
-        >
-          <Ic n="ubicacion" /> Datos de la finca
-        </button>
+        <div className="flex flex-wrap items-center gap-1">
+          {galpones.some(g => !ocupados.has(g.id)) && (
+            <button onClick={() => { setGalponParaRegistrar(null); setModalNuevoLote(true) }}
+              className="inline-flex h-9 items-center gap-1.5 rounded-full bg-green-700 px-4 text-sm font-medium text-white transition-colors hover:bg-green-800">
+              <Ic n="mas" className="size-4" /> Registrar aves
+            </button>
+          )}
+          {cerrados.length > 0 && (
+            <button onClick={() => setVerAnteriores(true)}
+              className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm text-gray-500 transition-colors hover:bg-white hover:text-gray-800">
+              <Ic n="agenda" className="size-4" /> Lotes anteriores ({cerrados.length})
+            </button>
+          )}
+          <button onClick={() => setModalFinca(true)}
+            className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm text-gray-500 transition-colors hover:bg-white hover:text-gray-800">
+            <Ic n="ajustes" className="size-4" /> Galpones y finca
+          </button>
+        </div>
       </div>
 
-      {/* Alertas cross-módulo */}
-      {alertas.length > 0 && (
-        <div className="space-y-2">
-          {alertas.map((a, i) => (
-            <div
-              key={i}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border text-sm font-medium ${
-                a.tipo === 'danger' ? 'bg-red-50 border-red-300 text-red-800' : 'bg-amber-50 border-amber-300 text-amber-800'
-              }`}
-            >
-              <Ic n={a.tipo === 'danger' ? 'sirena' : 'alerta'} /> {a.mensaje}
-            </div>
-          ))}
+      {/* Los galpones: cada uno con su postura de hoy en el mini anillo */}
+      {loadingLotes ? (
+        <div className="flex gap-2">{[...Array(3)].map((_, i) => <div key={i} data-slot="skeleton" className="h-[60px] w-44 rounded-2xl" />)}</div>
+      ) : (galpones.length > 0 || lotes.length > 0) && (
+        <SelectorUnidades
+          icono="gallina"
+          elegida={loteActual?.id ?? null}
+          onElegir={id => {
+            const lote = lotes.find(l => l.id === id)
+            if (lote) { setLoteActual(lote); setAlertas([]); return }
+            // Un galpón vacío: registrar las aves que entran
+            setGalponParaRegistrar(id); setModalNuevoLote(true)
+          }}
+          unidades={[
+            ...galpones.map((g): Unidad => {
+              const l = lotes.find(x => x.instalacion_id === g.id)
+              if (!l) {
+                const hasta = vacioSanitario[g.id]
+                return {
+                  id: g.id, nombre: g.nombre, estado: hasta ? 'limpieza' : 'vacio',
+                  sub: hasta ? `limpieza hasta ${new Date(hasta + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}` : 'vacío · registrar aves',
+                }
+              }
+              return unidadDeLote(l)
+            }),
+            ...lotes.filter(l => !l.instalacion_id || !galpones.some(g => g.id === l.instalacion_id)).map(unidadDeLote),
+          ]}
+        />
+      )}
+
+      {/* El galpón elegido: sus datos en píldoras */}
+      {loteActual && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-sm font-semibold text-gray-800">{loteActual.nombre}</span>
+          <Pildora tono={loteActual.estado === 'activo' ? 'verde' : 'gris'} icono={loteActual.estado === 'activo' ? 'huevo' : 'brote'}>
+            {loteActual.estado === 'activo' ? 'En postura' : 'Levante'}
+          </Pildora>
+          {loteActual.linea_genetica && <Pildora icono="gallina">{loteActual.linea_genetica}</Pildora>}
+          <Pildora>{loteActual.aves_actuales.toLocaleString('es-CO')} aves activas</Pildora>
+          {loteActual.fecha_nacimiento && <Pildora icono="calendario">Semana {semanaDeVida(loteActual.fecha_nacimiento, hoyLocal()) ?? '—'} de vida</Pildora>}
+          {loteActual.proposito !== 'ciclo_completo' && <Pildora tono="ambar">{PROPOSITO_LABEL[loteActual.proposito]}</Pildora>}
+          {loteActual.fecha_salida_programada && <Pildora>Salida {new Date(loteActual.fecha_salida_programada + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}</Pildora>}
+          {loteActual.origen_aves && <Pildora>{loteActual.origen_aves}</Pildora>}
         </div>
       )}
 
-      {/* Selector de lote */}
-      <div className="superficie space-y-3 rounded-2xl p-4">
-        <LoteSelector
-          galpones={galpones}
-          lotes={lotes}
-          vacioSanitario={vacioSanitario}
-          anteriores={cerrados.length}
-          onLotesAnteriores={() => setVerAnteriores(true)}
-          loteActual={loteActual}
-          onSelect={l => { setLoteActual(l); setAlertas([]) }}
-          onRegistrarAves={galponId => { setGalponParaRegistrar(galponId); setModalNuevoLote(true) }}
-          onDatosFinca={() => setModalFinca(true)}
-          loading={loadingLotes}
-        />
-        {loteActual && (
-          <p className="text-xs text-gray-500">
-            {loteActual.linea_genetica && `${loteActual.linea_genetica} · `}
-            {loteActual.aves_actuales.toLocaleString('es-CO')} aves activas
-            {loteActual.fecha_nacimiento && ` · semana ${semanaDeVida(loteActual.fecha_nacimiento, hoyLocal()) ?? '—'} de vida`}
-            {loteActual.proposito !== 'ciclo_completo' && ` · ${PROPOSITO_LABEL[loteActual.proposito]}`}
-            {loteActual.fecha_salida_programada && ` · salida ${new Date(loteActual.fecha_salida_programada + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}`}
-            {loteActual.origen_aves && ` · ${loteActual.origen_aves}`}
-          </p>
-        )}
-      </div>
+      {/* Alertas del galpón (ambiente, postura, retiro, equipos), en una sola franja */}
+      <BandejaAlertas titulo="Alertas del galpón" alertas={alertas.map((a, i) => ({
+        id: String(i), nivel: a.tipo === 'danger' ? 'urgente' : 'revisar', texto: a.mensaje,
+      }))} />
 
       {!loteActual && !loadingLotes && (
         <div className="py-16 text-center">
@@ -278,16 +328,16 @@ export default function AvesPonedorasPage() {
         <>
           {/* Tab bar */}
           <div className="space-y-5">
-            <div className="superficie flex gap-1 overflow-x-auto rounded-2xl p-1.5 [scrollbar-width:none]">
+            <div className="flex gap-1 overflow-x-auto border-b border-gray-200 [scrollbar-width:none]">
               {TABS.filter(tab => tab.id !== 'rentabilidad' || puedeVerCostos).map(tab => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={cn(
-                    'inline-flex flex-shrink-0 items-center gap-2 whitespace-nowrap rounded-xl px-3.5 py-2 text-[0.8125rem] font-medium transition-colors',
+                    '-mb-px inline-flex flex-shrink-0 items-center gap-2 border-b-2 px-3 pb-2.5 pt-1 text-[0.8125rem] font-medium whitespace-nowrap transition-colors',
                     activeTab === tab.id
-                      ? 'bg-green-50 text-green-900'
-                      : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800'
+                      ? 'border-green-700 text-green-900'
+                      : 'border-transparent text-gray-500 hover:text-gray-800'
                   )}
                 >
                   <Ic n={tab.icon} className={cn('size-4', activeTab === tab.id ? 'text-green-700' : 'text-gray-400')} />

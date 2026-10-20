@@ -9,7 +9,12 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { toast } from 'sonner'
 import RegistrarDiaCerdosModal from './RegistrarDiaCerdosModal'
-import { Indicador, GrupoIndicadores } from '@/components/ui/indicador'
+import { Widget, Cuadricula, ANCHO } from '@/components/ui/widgets/Widget'
+import { Anillo, BarraMeta, Cifra, MiniBarras, TextoEstado } from '@/components/ui/widgets/Medidores'
+import { CalendarioMes } from '@/components/ui/widgets/Calendario'
+import { BandejaAlertas } from '@/components/ui/widgets/Alertas'
+import { CurvaArea } from '@/components/ui/widgets/Curva'
+import { Torta } from '@/components/ui/graficos/Torta'
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
 import { Ic } from '@/components/ui/icon'
@@ -78,6 +83,19 @@ export default function TabDiarioCerdos({ loteActual, onLoteUpdated, onIrAliment
   }
 
   const ultimos7 = registros.slice(0, 7)
+  const ultimos14 = registros.filter(r => r.fecha <= hoyStr).slice(0, 14).reverse()
+  const etiquetaDia = (f: string) => new Date(f + 'T00:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })
+  const agua7 = ultimos7.reduce((s, r) => s + Number(r.agua_litros ?? 0), 0)
+  const muertesTotal = mortalidad.reduce((s, m) => s + (m.cantidad ?? 0), 0)
+  const mortPct = loteActual.numero_animales > 0 ? (muertesTotal / loteActual.numero_animales) * 100 : 0
+  const viabilidad = loteActual.numero_animales > 0 ? 100 - mortPct : null
+  const causas = Object.entries(mortalidad.reduce<Record<string, number>>((m, x) => {
+    const k = x.causa?.trim() || 'Sin causa anotada'
+    m[k] = (m[k] ?? 0) + (x.cantidad ?? 0)
+    return m
+  }, {})).map(([causa, cantidad]) => ({ causa, cantidad }))
+  const diaDelMes = Number(hoyStr.slice(8, 10))
+  const diasEsteMes = registros.filter(r => r.fecha.startsWith(hoyStr.slice(0, 7))).length
   const alimento7 = ultimos7.reduce((s, r) => s + Number(r.alimento_kg), 0)
 
   return (
@@ -97,26 +115,84 @@ export default function TabDiarioCerdos({ loteActual, onLoteUpdated, onIrAliment
       </div>
 
       {sinAlimento && (
-        <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg text-sm text-amber-800">
-          <Ic n="alerta" /> Falta registrar el consumo de alimento del corral. Sin él no se puede llevar el diario.
-          {onIrAlimento && (
-            <button type="button" onClick={onIrAlimento} className="ml-2 font-medium underline">Ir a Alimento</button>
-          )}
-        </div>
+        <BandejaAlertas alertas={[{
+          id: 'alimento', nivel: 'revisar',
+          texto: 'Falta registrar el consumo de alimento del corral. Sin él no se puede llevar el diario.',
+          accion: onIrAlimento ? { texto: 'Ir a Alimento', onClick: onIrAlimento } : undefined,
+        }]} />
       )}
 
-      <GrupoIndicadores titulo="Diario" columnas={3}>
-        <Indicador
-          tono={registroHoy ? 'green' : 'amber'}
-          icono="diario"
-          compacto
-          etiqueta="Hoy"
-          valor={registroHoy ? `${Number(registroHoy.alimento_kg).toFixed(1)} kg registrados` : 'Sin registrar'}
-          detalle={registroHoy ? 'Día al día' : 'Todavía no se ha registrado el día'}
-        />
-        <Indicador tono="amber" icono="alimento" etiqueta="Alimento últimos 7 días" valor={<>{alimento7.toFixed(1)} kg</>} />
-        <Indicador tono="blue" icono="calendario" etiqueta="Días registrados" valor={registros.length} />
-      </GrupoIndicadores>
+      <Cuadricula>
+        <Widget className={ANCHO.cuarto} titulo="Hoy" icono="diario">
+          <div className="flex items-center gap-4">
+            <Anillo pct={registroHoy ? 100 : 0} centro={registroHoy ? '✓' : '—'} sub={registroHoy ? 'registrado' : 'pendiente'} estado={registroHoy ? 'bien' : 'revisar'} tamano={96} />
+            <div className="min-w-0 space-y-1.5">
+              <Cifra etiqueta="Alimento de hoy" valor={registroHoy ? `${Number(registroHoy.alimento_kg).toLocaleString('es-CO', { maximumFractionDigits: 1 })} kg` : '—'} />
+              <TextoEstado estado={registroHoy ? 'bien' : 'revisar'}>{registroHoy ? 'Día al día' : 'Falta registrar el día'}</TextoEstado>
+            </div>
+          </div>
+        </Widget>
+
+        <Widget className={ANCHO.cuarto} titulo="Alimento" icono="alimento" info="Kilos del corral por día; las barras son los últimos 14 días registrados">
+          <Cifra etiqueta="Últimos 7 días" valor={`${alimento7.toLocaleString('es-CO', { maximumFractionDigits: 1 })} kg`} grande
+            nota={loteActual.animales_actuales > 0 && ultimos7.length > 0 ? `${Math.round((alimento7 * 1000) / ultimos7.length / loteActual.animales_actuales).toLocaleString('es-CO')} g por animal al día` : undefined} />
+          <div className="mt-3">
+            <MiniBarras valores={ultimos14.map(r => Number(r.alimento_kg))} etiquetas={ultimos14.map(r => etiquetaDia(r.fecha))} formato={v => `${v.toLocaleString('es-CO', { maximumFractionDigits: 1 })} kg`} alto={40} />
+          </div>
+        </Widget>
+
+        <Widget className={ANCHO.cuarto} titulo="Mortalidad" icono="muerte" info="Viabilidad: el % de los animales que entraron que siguen vivos">
+          <div className="flex items-center gap-4">
+            <Anillo pct={viabilidad} centro={viabilidad != null ? `${viabilidad.toLocaleString('es-CO', { maximumFractionDigits: 1 })} %` : '—'} sub="viven" tamano={96}
+              estado={mortPct < 3 ? 'bien' : mortPct < 6 ? 'revisar' : 'mal'} />
+            <div className="min-w-0 space-y-1.5">
+              <Cifra etiqueta="Muertos" valor={muertesTotal.toLocaleString('es-CO')} />
+              <p className="text-[0.6875rem] text-gray-400">{mortPct.toLocaleString('es-CO', { maximumFractionDigits: 1 })} % del lote</p>
+            </div>
+          </div>
+        </Widget>
+
+        <Widget className={ANCHO.cuarto} titulo="Días registrados" icono="calendario">
+          <Cifra etiqueta="En total" valor={registros.length.toLocaleString('es-CO')} grande nota={registros[0] ? `Último: ${etiquetaDia(registros[0].fecha)}` : 'Sin días todavía'} />
+          <div className="mt-3">
+            <BarraMeta etiqueta="Este mes" valor={`${diasEsteMes} de ${diaDelMes}`} pct={diaDelMes > 0 ? (diasEsteMes / diaDelMes) * 100 : null}
+              estado={diasEsteMes >= diaDelMes - 1 ? 'bien' : 'revisar'} />
+          </div>
+        </Widget>
+
+        <Widget className={ANCHO.dosTercios} titulo="Alimento por día" icono="grafica" info="Kilos de alimento registrados cada día (últimos 30)">
+          <CurvaArea id="alim-cerdos" nombre="Alimento" barras formato={v => `${v.toLocaleString('es-CO', { maximumFractionDigits: 1 })} kg`}
+            datos={[...registros.slice(0, 30)].reverse().map(r => ({ x: etiquetaDia(r.fecha), y: Number(r.alimento_kg) }))} />
+        </Widget>
+
+        <Widget className={ANCHO.tercio} titulo="De qué se murieron" icono="clinico">
+          {causas.length === 0
+            ? <p className="py-10 text-center text-sm text-gray-400">Sin muertes registradas</p>
+            : <Torta etiquetaTotal="Muertes" porciones={causas.map(c => ({ nombre: c.causa, valor: c.cantidad }))} />}
+        </Widget>
+
+        <Widget className={ANCHO.tercio} titulo="Registros del mes" icono="calendario" info="Cada día pintado según los kilos de alimento; el punto rojo marca muertes">
+          <CalendarioMes valores={new Map(registros.map(r => [r.fecha, Number(r.alimento_kg)]))} marcados={new Set(mortalidad.map(m => m.fecha))}
+            formato={v => `${v.toLocaleString('es-CO', { maximumFractionDigits: 1 })} kg`} />
+        </Widget>
+
+        <Widget className={ANCHO.tercio} titulo="Agua" icono="agua" info="Litros registrados por día (últimos 14)">
+          <Cifra etiqueta="Últimos 7 días" valor={agua7 > 0 ? `${agua7.toLocaleString('es-CO', { maximumFractionDigits: 0 })} L` : '—'} grande
+            nota={agua7 > 0 && alimento7 > 0 ? `${(agua7 / alimento7).toLocaleString('es-CO', { maximumFractionDigits: 1 })} L por kg de alimento` : 'Sin agua registrada'} />
+          <div className="mt-3">
+            <MiniBarras valores={ultimos14.map(r => (r.agua_litros != null ? Number(r.agua_litros) : null))} etiquetas={ultimos14.map(r => etiquetaDia(r.fecha))} formato={v => `${v.toLocaleString('es-CO')} L`} alto={40} />
+          </div>
+        </Widget>
+
+        <Widget className={ANCHO.tercio} titulo="El lote" icono="cerdo">
+          <div className="grid grid-cols-2 gap-x-3 gap-y-4">
+            <Cifra etiqueta={loteActual.sistema === 'cria' ? 'Hembras' : 'Animales'} valor={loteActual.animales_actuales.toLocaleString('es-CO')} nota={`de ${loteActual.numero_animales.toLocaleString('es-CO')}`} grande />
+            <Cifra etiqueta="Peso objetivo" valor={loteActual.peso_objetivo_kg ? `${loteActual.peso_objetivo_kg} kg` : '—'} grande />
+            <Cifra etiqueta="Ingreso" valor={etiquetaDia(loteActual.fecha_ingreso)} />
+            <Cifra etiqueta="Salida estimada" valor={loteActual.fecha_salida_estimada ? etiquetaDia(loteActual.fecha_salida_estimada) : '—'} />
+          </div>
+        </Widget>
+      </Cuadricula>
 
       <Card>
         <CardHeader className="pb-2">

@@ -1,11 +1,12 @@
 'use client'
 
-import { Indicador, GrupoIndicadores } from '@/components/ui/indicador'
+import { Widget, Cuadricula, ANCHO, AccionWidget } from '@/components/ui/widgets/Widget'
+import { Anillo, BarraMeta, Cifra, MiniBarras, TextoEstado } from '@/components/ui/widgets/Medidores'
+import { CalendarioMes } from '@/components/ui/widgets/Calendario'
+import { BandejaAlertas } from '@/components/ui/widgets/Alertas'
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import RegistrarProduccionModal from './RegistrarProduccionModal'
@@ -18,7 +19,6 @@ import SugerenciasLote from './SugerenciasLote'
 import ConfigurarRecoleccionModal from './ConfigurarRecoleccionModal'
 import IniciarPosturaModal, { type ConfigPostura } from './IniciarPosturaModal'
 import { toast } from 'sonner'
-import Link from 'next/link'
 import { estadoPostura } from '@/lib/postura'
 import type { Database } from '@/types/database'
 import { aFechaLocal } from '@/lib/fechas'
@@ -77,6 +77,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
   // Huevos y muertes de toda la vida del lote (el historial solo trae los últimos 60 días)
   const [huevosAcumulados, setHuevosAcumulados] = useState(0)
   const [mortAcum, setMortAcum] = useState(0)
+  const [verTodoHistorial, setVerTodoHistorial] = useState(false)
 
   const fetchRegistros = useCallback(async () => {
     setLoading(true)
@@ -504,10 +505,42 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
     etiqueta: 'Entrada al galpón', fecha: loteActual.fecha_inicio,
   })
 
+  // ── Vista ──
+  // Los últimos 14 días a la vista; el resto, a un clic
+  const totalDias = filasHistorial.filter(f => f.tipo === 'dato').length
+  const filasVisibles: FilaHistorial[] = (() => {
+    if (verTodoHistorial || totalDias <= 14) return filasHistorial
+    const out: FilaHistorial[] = []
+    let n = 0
+    for (const f of filasHistorial) {
+      if (f.tipo === 'dato') { if (n >= 14) break; n++ }
+      out.push(f)
+    }
+    return out
+  })()
+  const ultimos14 = registros.filter(r => r.fecha <= hoyStr).slice(0, 14).reverse()
+  const etiquetaDia = (f: string) => new Date(f + 'T00:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })
+  const valoresCalendario = new Map(registros.map(r => [r.fecha, enPostura ? r.huevos_totales : (consumoEfectivoPorFecha.get(r.fecha) ?? 0)]))
+  const diasConEvento = new Set(eventosVisibles.map(ev => ev.fecha))
+  const viabilidad = loteActual.aves_iniciales > 0 ? 100 - Number(mortPct) : null
+  const semanasCiclo = loteActual.semanas_ciclo_postura ?? null
+  const semanasHastaPostura = semanasFaltantesPostura != null ? semanasEnGalpon + 1 + semanasFaltantesPostura : null
+  const botonAlimento = onIrAlimento
+    ? { texto: 'Registrar alimento', onClick: onIrAlimento }
+    : { texto: 'Registrar alimento', href: `/alimento?lote=${loteActual.id}` }
+  const n1 = (v: number) => v.toLocaleString('es-CO', { maximumFractionDigits: 1 })
+  const definirMeta = (texto: string) => (
+    <button type="button" onClick={() => setConfigOpen(true)} className="font-medium text-green-700 hover:underline">{texto} →</button>
+  )
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      {/* Acciones del día, juntas */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold text-gray-900">Producción y crecimiento</h2>
+        <div>
+          <h2 className="text-base font-semibold text-gray-900">{enPostura ? 'Producción de hoy' : 'Preparación del lote'}</h2>
+          <p className="text-xs text-gray-400">{new Date().toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+        </div>
         <div className="flex flex-wrap gap-2">
           <Button onClick={() => setConfigOpen(true)} variant="ghost">
             <Ic n="ajustes" /> Configurar galpón
@@ -542,224 +575,229 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
         </div>
       </div>
 
-      {/* Solo aparece si algo se salió de lo esperado */}
+      {/* Avisos: una franja cada uno, sin ocupar media pantalla */}
+      {!listoParaRegistrar && (
+        <BandejaAlertas alertas={[{ id: 'alimento', nivel: 'revisar', texto: <><strong>Este galpón todavía no tiene alimento registrado.</strong> {faltaParaRegistrar}</>, accion: botonAlimento }]} />
+      )}
       <SugerenciasLote lote={loteActual} version={`${registros.length}-${registros[0]?.id ?? ''}-${huevosAcumulados}`} />
 
-      {!listoParaRegistrar && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-amber-50 px-4 py-3.5 ring-1 ring-amber-200/70">
-          <div className="flex items-start gap-3">
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
-              <Ic n="alerta" className="size-4" />
-            </span>
-            <div>
-              <p className="text-sm font-semibold text-gray-900">Este galpón todavía no tiene alimento registrado</p>
-              <p className="mt-0.5 text-xs text-gray-600">{faltaParaRegistrar}</p>
+      <Cuadricula>
+        {enPostura ? (<>
+          <Widget className={ANCHO.cuarto} titulo="Huevos hoy" icono="huevo" info="Huevos puestos hoy frente a la meta de huevos por día del galpón">
+            <div className="flex items-center gap-4">
+              <Anillo
+                pct={hoy && metaHuevosDiaria ? (hoy.huevos_totales / metaHuevosDiaria) * 100 : posturaHoy ? Number(posturaHoy) : null}
+                centro={hoy ? hoy.huevos_totales.toLocaleString('es-CO') : '—'}
+                sub={metaHuevosDiaria ? `meta ${metaHuevosDiaria.toLocaleString('es-CO')}` : 'huevos'}
+                estado={hoy && metaHuevosDiaria ? (hoy.huevos_totales >= metaHuevosDiaria ? 'bien' : 'revisar') : 'normal'}
+              />
+              <div className="min-w-0 space-y-1.5 text-xs">
+                {hoy ? (
+                  <>
+                    <TextoEstado estado={cumplimientoMeta ? (Number(cumplimientoMeta) >= 100 ? 'bien' : 'revisar') : 'normal'}>
+                      {cumplimientoMeta ? `${cumplimientoMeta} % de la meta` : 'Sin meta diaria'}
+                    </TextoEstado>
+                    <p className="text-gray-400">Comerciales: {(hoy.huevos_totales - hoy.huevos_rotos - hoy.huevos_deformes).toLocaleString('es-CO')}</p>
+                  </>
+                ) : <p className="text-gray-400">Sin registro de hoy</p>}
+                {!metaHuevosDiaria && <p>{definirMeta('Definir meta')}</p>}
+              </div>
             </div>
-          </div>
-          {onIrAlimento ? (
-            <Button size="sm" onClick={onIrAlimento}>Registrar alimento</Button>
-          ) : (
-            <Link href={`/alimento?lote=${loteActual.id}`}>
-              <Button size="sm">Registrar alimento</Button>
-            </Link>
-          )}
-        </div>
-      )}
+          </Widget>
 
-      {enPostura && (
-      <GrupoIndicadores titulo="Producción de hoy" columnas={5}>
-        {enPostura && (<>
-        <Indicador tono="amber" icono="huevo" etiqueta="Huevos puestos hoy" valor={hoy ? hoy.huevos_totales.toLocaleString('es-CO') : '—'} detalle={<>Comerciales: {hoy ? (hoy.huevos_totales - hoy.huevos_rotos - hoy.huevos_deformes).toLocaleString('es-CO') : '—'}</>} />
-        <Indicador
-          tono={metaHuevosDiaria && hoy && hoy.huevos_totales < metaHuevosDiaria ? 'red' : 'green'}
-          icono="meta"
-          etiqueta="Meta de huevos/día"
-          valor={metaHuevosDiaria ? metaHuevosDiaria.toLocaleString('es-CO') : '—'}
-          detalle={cumplimientoMeta ? `${cumplimientoMeta}% cumplido hoy` : metaHuevosDiaria ? 'Sin registro de hoy' : (
-            <button type="button" onClick={() => setConfigOpen(true)} className="font-medium text-green-700 hover:underline">
-              Definir la meta de huevos/día →
-            </button>
-          )}
-        />
-        <Indicador
-          tono={hayMetaPostura && posturaHoy && Number(posturaHoy) < metaPostura ? 'red' : 'green'}
-          icono="huevo"
-          etiqueta="% Postura hoy"
-          valor={posturaHoy ? `${posturaHoy}%` : '—'}
-          detalle={loteActual.meta_postura_pct != null ? <>Meta lote: {metaPostura}%</> : (
-            <button type="button" onClick={() => setConfigOpen(true)} className="font-medium text-green-700 hover:underline">
-              Definir la meta de % postura →
-            </button>
-          )}
-        >
-          {diffPuntosHoy != null && (
-            <p className={`mt-1 text-xs font-medium ${diffPuntosHoy < 0 ? 'text-red-600' : 'text-green-600'}`}>
-              {diffPuntosHoy < 0
-                ? `Faltan ${Math.abs(diffPuntosHoy).toFixed(1)} pts (${Math.round(perdidaHoy).toLocaleString('es-CO')} huevos bajo la meta)`
-                : `+${diffPuntosHoy.toFixed(1)} pts (${Math.round(excedenteHoy).toLocaleString('es-CO')} huevos sobre la meta)`}
-            </p>
-          )}
-        </Indicador>
-        <Indicador
-          tono="blue"
-          icono="huevo"
-          etiqueta="HAA · huevos por ave alojada"
-          valor={haa ?? '—'}
-          detalle={`${huevosAcumulados.toLocaleString('es-CO')} huevos ÷ ${loteActual.aves_iniciales.toLocaleString('es-CO')} aves alojadas`}
-        />
-        </>)}
-        <Indicador tono="gray" icono="muerte" etiqueta="Mortalidad acumulada" valor={mortAcum} detalle={<>{mortPct}% del lote inicial</>} />
-      </GrupoIndicadores>
-      )}
+          <Widget className={ANCHO.cuarto} titulo="Postura hoy" icono="tendencia" info="Huevos del día ÷ aves del día. La rayita es la meta del galpón">
+            <div className="flex items-center gap-4">
+              <Anillo
+                pct={posturaHoy ? Number(posturaHoy) : null}
+                centro={posturaHoy ? `${posturaHoy.replace('.', ',')} %` : '—'}
+                sub={hayMetaPostura ? `meta ${metaPostura} %` : 'postura'}
+                marca={hayMetaPostura ? metaPostura : null}
+                estado={diffPuntosHoy == null ? 'normal' : diffPuntosHoy >= 0 ? 'bien' : diffPuntosHoy > -5 ? 'revisar' : 'mal'}
+              />
+              <div className="min-w-0 space-y-1.5 text-xs">
+                {diffPuntosHoy != null ? (
+                  <TextoEstado estado={diffPuntosHoy >= 0 ? 'bien' : diffPuntosHoy > -5 ? 'revisar' : 'mal'}>
+                    {diffPuntosHoy >= 0 ? `+${n1(diffPuntosHoy)} pts sobre la meta` : `${n1(Math.abs(diffPuntosHoy))} pts bajo la meta`}
+                  </TextoEstado>
+                ) : <p className="text-gray-400">{hoy ? 'Sin meta de postura' : 'Sin registro de hoy'}</p>}
+                {diffPuntosHoy != null && (
+                  <p className="text-gray-400">
+                    {diffPuntosHoy < 0
+                      ? `${Math.round(perdidaHoy).toLocaleString('es-CO')} huevos bajo la meta`
+                      : `${Math.round(excedenteHoy).toLocaleString('es-CO')} huevos sobre la meta`}
+                  </p>
+                )}
+                {!hayMetaPostura && <p>{definirMeta('Definir meta')}</p>}
+              </div>
+            </div>
+          </Widget>
 
-      {/* Ciclo de postura y densidad. En preparación también lleva la mortalidad,
-          así el lote se lee en un solo bloque y no queda una tarjeta suelta. */}
-      <GrupoIndicadores titulo={enPostura ? 'Ciclo y galpón' : 'Estado del lote'} columnas={5}>
-        {diasAtraso > 0 ? (
-          <Indicador
-            tono="red"
-            icono="reloj"
-            etiqueta="Postura"
-            valor={<span className="text-red-700">Atrasada {textoAtraso}</span>}
-            detalle={<>Estaba prevista para el {new Date(loteActual.fecha_inicio_postura + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'long' })}. Marca el inicio cuando empiece o cambia la fecha en &quot;Configurar galpón&quot;.</>}
-          />
-        ) : (
-        <Indicador tono="purple" icono="reloj" etiqueta={semanaPostura != null && enPostura ? 'Semana de postura' : 'Postura'} valor={semanaPostura ?? (semanasFaltantesPostura != null ? `Faltan ${semanasFaltantesPostura}` : '—')} detalle={<>{inicioSemanaActual && finSemanaActual
-                ? `${inicioSemanaActual.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })} – ${finSemanaActual.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}`
-                : semanasFaltantesPostura != null ? `semana${semanasFaltantesPostura === 1 ? '' : 's'} para iniciar` : 'Sin fecha de inicio'}</>}>
-          {fechaFinEstimada && (
-          <p className="mt-0.5 text-xs text-gray-400">
-          Fin ciclo est.: {fechaFinEstimada.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
-          </p>
-          )}
-        </Indicador>
-        )}
-        {enPostura && (<>
-        <Indicador tono="green" icono="dinero" etiqueta="Ingreso por venta (hoy)" valor={ingresoHoy > 0 ? cop(ingresoHoy) : '—'} detalle={precioPromedio > 0 ? 'Según precio por tamaño configurado' : 'Define el precio del huevo en Ventas de la finca'} />
-        {hayMetaPostura ? (<>
-        <Indicador
-          tono={perdidaHoy > 0 ? 'red' : 'gray'}
-          icono="tendencia"
-          etiqueta="Pérdida por baja postura (hoy)"
-          valor={precioPromedio > 0
-            ? (valorPerdidoHoy > 0 ? cop(valorPerdidoHoy) : cop(0))
-            : `${Math.round(perdidaHoy).toLocaleString('es-CO')}`}
-          detalle={precioPromedio > 0
-            ? `${Math.round(perdidaHoy).toLocaleString('es-CO')} huevos bajo la meta`
-            : 'huevos bajo la meta · pon el precio en Ventas de la finca para verlo en pesos'}
-        />
-        <Indicador
-          tono={huevosPerdidos30 > 0 ? 'red' : 'gray'}
-          icono="calendario"
-          etiqueta="Pérdida acumulada (30d)"
-          valor={precioPromedio > 0
-            ? (valorPerdido30 > 0 ? cop(valorPerdido30) : cop(0))
-            : `${Math.round(huevosPerdidos30).toLocaleString('es-CO')}`}
-          detalle={precioPromedio > 0
-            ? `${Math.round(huevosPerdidos30).toLocaleString('es-CO')} huevos bajo la meta`
-            : 'huevos bajo la meta · pon el precio en Ventas de la finca para verlo en pesos'}
-        />
-        </>) : (
-        <Indicador
-          tono="gray"
-          icono="tendencia"
-          etiqueta="Pérdida por baja postura"
-          valor="—"
-          detalle={(
-            <button type="button" onClick={() => setConfigOpen(true)} className="font-medium text-green-700 hover:underline">
-              Define la meta de % postura para medirla →
-            </button>
-          )}
-        />
-        )}
-        </>)}
-        {!enPostura && (
-          <Indicador tono="blue" icono="calendario" etiqueta="Semana de preparación" valor={semanasEnGalpon + 1} detalle={diasAtraso > 0
-                  ? <span className="font-medium text-red-700">Postura atrasada {textoAtraso}</span>
-                  : semanasFaltantesPostura != null
-                  ? `Faltan ${semanasFaltantesPostura} semana${semanasFaltantesPostura === 1 ? '' : 's'} para postura`
-                  : 'Aún no inicia postura'}>
-            {loteActual.fecha_inicio_postura && (
-            <p className="mt-0.5 text-xs text-gray-400">
-            Tentativa: {new Date(loteActual.fecha_inicio_postura + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
-            </p>
+          <Widget className={ANCHO.cuarto} titulo="Ciclo de postura" icono="reloj">
+            <Cifra etiqueta="Semana de postura" grande
+              valor={semanaPostura != null ? (semanasCiclo ? `${semanaPostura} de ${semanasCiclo}` : String(semanaPostura)) : '—'} />
+            <div className="mt-3">
+              <BarraMeta
+                etiqueta={inicioSemanaActual && finSemanaActual ? `${inicioSemanaActual.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })} – ${finSemanaActual.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}` : 'Avance del ciclo'}
+                valor={semanaPostura != null && semanasCiclo ? `${Math.round((semanaPostura / semanasCiclo) * 100)} %` : ''}
+                pct={semanaPostura != null && semanasCiclo ? (semanaPostura / semanasCiclo) * 100 : null}
+                nota={fechaFinEstimada ? `Fin estimado: ${fechaFinEstimada.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}` : 'Sin semanas de ciclo definidas'}
+              />
+            </div>
+          </Widget>
+
+          <Widget className={ANCHO.cuarto} titulo="Mortalidad acumulada" icono="muerte" info="Viabilidad: el % de las aves que entraron que siguen vivas (cuenta las muertes del día y de los eventos clínicos)">
+            <div className="flex items-center gap-4">
+              <Anillo pct={viabilidad} centro={viabilidad != null ? `${n1(viabilidad)} %` : '—'} sub="viven" estado={Number(mortPct) < 3 ? 'bien' : Number(mortPct) < 6 ? 'revisar' : 'mal'} />
+              <div className="min-w-0 space-y-1.5 text-xs">
+                <Cifra etiqueta="Muertas" valor={mortAcum.toLocaleString('es-CO')} />
+                <p className="text-gray-400">{mortPct.replace('.', ',')} % del lote inicial</p>
+              </div>
+            </div>
+          </Widget>
+        </>) : (<>
+          <Widget className={ANCHO.cuarto} titulo="Semana de preparación" icono="calendario">
+            <Cifra etiqueta="Semana en el galpón" valor={String(semanasEnGalpon + 1)} grande />
+            <div className="mt-3">
+              <BarraMeta etiqueta="Camino a la postura" valor={semanasHastaPostura ? `${semanasEnGalpon + 1} de ${semanasHastaPostura}` : ''}
+                pct={semanasHastaPostura ? ((semanasEnGalpon + 1) / semanasHastaPostura) * 100 : null}
+                estado={diasAtraso > 0 ? 'mal' : 'normal'}
+                nota={loteActual.fecha_inicio_postura ? `Tentativa: ${new Date(loteActual.fecha_inicio_postura + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}` : 'Sin fecha tentativa de postura'} />
+            </div>
+          </Widget>
+
+          <Widget className={ANCHO.cuarto} titulo="Inicio de postura" icono="reloj">
+            {diasAtraso > 0 ? (
+              <>
+                <Cifra etiqueta="Postura" valor={<span className="text-red-700">Atrasada {textoAtraso}</span>} grande />
+                <p className="mt-2 text-xs text-gray-500">Estaba prevista para el {new Date(loteActual.fecha_inicio_postura + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'long' })}. Márcala cuando empiece o cambia la fecha en {definirMeta('Configurar galpón')}</p>
+              </>
+            ) : (
+              <>
+                <Cifra etiqueta="Faltan" valor={semanasFaltantesPostura != null ? `${semanasFaltantesPostura} semana${semanasFaltantesPostura === 1 ? '' : 's'}` : '—'} grande />
+                <p className="mt-2 text-xs text-gray-400">{fechaFinEstimada ? `Fin del ciclo est.: ${fechaFinEstimada.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}` : 'para iniciar la postura'}</p>
+              </>
             )}
-          </Indicador>
-        )}
-        <Indicador tono="orange" icono="ubicacion" etiqueta="Densidad" valor={densidad ?? '—'} detalle="aves / m²" />
-        {!enPostura && (
-          <Indicador tono="gray" icono="muerte" etiqueta="Mortalidad acumulada" valor={mortAcum} detalle={<>{mortPct}% del lote inicial</>} />
-        )}
-      </GrupoIndicadores>
+          </Widget>
 
-      {/* Alimento: costo, bultos, gramos/gallina y kg totales (consumo activo) */}
-      {/* Un solo cuadro con todo el alimento del día: qué come el galpón y cuánto */}
-      <section className="space-y-3">
-        <h3 className="text-sm font-semibold text-gray-800">Alimento</h3>
-        <div className="superficie rounded-2xl p-5">
-          <div className="flex items-center gap-3">
-            <span className="flex size-9 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
-              <Ic n="alimento" className="size-[18px]" />
-            </span>
-            <div>
-              <p className="text-xs font-medium text-gray-500">Alimento en uso</p>
-              <p className="text-base font-semibold text-gray-900">{tipoAlimentoActivo?.nombre ?? 'Sin alimento registrado'}</p>
+          <Widget className={ANCHO.cuarto} titulo="Galpón" icono="ubicacion">
+            <div className="grid grid-cols-2 gap-3">
+              <Cifra etiqueta="Densidad" valor={densidad ? `${densidad.replace('.', ',')}` : '—'} nota="aves / m²" grande />
+              <Cifra etiqueta="Aves" valor={loteActual.aves_actuales.toLocaleString('es-CO')} nota={`de ${loteActual.aves_iniciales.toLocaleString('es-CO')}`} grande />
             </div>
+          </Widget>
+
+          <Widget className={ANCHO.cuarto} titulo="Mortalidad acumulada" icono="muerte" info="Viabilidad: el % de las aves que entraron que siguen vivas">
+            <div className="flex items-center gap-4">
+              <Anillo pct={viabilidad} centro={viabilidad != null ? `${n1(viabilidad)} %` : '—'} sub="viven" estado={Number(mortPct) < 3 ? 'bien' : Number(mortPct) < 6 ? 'revisar' : 'mal'} />
+              <div className="min-w-0 space-y-1.5 text-xs">
+                <Cifra etiqueta="Muertas" valor={mortAcum.toLocaleString('es-CO')} />
+                <p className="text-gray-400">{mortPct.replace('.', ',')} % del lote inicial</p>
+              </div>
+            </div>
+          </Widget>
+        </>)}
+
+        {/* Las curvas de postura y gramaje del galpón */}
+        {enPostura && (
+          <div className={`${ANCHO.todo} [&>*]:h-full`}>
+            <GraficasPostura
+              loteId={loteActual.id}
+              fechaInicioPostura={loteActual.fecha_inicio_postura}
+              fechaInicio={loteActual.fecha_inicio}
+              metaPosturaPct={loteActual.meta_postura_pct}
+              version={`${registros.length}-${registros[0]?.id ?? ''}-${huevosAcumulados}`}
+            />
           </div>
-          <div className="mt-5 grid grid-cols-1 gap-4 border-t border-gray-100 pt-4 sm:grid-cols-3">
-            <div>
-              <p className="text-xs font-medium text-gray-500">Kg consumidos</p>
-              <p className={`mt-1 text-2xl tracking-tight tabular-nums ${kgTotalHoy != null ? 'font-semibold text-gray-900' : 'text-gray-300'}`}>
-                {kgTotalHoy != null ? kgTotalHoy.toFixed(1) : '—'}
-              </p>
-              <p className="mt-1 text-xs text-gray-500">kg por día, todo el galpón</p>
+        )}
+
+        {enPostura && (
+          <Widget className={ANCHO.tercio} titulo="Dinero de hoy" icono="dinero" info="Según el precio por tamaño configurado en Ventas de la finca">
+            <div className="space-y-4">
+              <Cifra etiqueta="Ingreso por venta hoy" valor={ingresoHoy > 0 ? cop(ingresoHoy) : '—'} grande
+                nota={precioPromedio > 0 ? undefined : 'Pon el precio del huevo en Ventas de la finca'} />
+              {hayMetaPostura ? (
+                <div className="grid grid-cols-2 gap-3 border-t border-gray-100 pt-3">
+                  <Cifra etiqueta="Pérdida hoy" valor={<span className={perdidaHoy > 0 ? 'text-red-600' : undefined}>{precioPromedio > 0 ? cop(valorPerdidoHoy) : Math.round(perdidaHoy).toLocaleString('es-CO')}</span>}
+                    nota={`${Math.round(perdidaHoy).toLocaleString('es-CO')} huevos`} />
+                  <Cifra etiqueta="Pérdida 30 días" valor={<span className={huevosPerdidos30 > 0 ? 'text-red-600' : undefined}>{precioPromedio > 0 ? cop(valorPerdido30) : Math.round(huevosPerdidos30).toLocaleString('es-CO')}</span>}
+                    nota={`${Math.round(huevosPerdidos30).toLocaleString('es-CO')} huevos`} />
+                </div>
+              ) : (
+                <p className="border-t border-gray-100 pt-3 text-xs text-gray-500">Pérdida por baja postura: {definirMeta('define la meta de % postura')}</p>
+              )}
             </div>
-            <div>
-              <p className="text-xs font-medium text-gray-500">Bultos</p>
-              <p className={`mt-1 text-2xl tracking-tight tabular-nums ${bultosHoy > 0 ? 'font-semibold text-gray-900' : 'text-gray-300'}`}>
-                {bultosHoy > 0 ? bultosHoy.toFixed(2) : '—'}
-              </p>
-              <p className="mt-1 text-xs text-gray-500">por día, bulto de {pesoBulto} kg</p>
-            </div>
-            <div>
-              <p className="text-xs font-medium text-gray-500">Alimento por gallina</p>
-              <p className={`mt-1 text-2xl tracking-tight tabular-nums ${gramosGallinaHoy != null ? 'font-semibold text-gray-900' : 'text-gray-300'}`}>
-                {gramosGallinaHoy != null ? gramosGallinaHoy.toFixed(0) : '—'}
-              </p>
-              <p className="mt-1 text-xs text-gray-500">gramos por gallina viva al día</p>
-            </div>
+          </Widget>
+        )}
+
+        <Widget className={ANCHO.tercio} titulo="Alimento" icono="alimento"
+          accion={onIrAlimento ? <AccionWidget onClick={onIrAlimento}>Ver alimento</AccionWidget> : <AccionWidget href={`/alimento?lote=${loteActual.id}`}>Ver alimento</AccionWidget>}>
+          <p className="truncate text-sm font-semibold text-gray-900">{tipoAlimentoActivo?.nombre ?? 'Sin alimento registrado'}</p>
+          <div className="mt-3 grid grid-cols-3 gap-3">
+            <Cifra etiqueta="Kg al día" valor={kgTotalHoy != null ? n1(kgTotalHoy) : '—'} />
+            <Cifra etiqueta={`Bultos (${pesoBulto} kg)`} valor={bultosHoy > 0 ? bultosHoy.toLocaleString('es-CO', { maximumFractionDigits: 2 }) : '—'} />
+            <Cifra etiqueta="g por gallina" valor={gramosGallinaHoy != null ? Math.round(gramosGallinaHoy).toLocaleString('es-CO') : '—'} />
           </div>
-        </div>
-      </section>
+          <div className="mt-4">
+            <p className="mb-1.5 text-[0.6875rem] text-gray-400">Kg por día, últimos {ultimos14.length || 14} días</p>
+            <MiniBarras valores={ultimos14.map(r => consumoEfectivoPorFecha.get(r.fecha) ?? null)} etiquetas={ultimos14.map(r => etiquetaDia(r.fecha))} formato={v => `${n1(v)} kg`} />
+          </div>
+        </Widget>
 
-      {enPostura && (
-        <>
-          <HorariosRecoleccion loteId={loteActual.id} fincaId={loteActual.finca_id} />
-          <RevisionCalidadHuevo
-            loteId={loteActual.id}
-            fincaId={loteActual.finca_id}
-            fechaInicioPostura={loteActual.fecha_inicio_postura}
-            fechaInicioLote={loteActual.fecha_inicio}
-            registros={registros}
-          />
-        </>
-      )}
+        {enPostura ? (
+          <Widget className={ANCHO.tercio} titulo="Galpón" icono="ubicacion">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-4">
+              <Cifra etiqueta="HAA" valor={haa ? haa.replace('.', ',') : '—'} nota="huevos por ave alojada" grande />
+              <Cifra etiqueta="Densidad" valor={densidad ? densidad.replace('.', ',') : '—'} nota="aves / m²" grande />
+              <Cifra etiqueta="Meta huevos/día" valor={metaHuevosDiaria ? metaHuevosDiaria.toLocaleString('es-CO') : '—'} nota={metaHuevosDiaria ? undefined : definirMeta('Definir')} />
+              <Cifra etiqueta="Huevos del lote" valor={huevosAcumulados.toLocaleString('es-CO')} nota={`${loteActual.aves_iniciales.toLocaleString('es-CO')} aves alojadas`} />
+            </div>
+          </Widget>
+        ) : (
+          <Widget className={ANCHO.tercio} titulo="Próximo paso" icono="huevo">
+            <p className="text-sm text-gray-600">Cuando el lote empiece a poner, márcalo para llevar huevos, postura y metas.</p>
+            <Button className="mt-4" onClick={abrirInicioPostura} disabled={!listoParaRegistrar} title={!listoParaRegistrar ? faltaParaRegistrar : undefined}>
+              <Ic n="huevo" /> Marcar inicio de postura
+            </Button>
+          </Widget>
+        )}
 
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-semibold text-gray-700">Historial (alimento y muertes)</CardTitle>
-          <p className="text-xs text-gray-400">
-            Cada día es una fila con sus muertes y su causa. El evento clínico de ese día va en su
-            propia columna, al lado, con sus afectadas y sus muertas.
-          </p>
-        </CardHeader>
-        <CardContent className="p-0">
+        <Widget className={ANCHO.tercio} titulo="Registros del mes" icono="calendario" info={enPostura ? 'Cada día pintado según los huevos de ese día; el punto rojo marca un evento clínico' : 'Días con registro; el punto rojo marca un evento clínico'}>
+          <CalendarioMes valores={valoresCalendario} marcados={diasConEvento}
+            formato={v => enPostura ? `${v.toLocaleString('es-CO')} huevos` : `${n1(v)} kg de alimento`} />
+        </Widget>
+
+        {enPostura && (
+          <div className={`${ANCHO.dosTercios} [&>*]:h-full`}>
+            <RevisionCalidadHuevo
+              loteId={loteActual.id}
+              fincaId={loteActual.finca_id}
+              fechaInicioPostura={loteActual.fecha_inicio_postura}
+              fechaInicioLote={loteActual.fecha_inicio}
+              registros={registros}
+            />
+          </div>
+        )}
+
+        {enPostura && (
+          <div className={`${ANCHO.dosTercios} [&>*]:h-full`}>
+            <PrediccionPostura lote={loteActual} version={`${registros.length}-${registros[0]?.id ?? ''}-${huevosAcumulados}`} />
+          </div>
+        )}
+        {enPostura && (
+          <div className={`${ANCHO.tercio} [&>*]:h-full`}>
+            <HorariosRecoleccion loteId={loteActual.id} fincaId={loteActual.finca_id} />
+          </div>
+        )}
+
+        <Widget className={ANCHO.todo} titulo="Historial (alimento y muertes)" icono="diario"
+          info="Cada día es una fila con sus muertes y su causa. El evento clínico de ese día va en su propia columna, al lado, con sus afectadas y sus muertas."
+          accion={totalDias > 14 ? <AccionWidget onClick={() => setVerTodoHistorial(v => !v)}>{verTodoHistorial ? 'Ver solo 14 días' : `Ver los ${totalDias} días`}</AccionWidget> : undefined}>
           {loading ? (
             <div className="p-4 space-y-2">
               {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="-mx-5 overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -789,12 +827,12 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
                       </TableCell>
                     </TableRow>
                   )}
-                  {filasHistorial.map(fila => {
+                  {filasVisibles.map(fila => {
                     if (fila.tipo === 'separador') {
                       return (
-                        <TableRow key={fila.key} className="bg-purple-50 hover:bg-purple-50 border-y border-purple-200">
+                        <TableRow key={fila.key} className="border-y border-green-100 bg-green-50/60 hover:bg-green-50/60">
                           <TableCell colSpan={enPostura ? 7 : 6} className="py-2">
-                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-purple-800 font-medium">
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-medium text-green-900">
                               <span className="font-semibold"><Ic n="calendario" /> {fila.etiquetaSemana}</span>
                               <span>
                                 {fila.inicio.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })} – {fila.fin.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}
@@ -808,8 +846,8 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
                     }
                     if (fila.tipo === 'hito') {
                       const cls = fila.color === 'verde'
-                        ? 'bg-green-50 hover:bg-green-50 border-y border-green-200 text-green-800'
-                        : 'bg-blue-50 hover:bg-blue-50 border-y border-blue-200 text-blue-800'
+                        ? 'border-y border-green-200 bg-green-100/60 text-green-900 hover:bg-green-100/60'
+                        : 'border-y border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-50'
                       return (
                         <TableRow key={fila.key} className={cls}>
                           <TableCell colSpan={enPostura ? 7 : 6} className="py-2">
@@ -845,7 +883,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
                           )}
                         </TableCell>
                         <TableCell className="text-right">
-                          {r.muertes > 0 ? <Badge variant="destructive" className="text-xs">{r.muertes}</Badge> : '—'}
+                          {r.muertes > 0 ? <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-red-50 px-2 text-xs font-semibold text-red-600">{r.muertes}</span> : '—'}
                         </TableCell>
                         <TableCell className="text-xs text-gray-500">
                           {r.causa_muerte ? CAUSAS_LABEL[r.causa_muerte] ?? r.causa_muerte : '—'}
@@ -893,21 +931,8 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
               </Table>
             </div>
           )}
-        </CardContent>
-      </Card>
-
-      {enPostura && (
-        <>
-          <GraficasPostura
-            loteId={loteActual.id}
-            fechaInicioPostura={loteActual.fecha_inicio_postura}
-            fechaInicio={loteActual.fecha_inicio}
-            metaPosturaPct={loteActual.meta_postura_pct}
-            version={`${registros.length}-${registros[0]?.id ?? ''}-${huevosAcumulados}`}
-          />
-          <PrediccionPostura lote={loteActual} version={`${registros.length}-${registros[0]?.id ?? ''}-${huevosAcumulados}`} />
-        </>
-      )}
+        </Widget>
+      </Cuadricula>
 
       <ConfigurarRecoleccionModal
         open={modalRecoleccionObligatoria}

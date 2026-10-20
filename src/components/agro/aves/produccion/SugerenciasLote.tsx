@@ -34,6 +34,8 @@ export default function SugerenciasLote({ lote, version }: { lote: LoteAves; ver
   const { filas, cargando } = useResumenSemanal(lote, undefined, version)
   const [datos, setDatos] = useState<Datos | null>(null)
   const [abierta, setAbierta] = useState<string | null>(null)
+  // Cerrada es una franja de una línea; abierta muestra cada sugerencia con sus causas
+  const [expandida, setExpandida] = useState(false)
 
   useEffect(() => {
     let vigente = true
@@ -77,11 +79,28 @@ export default function SugerenciasLote({ lote, version }: { lote: LoteAves; ver
   const vets = [...datos.vets].sort((a, b) => b.casos.length - a.casos.length)
   const pideVet = sugerencias.some(s => s.veterinario)
 
+  const hayAlerta = sugerencias.some(s => s.nivel === 'alerta')
+  if (!expandida) {
+    return (
+      <button type="button" onClick={() => setExpandida(true)}
+        className={cn('flex w-full items-center gap-3 rounded-xl px-4 py-2.5 text-left text-sm ring-1 transition-colors',
+          hayAlerta ? 'bg-red-50 text-red-900 ring-red-100 hover:bg-red-100/60' : 'bg-amber-50 text-amber-900 ring-amber-100 hover:bg-amber-100/60')}>
+        <Ic n="idea" className="size-4 shrink-0" />
+        <span className="font-semibold">Sugerencias para revisar</span>
+        <span className={cn('inline-flex h-5 items-center rounded-full px-2 text-[0.6875rem] font-bold', hayAlerta ? 'bg-red-100' : 'bg-amber-100')}>{sugerencias.length}</span>
+        <span className="min-w-0 flex-1 truncate opacity-80">{sugerencias.map(s => s.titulo).join(' · ')}</span>
+        <Ic n="flecha" className="size-4 shrink-0 opacity-60" />
+      </button>
+    )
+  }
+
   return (
     <Card className="border-amber-200">
       <CardContent className="space-y-2 py-3">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <p className="text-sm font-semibold text-gray-800"><Ic n="idea" /> Sugerencias para revisar</p>
+          <button type="button" onClick={() => setExpandida(false)} className="text-sm font-semibold text-gray-800 hover:text-gray-600">
+            <Ic n="idea" /> Sugerencias para revisar <span className="ml-1 text-xs font-normal text-gray-400">· ocultar</span>
+          </button>
           <p className="text-[0.6875rem] text-gray-400">Posibles causas según las guías: no son un diagnóstico. Confírmalo con un veterinario.</p>
         </div>
         {sugerencias.map(s => {

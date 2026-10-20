@@ -8,15 +8,12 @@ export type TonoIndicador = 'green' | 'amber' | 'orange' | 'red' | 'blue' | 'pur
  * El color vive solo en el chip del icono y en el detalle: la tarjeta es blanca
  * y el número es negro, para que varias juntas no compitan entre sí.
  */
+const VERDE = { chip: 'bg-green-50 text-green-700' }
 const TONOS: Record<TonoIndicador, { chip: string }> = {
-  green:  { chip: 'bg-green-100 text-green-700' },
-  amber:  { chip: 'bg-amber-100 text-amber-700' },
-  orange: { chip: 'bg-orange-100 text-orange-700' },
-  red:    { chip: 'bg-red-100 text-red-700' },
-  blue:   { chip: 'bg-blue-100 text-blue-700' },
-  purple: { chip: 'bg-purple-100 text-purple-700' },
-  pink:   { chip: 'bg-pink-100 text-pink-700' },
-  gray:   { chip: 'bg-gray-100 text-gray-600' },
+  // Un solo color para los íconos (el de la web): el rojo y el ámbar quedan para los estados
+  green: VERDE, blue: VERDE, purple: VERDE, pink: VERDE, orange: VERDE, gray: VERDE,
+  amber:  { chip: 'bg-amber-50 text-amber-700' },
+  red:    { chip: 'bg-red-50 text-red-600' },
 }
 
 interface Props extends Omit<React.ComponentProps<'div'>, 'title'> {
@@ -40,11 +37,11 @@ export function Indicador({ etiqueta, valor, detalle, icono, tono = 'gray', comp
     >
       <div className="flex items-center gap-2.5">
         {icono && (
-          <span className={cn('flex size-8 shrink-0 items-center justify-center rounded-lg', t.chip)}>
-            <Ic n={icono} className="size-4" strokeWidth={1.9} />
+          <span className={cn('flex size-7 shrink-0 items-center justify-center rounded-lg', t.chip)}>
+            <Ic n={icono} className="size-3.5" strokeWidth={1.9} />
           </span>
         )}
-        <p className="text-[0.8125rem] leading-tight font-medium text-gray-600">{etiqueta}</p>
+        <p className="text-[0.8125rem] leading-tight font-semibold text-gray-700">{etiqueta}</p>
       </div>
       {/* El número va siempre a la misma distancia del rótulo: así los de una fila
           quedan alineados aunque una tarjeta tenga más líneas de detalle que otra. */}
@@ -58,7 +55,7 @@ export function Indicador({ etiqueta, valor, detalle, icono, tono = 'gray', comp
         </p>
         {/* El detalle va en gris: el color queda para los estados (pasar un <span> con color).
             Siempre ocupa su línea, así los números de una fila quedan a la misma altura. */}
-        <p className="mt-2 min-h-[1rem] text-xs leading-snug text-gray-500">{detalle}</p>
+        <p className="mt-2 min-h-[1rem] text-xs leading-snug text-gray-400">{detalle}</p>
         {children}
       </div>
     </div>
