@@ -187,3 +187,15 @@ Van al final porque necesitan los datos de las fases anteriores. Se diseñan des
 5. **Fase 7, predicciones**, y **Fase 8, precio tipo trader.**
 
 Cada fase termina con: migración aplicada, pantallas probadas en el navegador, gráficas y reportes revisados contra el mapa de impacto, y commit.
+
+---
+
+## 14. Estado al 10 de noviembre de 2026 (para retomar en otro equipo)
+
+- **Fase 0 terminada, probada en el navegador y subida** (commit "Add pig farm setup from José's answers"). Migraciones 069 y 070 ya aplicadas en Supabase.
+- **Datos de prueba:** finca "Prueba1" con 6 naves, pie de cría (cerdas 205 y 206), grupo en Precebo · Corral 1 con 11 cerdos y alimento Italcol Precebo.
+- **Pendientes:**
+  1. Cuando la versión nueva esté desplegada en Vercel, migración de limpieza: borrar la tabla vieja `naves_cerdos` y la columna `reproductoras_cerdos.nave_id`.
+  2. Decidir si el conteo del pie de cría se pasa a un disparador en la base (hoy lo hace la app con `sincronizarPieDeCria` en `src/lib/cerdos.ts`). El intento anterior fue bloqueado por permisos; pedir aprobación antes.
+  3. En celular el menú lateral nunca se oculta y ocupa media pantalla (pasa en toda la app). Propuesta: menú que se abre con un botón.
+  4. Seguir con la Fase 1 (reproducción) según este plan.
