@@ -12,6 +12,7 @@ import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
 import { fechaProbableParto, fechaRepeticionCelo } from '@/lib/cerdos'
 import { useConfigCerdos } from '@/lib/useConfigCerdos'
+import { actualizarEstadoCerda } from '@/lib/estadoCerda'
 import { Ic } from '@/components/ui/icon'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
@@ -30,13 +31,6 @@ interface Props {
   onCreated: () => void
 }
 
-const ESTADOS_SERVICIO = [
-  { value: 'pendiente', label: 'Pendiente de confirmar' },
-  { value: 'confirmado', label: 'Preñez confirmada' },
-  { value: 'repetido', label: 'Repitió celo' },
-  { value: 'fallido', label: 'Falló' },
-]
-
 function defaultForm(s?: Servicio | null) {
   return {
     reproductora_id: s?.reproductora_id ?? '',
@@ -44,9 +38,6 @@ function defaultForm(s?: Servicio | null) {
     tipo: s?.tipo ?? 'inseminacion',
     verraco: s?.verraco ?? '',
     codigo_semen: s?.codigo_semen ?? '',
-    prenez_confirmada: s?.prenez_confirmada ?? false,
-    fecha_confirmacion: s?.fecha_confirmacion ?? '',
-    estado: s?.estado ?? 'pendiente',
     observaciones: s?.observaciones ?? '',
   }
 }
@@ -119,14 +110,11 @@ export default function RegistrarServicioModal({ open, onClose, lote, hembras, s
       codigo_semen: form.codigo_semen || null,
       numero_dosis: aplicaciones.length,
       fecha_probable_parto: parto,
-      prenez_confirmada: form.estado === 'confirmado',
-      fecha_confirmacion: form.estado === 'confirmado' ? (form.fecha_confirmacion || hoyLocal()) : null,
-      estado: form.estado,
       observaciones: form.observaciones || null,
     }
     const { data: servicio, error } = servicioExistente
       ? await supabase.from('servicios_cerdos').update(payload).eq('id', servicioExistente.id).select('id').single()
-      : await supabase.from('servicios_cerdos').insert({ ...payload, lote_id: lote.id, finca_id: lote.finca_id }).select('id').single()
+      : await supabase.from('servicios_cerdos').insert({ ...payload, estado: 'pendiente', lote_id: lote.id, finca_id: lote.finca_id }).select('id').single()
 
     // Las aplicaciones se reescriben completas: son pocas y asi quedan en orden
     if (!error && servicio) {
@@ -140,12 +128,12 @@ export default function RegistrarServicioModal({ open, onClose, lote, hembras, s
       })))
     }
 
-    // El estado de la hembra sigue al del servicio: servida, gestante o vacía
+    // El estado de la hembra sale de su historia (lib/estadoCerda); si el servicio
+    // cambió de hembra, la anterior también se recalcula
     if (!error) {
-      const estadoHembra = form.estado === 'confirmado' ? 'gestante'
-        : form.estado === 'pendiente' ? 'servida'
-        : 'vacia'
-      await supabase.from('reproductoras_cerdos').update({ estado: estadoHembra }).eq('id', form.reproductora_id)
+      await actualizarEstadoCerda(supabase, form.reproductora_id, cfg)
+      if (servicioExistente && servicioExistente.reproductora_id !== form.reproductora_id)
+        await actualizarEstadoCerda(supabase, servicioExistente.reproductora_id, cfg)
     }
 
     setLoading(false)
@@ -241,26 +229,6 @@ export default function RegistrarServicioModal({ open, onClose, lote, hembras, s
               )}
             </div>
             <div className="col-span-2 space-y-1">
-              <Label>Estado del servicio</Label>
-              <Select
-                value={form.estado}
-                onValueChange={v => set('estado', v)}
-                items={Object.fromEntries(ESTADOS_SERVICIO.map(e => [e.value, e.label]))}
-              >
-                <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {ESTADOS_SERVICIO.map(e => <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            {form.estado === 'confirmado' && (
-              <div className="col-span-2 space-y-1">
-                <Label>Fecha de confirmación de preñez</Label>
-                <Input type="date" value={form.fecha_confirmacion} onChange={e => set('fecha_confirmacion', e.target.value)} />
-                <p className="text-xs text-gray-400">Se suele confirmar por ecografía a los 24–30 días del servicio.</p>
-              </div>
-            )}
-            <div className="col-span-2 space-y-1">
               <Label>Observaciones</Label>
               <Input placeholder="Notas del servicio..." value={form.observaciones} onChange={e => set('observaciones', e.target.value)} />
             </div>
@@ -291,8 +259,8 @@ export default function RegistrarServicioModal({ open, onClose, lote, hembras, s
                   )}
                 </div>
               </div>
-              <p><Ic n="repetir" /> <strong>Si repite celo</strong>, sería alrededor del {fmt(celo)} — a los 21 días. Si vuelve a
-                 entrar en celo, este servicio no prendió.</p>
+              <p><Ic n="repetir" /> <strong>Si repite celo</strong>, sería alrededor del {fmt(celo)}, a los {cfg.reproduccion.cicloEstral} días. Si vuelve a
+                 entrar en celo, este servicio no prendió. Lo que pase después se anota en el servicio, con «¿Cómo va?».</p>
             </div>
           )}
 

@@ -53,6 +53,7 @@ export interface CerdaAlerta { id: string; codigo: string; estado: string; ubica
 export interface ServicioAlerta { id: string; reproductora_id: string; fecha_servicio: string; fecha_probable_parto: string | null; estado: string }
 export interface PartoAlerta { id: string; reproductora_id: string; fecha_parto: string }
 export interface DesteteAlerta { reproductora_id: string; parto_id: string | null; fecha_destete: string }
+export interface EventoGestacionAlerta { reproductora_id: string; fecha: string; tipo: 'repeticion' | 'vacia' | 'aborto' }
 
 /**
  * Alertas de las cerdas: parto próximo, traslado a parideras, celo esperado,
@@ -64,6 +65,8 @@ export function alertasPieDeCria(p: {
   servicios: ServicioAlerta[]
   partos: PartoAlerta[]
   destetes: DesteteAlerta[]
+  /** Repeticiones, vacías y abortos (lib/estadoCerda) */
+  eventos?: EventoGestacionAlerta[]
   cfg: ConfigCerdos
   hoy: string
   naveDeParideras?: (ubicacionId: string | null) => boolean
@@ -158,6 +161,27 @@ export function alertasPieDeCria(p: {
         fecha: hasta, sujeto,
       })
     }
+  }
+
+  // Repitió celo o abortó y no la han vuelto a servir (el estado viene de lib/estadoCerda)
+  for (const c of activas) {
+    if (c.estado !== 'repetidora' && c.estado !== 'aborto') continue
+    const ultimo = (p.eventos ?? [])
+      .filter(e => e.reproductora_id === c.id && e.tipo === (c.estado === 'repetidora' ? 'repeticion' : 'aborto'))
+      .sort((a, b) => b.fecha.localeCompare(a.fecha))[0]
+    const fecha = ultimo?.fecha ?? hoy
+    const sujeto = { tipo: 'cerda' as const, id: c.id, nombre: c.codigo }
+    out.push(c.estado === 'repetidora'
+      ? {
+          id: `repetidora:${c.id}:${fecha}`, tipo: 'celo_esperado', prioridad: 'alta', para: ['encargado'],
+          texto: `Volver a servir a la cerda ${c.codigo}: repitió celo`,
+          detalle: `Repitió el ${fechaCorta(fecha)}. Si ya la serviste, registra el servicio.`, fecha, sujeto,
+        }
+      : {
+          id: `aborto:${c.id}:${fecha}`, tipo: 'celo_esperado', prioridad: 'media', para: ['encargado', 'administrador'],
+          texto: `La cerda ${c.codigo} abortó: revisar su celo para servirla`,
+          detalle: `Abortó el ${fechaCorta(fecha)}. Cuenta para el descarte.`, fecha, sujeto,
+        })
   }
 
   return ordenarAlertas(out)

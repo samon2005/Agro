@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import { useFinca } from '@/components/agro/FincaProvider'
 import { useConfigCerdos } from '@/lib/useConfigCerdos'
-import { CONFIG_CERDOS_DEFECTO, diferenciasConDefecto, type ConfigCerdos } from '@/lib/configCerdos'
+import { CONFIG_CERDOS_DEFECTO, METODOS_CONFIRMACION, diferenciasConDefecto, type ConfigCerdos, type MetodoConfirmacion } from '@/lib/configCerdos'
 
 /**
  * Los parámetros de cerdos de la granja: días de gestación y lactancia, pesos de
@@ -50,6 +50,9 @@ const SECCIONES: Seccion[] = [
         { ruta: 'reproduccion.desteteServicioMin', etiqueta: 'Desde', unidad: 'días' },
         { ruta: 'reproduccion.desteteServicioMax', etiqueta: 'Hasta', unidad: 'días' },
       ] },
+      { titulo: 'Confirmación de preñez', nota: 'Por validar con los profesores.', campos: [
+        { ruta: 'reproduccion.diaConfirmacion', etiqueta: 'Se confirma a los', unidad: 'días' },
+      ] },
       { titulo: 'Parto', campos: [
         { ruta: 'reproduccion.trasladoParideras', etiqueta: 'Pasa a parideras antes del parto', unidad: 'días' },
         { ruta: 'reproduccion.avisoParto', etiqueta: 'Avisar del parto desde', unidad: 'días antes' },
@@ -76,6 +79,7 @@ const SECCIONES: Seccion[] = [
       { ruta: 'reemplazo.edadMinimaDias', etiqueta: 'Edad mínima al ingreso', unidad: 'días' },
       { ruta: 'reemplazo.pesoIngresoKg', etiqueta: 'Peso al ingreso', unidad: 'kg' },
       { ruta: 'reemplazo.celoPrimerServicio', etiqueta: 'Primer servicio en el celo n.º', unidad: '' },
+      { ruta: 'reemplazo.diasCuarentena', etiqueta: 'Cuarentena al llegar', unidad: 'días' },
     ] }],
   },
   {
@@ -163,11 +167,13 @@ export default function ParametrosCerdosModal({ open, onClose }: Props) {
   const [seccion, setSeccion] = useState(SECCIONES[0].id)
   const [valores, setValores] = useState<Record<string, string>>(() => valoresDe(cfg))
   const [medirAgua, setMedirAgua] = useState(cfg.opciones.medirAgua)
+  const [metodo, setMetodo] = useState<MetodoConfirmacion>(cfg.reproduccion.metodoConfirmacion)
   const [guardando, setGuardando] = useState(false)
 
   const actual = SECCIONES.find(s => s.id === seccion) ?? SECCIONES[0]
   const cambiados = TODOS.filter(c => aNumero(valores[c.ruta] ?? '') !== (leer(CONFIG_CERDOS_DEFECTO, c.ruta) ?? null)).length
     + (medirAgua !== CONFIG_CERDOS_DEFECTO.opciones.medirAgua ? 1 : 0)
+    + (metodo !== CONFIG_CERDOS_DEFECTO.reproduccion.metodoConfirmacion ? 1 : 0)
 
   /** Arma la configuración desde lo escrito, o devuelve el primer error que encuentre. */
   function armar(): { cfg: ConfigCerdos } | { error: string; seccion: string } {
@@ -180,7 +186,10 @@ export default function ParametrosCerdosModal({ open, onClose }: Props) {
     }
     const r = nuevo as unknown as ConfigCerdos
     r.opciones.medirAgua = medirAgua
+    r.reproduccion.metodoConfirmacion = metodo
     const rep = r.reproduccion
+    if (rep.diaConfirmacion < 1 || rep.diaConfirmacion >= rep.diasGestacion)
+      return { error: 'El día de confirmación de la preñez debe quedar dentro de la gestación', seccion: 'reproduccion' }
     if (!(rep.lactanciaMin <= rep.lactanciaObjetivo && rep.lactanciaObjetivo <= rep.lactanciaMax))
       return { error: 'La lactancia objetivo debe quedar entre el mínimo y el máximo', seccion: 'reproduccion' }
     if (rep.desteteServicioMin > rep.desteteServicioMax)
@@ -218,6 +227,7 @@ export default function ParametrosCerdosModal({ open, onClose }: Props) {
       return nuevo
     })
     if (actual.id === 'opciones') setMedirAgua(CONFIG_CERDOS_DEFECTO.opciones.medirAgua)
+    if (actual.id === 'reproduccion') setMetodo(CONFIG_CERDOS_DEFECTO.reproduccion.metodoConfirmacion)
   }
 
   return (
@@ -278,6 +288,21 @@ export default function ParametrosCerdosModal({ open, onClose }: Props) {
                   )
                 })}
               </div>
+              {g.titulo === 'Confirmación de preñez' && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Cómo se confirma</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {METODOS_CONFIRMACION.map(m => (
+                      <button key={m.value} type="button" onClick={() => setMetodo(m.value)}
+                        className={cn('rounded-lg border px-3 py-1.5 text-sm transition-colors',
+                          metodo === m.value ? 'border-green-700 bg-green-50 font-medium text-green-900' : 'border-gray-200 text-gray-600 hover:border-gray-300')}>
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[0.6875rem] text-gray-400">Por defecto: no repitió celo. Por validar con los profesores.</p>
+                </div>
+              )}
             </div>
           ))}
 

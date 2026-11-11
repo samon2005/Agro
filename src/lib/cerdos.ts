@@ -3,6 +3,7 @@ import { desdeFechaLocal, aFechaLocal } from '@/lib/fechas'
 import type { Database } from '@/types/database'
 import type { ConfigCerdos, EtapaEngorde } from '@/lib/configCerdos'
 import { textoPesosEtapa } from '@/lib/configCerdos'
+import { ESTADOS_CERDA } from '@/lib/estadoCerda'
 
 const MS_DIA = 24 * 60 * 60 * 1000
 
@@ -57,13 +58,8 @@ export function diaDeGestacion(fechaServicio: string): number | null {
   return dias >= 0 ? dias : null
 }
 
-export const ESTADOS_REPRODUCTORA: Record<string, { label: string; clase: string }> = {
-  vacia: { label: 'Vacía', clase: 'bg-gray-100 text-gray-700 border-gray-300' },
-  servida: { label: 'Servida', clase: 'bg-blue-100 text-blue-700 border-blue-300' },
-  gestante: { label: 'Gestante', clase: 'bg-purple-100 text-purple-700 border-purple-300' },
-  lactante: { label: 'Lactante', clase: 'bg-pink-100 text-pink-700 border-pink-300' },
-  descartada: { label: 'Descartada', clase: 'bg-gray-200 text-gray-600 border-gray-400' },
-}
+/** Nombre y color de cada estado de la cerda (la fuente es lib/estadoCerda). */
+export const ESTADOS_REPRODUCTORA: Record<string, { label: string; clase: string }> = ESTADOS_CERDA
 
 /** Causas de muerte más frecuentes en porcicultura colombiana. */
 export const CAUSAS_MUERTE_CERDOS = [

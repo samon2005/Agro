@@ -84,6 +84,13 @@ export function repeticionPct(servicios: ServicioInd[]): number | null {
   return (cerrados.filter(s => s.estado === 'repetido').length / cerrados.length) * 100
 }
 
+/** % de abortos: servicios que terminaron en aborto ÷ servicios con resultado × 100. */
+export function abortosPct(servicios: ServicioInd[]): number | null {
+  const cerrados = servicios.filter(s => s.estado !== 'pendiente')
+  if (cerrados.length === 0) return null
+  return (cerrados.filter(s => s.estado === 'abortado').length / cerrados.length) * 100
+}
+
 /** Intervalo entre partos (días): promedio entre partos seguidos de la misma cerda. */
 export function intervaloEntrePartos(partos: PartoInd[]): number | null {
   const porCerda = new Map<string, string[]>()

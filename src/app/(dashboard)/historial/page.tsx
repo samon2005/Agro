@@ -16,6 +16,8 @@ import { cn } from '@/lib/utils'
 import { cop } from '@/lib/huevos'
 import { dbGenerico } from '@/lib/especiesConfig'
 import { diasDesde, ESTADOS_LECHON } from '@/lib/cerdos'
+import { useConfigCerdos } from '@/lib/useConfigCerdos'
+import { actualizarEstadoCerda } from '@/lib/estadoCerda'
 import type { Database } from '@/types/database'
 
 type T = Database['public']['Tables']
@@ -49,6 +51,7 @@ function fmt(d: string | null) {
  */
 export default function HistorialPage() {
   const supabase = createClient()
+  const cfg = useConfigCerdos()
   const { fincaActual, loading: fincaLoading } = useFinca()
   const [cargando, setCargando] = useState(true)
   const [hembras, setHembras] = useState<Reproductora[]>([])
@@ -127,6 +130,8 @@ export default function HistorialPage() {
     setAnulando(null)
     const { error } = await dbGenerico(supabase).rpc('anular_destete', { p_destete: d.id })
     if (error) { toast.error(error.hint === 'destete' ? error.message : 'No se pudo anular el destete'); return }
+    // La cerda vuelve a lactante: el estado sale de su historia (lib/estadoCerda)
+    await actualizarEstadoCerda(supabase, d.reproductora_id, cfg)
     toast.success(`Destete anulado: los lechones vuelven con ${codigo(d.reproductora_id)}`)
     cargar()
   }
@@ -148,7 +153,7 @@ export default function HistorialPage() {
         <Cifra etiqueta="Partos" valor={partosF.length} detalle={partosF.length > 0 ? `${(vivos / partosF.length).toLocaleString('es-CO', { maximumFractionDigits: 1 })} nacidos vivos por parto` : '—'} />
         <Cifra etiqueta="Nacidos vivos" valor={vivos} detalle={totales > 0 ? `${(((totales - vivos) / totales) * 100).toLocaleString('es-CO', { maximumFractionDigits: 1 })} % muertos y momias` : '—'} />
         <Cifra etiqueta="Destetados" valor={destetados} detalle={vivos > 0 ? `${((destetados / vivos) * 100).toLocaleString('es-CO', { maximumFractionDigits: 1 })} % de los nacidos vivos` : '—'} />
-        <Cifra etiqueta="Servicios" valor={serviciosF.length} detalle={`${serviciosF.filter(s => s.estado === 'repetido').length} repitieron celo`} />
+        <Cifra etiqueta="Servicios" valor={serviciosF.length} detalle={(() => { const n = serviciosF.filter(s => s.estado === 'repetido').length; return `${n} ${n === 1 ? 'repitió' : 'repitieron'} celo` })()} />
       </div>
 
       {/* Filtros */}
@@ -240,7 +245,8 @@ export default function HistorialPage() {
                             <TableCell className="py-2 text-xs">
                               {s.estado === 'parido' ? <span className="text-green-700">Parió {parto ? `el ${fmt(parto.fecha_parto)}` : ''}</span>
                                 : s.estado === 'repetido' ? <span className="text-amber-700">Repitió celo</span>
-                                : s.estado === 'fallido' ? <span className="text-red-600">Falló</span>
+                                : s.estado === 'fallido' ? <span className="text-gray-600">Salió vacía</span>
+                                : s.estado === 'abortado' ? <span className="text-red-600">Abortó</span>
                                 : s.prenez_confirmada ? <span className="text-purple-700">Preñada</span>
                                 : <span className="text-blue-700">Por confirmar</span>}
                             </TableCell>

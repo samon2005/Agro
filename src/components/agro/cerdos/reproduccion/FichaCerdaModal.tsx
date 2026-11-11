@@ -14,6 +14,7 @@ import {
   ESTADOS_REPRODUCTORA, ESTADOS_LECHON,
   diaDeGestacion, diasDesde, edadTexto,
 } from '@/lib/cerdos'
+import { EVENTOS_GESTACION, desdeCuando, estadoCerda } from '@/lib/estadoCerda'
 
 type Reproductora = Database['public']['Tables']['reproductoras_cerdos']['Row']
 type Servicio = Database['public']['Tables']['servicios_cerdos']['Row']
@@ -21,6 +22,7 @@ type Parto = Database['public']['Tables']['partos_cerdos']['Row']
 type Destete = Database['public']['Tables']['destetes_cerdos']['Row']
 type Lechon = Database['public']['Tables']['lechones_cerdos']['Row']
 type EventoClinico = Database['public']['Tables']['eventos_clinicos_cerdos']['Row']
+type EventoGestacion = Database['public']['Tables']['eventos_gestacion_cerdos']['Row']
 
 interface Props {
   open: boolean
@@ -46,6 +48,7 @@ export default function FichaCerdaModal({ open, onClose, cerda }: Props) {
   const [destetes, setDestetes] = useState<Destete[]>([])
   const [lechones, setLechones] = useState<Lechon[]>([])
   const [eventos, setEventos] = useState<EventoClinico[]>([])
+  const [gestacion, setGestacion] = useState<EventoGestacion[]>([])
 
   useEffect(() => {
     if (!open || !cerda) return
@@ -57,13 +60,15 @@ export default function FichaCerdaModal({ open, onClose, cerda }: Props) {
       supabase.from('destetes_cerdos').select('*').eq('reproductora_id', cerda.id).order('fecha_destete', { ascending: false }),
       supabase.from('lechones_cerdos').select('*').eq('madre_id', cerda.id).order('numero'),
       supabase.from('eventos_clinicos_cerdos').select('*').eq('reproductora_id', cerda.id).order('fecha', { ascending: false }),
-    ]).then(([s, p, d, l, e]) => {
+      supabase.from('eventos_gestacion_cerdos').select('*').eq('reproductora_id', cerda.id).order('fecha', { ascending: false }),
+    ]).then(([s, p, d, l, e, g]) => {
       if (!vigente) return
       setServicios(s.data ?? [])
       setPartos(p.data ?? [])
       setDestetes(d.data ?? [])
       setLechones(l.data ?? [])
       setEventos(e.data ?? [])
+      setGestacion(g.data ?? [])
       setLoading(false)
     })
     return () => { vigente = false }
@@ -71,7 +76,11 @@ export default function FichaCerdaModal({ open, onClose, cerda }: Props) {
 
   if (!cerda) return null
 
-  const estado = ESTADOS_REPRODUCTORA[cerda.estado] ?? { label: cerda.estado, clase: 'bg-gray-100 text-gray-600' }
+  // El estado sale de su historia (lib/estadoCerda), con desde cuándo
+  const calculado = estadoCerda({ cerda, servicios, eventos: gestacion, partos, destetes, cfg })
+  const estado = ESTADOS_REPRODUCTORA[loading ? cerda.estado : calculado.estado] ?? { label: cerda.estado, clase: 'bg-gray-100 text-gray-600' }
+  const abortos = gestacion.filter(g => g.tipo === 'aborto').length
+  const repeticiones = gestacion.filter(g => g.tipo === 'repeticion').length
   const nacidosVivos = partos.reduce((s, p) => s + p.nacidos_vivos, 0)
   const nacidosTotales = partos.reduce((s, p) => s + p.nacidos_vivos + p.nacidos_muertos + p.momificados, 0)
   const destetadosTotal = destetes.reduce((s, d) => s + d.lechones_destetados, 0)
@@ -119,9 +128,9 @@ export default function FichaCerdaModal({ open, onClose, cerda }: Props) {
                 tono="pink" icono="cerdo" etiqueta="Estado"
                 valor={<Badge className={`text-xs ${estado.clase}`}>{estado.label}</Badge>}
                 detalle={
-                  servicioAbierto && diaGestacion != null && cerda.estado === 'gestante'
+                  servicioAbierto && diaGestacion != null && (calculado.estado === 'gestante' || calculado.estado === 'servida')
                     ? `Día ${diaGestacion} de ${cfg.reproduccion.diasGestacion}`
-                    : `${cerda.numero_partos} parto${cerda.numero_partos === 1 ? '' : 's'}`
+                    : [desdeCuando(calculado), `${calculado.numeroPartos} parto${calculado.numeroPartos === 1 ? '' : 's'}`].filter(Boolean).join(' · ')
                 }
               />
               <Indicador
@@ -165,7 +174,8 @@ export default function FichaCerdaModal({ open, onClose, cerda }: Props) {
                           {s.estado === 'parido' ? <span className="text-green-700">Parió</span>
                             : s.prenez_confirmada ? <span className="text-purple-700">Preñez confirmada</span>
                             : s.estado === 'repetido' ? <span className="text-amber-700">Repitió celo</span>
-                            : s.estado === 'fallido' ? <span className="text-red-600">Falló</span>
+                            : s.estado === 'fallido' ? <span className="text-gray-600">Salió vacía</span>
+                            : s.estado === 'abortado' ? <span className="text-red-600">Abortó</span>
                             : <span className="text-blue-700">Por confirmar</span>}
                         </TableCell>
                       </TableRow>
@@ -174,6 +184,28 @@ export default function FichaCerdaModal({ open, onClose, cerda }: Props) {
                 </Table>
               )}
             </section>
+
+            {gestacion.length > 0 && (
+              <section className="space-y-2">
+                <h3 className="text-sm font-semibold text-gray-800">
+                  Repeticiones, vacías y abortos
+                  <span className="ml-2 text-xs font-normal text-gray-500">
+                    {repeticiones} {repeticiones === 1 ? 'repetición' : 'repeticiones'} · {abortos} {abortos === 1 ? 'aborto' : 'abortos'}
+                  </span>
+                </h3>
+                <ul className="divide-y divide-gray-100 rounded-xl border border-gray-100 text-sm">
+                  {gestacion.map(g => (
+                    <li key={g.id} className="flex flex-wrap items-baseline gap-x-3 px-3 py-2">
+                      <span className="w-28 text-gray-500">{fmt(g.fecha)}</span>
+                      <span className={g.tipo === 'aborto' ? 'font-medium text-red-700' : g.tipo === 'repeticion' ? 'font-medium text-amber-700' : 'font-medium text-gray-700'}>
+                        {EVENTOS_GESTACION[g.tipo].label}
+                      </span>
+                      {g.observaciones && <span className="text-xs text-gray-500">{g.observaciones}</span>}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
 
             <section className="space-y-2">
               <h3 className="text-sm font-semibold text-gray-800">Partos y lactancias</h3>

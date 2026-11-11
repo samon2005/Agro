@@ -21,6 +21,7 @@ import {
 } from '@/lib/cerdos'
 import { textoDesteteServicio } from '@/lib/configCerdos'
 import { useConfigCerdos } from '@/lib/useConfigCerdos'
+import { actualizarEstadoCerda } from '@/lib/estadoCerda'
 import { Ic } from '@/components/ui/icon'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
@@ -184,6 +185,8 @@ export default function RegistrarDesteteModal({ open, onClose, lote, hembras, pa
       p_cliente: destino === 'venta' ? cliente : null,
       p_observaciones: observaciones.trim() || null,
     })
+    // La cerda queda vacía (o en recuperación si el destete es de días atrás): lib/estadoCerda
+    if (!error) await actualizarEstadoCerda(supabase, parto.reproductora_id, cfg)
     setLoading(false)
     if (error) {
       toast.error(error.hint === 'destete' ? error.message : 'No se pudo registrar el destete')

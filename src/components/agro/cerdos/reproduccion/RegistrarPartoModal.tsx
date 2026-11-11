@@ -12,6 +12,8 @@ import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
 import { Ic } from '@/components/ui/icon'
 import { codigoLechon } from '@/lib/cerdos'
+import { useConfigCerdos } from '@/lib/useConfigCerdos'
+import { actualizarEstadoCerda } from '@/lib/estadoCerda'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
 type Reproductora = Database['public']['Tables']['reproductoras_cerdos']['Row']
@@ -61,6 +63,7 @@ function defaultForm(s?: Servicio | null, parto?: Parto | null) {
 
 export default function RegistrarPartoModal({ open, onClose, lote, hembras, servicios, servicioPreseleccionado, partoExistente, onCreated }: Props) {
   const supabase = createClient()
+  const cfg = useConfigCerdos()
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState(() => defaultForm(servicioPreseleccionado, partoExistente))
   // Un peso por lechón nacido vivo: la lista crece y se recorta con la cantidad
@@ -141,17 +144,14 @@ export default function RegistrarPartoModal({ open, onClose, lote, hembras, serv
     // poder seguirle el peso y la salud durante todo el ciclo.
     if (!error && parto) await sincronizarLechones(parto.id)
 
-    // Al corregir un parto no se vuelve a contar: la hembra ya quedó lactante
-    if (!error && !partoExistente) {
-      const hembra = hembras.find(h => h.id === form.reproductora_id)
-      await supabase.from('reproductoras_cerdos').update({
-        estado: 'lactante',
-        numero_partos: (hembra?.numero_partos ?? 0) + 1,
-      }).eq('id', form.reproductora_id)
-
-      if (servicioId) {
-        await supabase.from('servicios_cerdos').update({ estado: 'parido' }).eq('id', servicioId)
-      }
+    if (!error && servicioId) {
+      await supabase.from('servicios_cerdos').update({ estado: 'parido' }).eq('id', servicioId)
+    }
+    // El estado (lactante) y el número de partos salen de su historia (lib/estadoCerda)
+    if (!error) {
+      await actualizarEstadoCerda(supabase, form.reproductora_id, cfg)
+      if (partoExistente && partoExistente.reproductora_id !== form.reproductora_id)
+        await actualizarEstadoCerda(supabase, partoExistente.reproductora_id, cfg)
     }
 
     setLoading(false)

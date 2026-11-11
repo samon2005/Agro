@@ -10,7 +10,9 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
-import { ESTADOS_REPRODUCTORA, sincronizarPieDeCria } from '@/lib/cerdos'
+import { sincronizarPieDeCria } from '@/lib/cerdos'
+import { useConfigCerdos } from '@/lib/useConfigCerdos'
+import { actualizarEstadoCerda, finCuarentena } from '@/lib/estadoCerda'
 import { cn } from '@/lib/utils'
 import { nombrePuestos, type NaveRef } from '@/lib/instalaciones'
 
@@ -42,8 +44,9 @@ function defaultForm(lote: LoteCerdos, naveId: string, r?: Reproductora | null) 
     linea_genetica: r?.linea_genetica ?? lote.linea_genetica ?? '',
     fecha_nacimiento: r?.fecha_nacimiento ?? '',
     fecha_ingreso: r?.fecha_ingreso ?? hoyLocal(),
-    numero_partos: r ? String(r.numero_partos) : '0',
-    estado: r?.estado ?? 'vacia',
+    partos_previos: r ? String(r.partos_previos) : '0',
+    descartada: r?.estado === 'descartada',
+    cuarentena: r ? r.cuarentena_hasta != null : false,
     peso_kg: r?.peso_kg != null ? String(r.peso_kg) : '',
     observaciones: r?.observaciones ?? '',
   }
@@ -51,6 +54,7 @@ function defaultForm(lote: LoteCerdos, naveId: string, r?: Reproductora | null) 
 
 export default function RegistrarReproductoraModal({ open, onClose, lote, naveId, naves, reproductoraExistente, onCreated }: Props) {
   const supabase = createClient()
+  const cfg = useConfigCerdos()
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState(() => defaultForm(lote, naveId, reproductoraExistente))
 
@@ -59,6 +63,14 @@ export default function RegistrarReproductoraModal({ open, onClose, lote, naveId
   function set(field: string, value: string | null) {
     setForm(prev => ({ ...prev, [field]: value ?? '' }))
   }
+
+  // La cuarentena se cuenta desde el ingreso con los días de la granja; si ya
+  // tenía una, se conserva su fecha mientras no cambie el ingreso
+  const cuarentenaHasta = form.cuarentena
+    ? (reproductoraExistente?.cuarentena_hasta && reproductoraExistente.fecha_ingreso === form.fecha_ingreso
+        ? reproductoraExistente.cuarentena_hasta
+        : finCuarentena(form.fecha_ingreso || hoyLocal(), cfg))
+    : null
 
   const naveElegida = naves.find(n => n.id === form.ubicacion_id) ?? null
   const puestosNave = nombrePuestos(naveElegida?.uso) ? naveElegida?.puestos ?? null : null
@@ -99,16 +111,22 @@ export default function RegistrarReproductoraModal({ open, onClose, lote, naveId
       linea_genetica: form.linea_genetica || null,
       fecha_nacimiento: form.fecha_nacimiento || null,
       fecha_ingreso: form.fecha_ingreso,
-      numero_partos: Number(form.numero_partos) || 0,
-      estado: form.estado,
+      partos_previos: Math.max(0, Math.floor(Number(form.partos_previos) || 0)),
+      cuarentena_hasta: cuarentenaHasta,
+      // El estado sale de su historia (lib/estadoCerda); aquí solo se marca o
+      // se quita el descarte, y abajo se recalcula
+      estado: form.descartada ? 'descartada' : 'vacia',
       peso_kg: form.peso_kg ? Number(form.peso_kg) : null,
       observaciones: form.observaciones || null,
     }
-    const { error } = reproductoraExistente
-      ? await supabase.from('reproductoras_cerdos').update(payload).eq('id', reproductoraExistente.id)
-      : await supabase.from('reproductoras_cerdos').insert({ ...payload, lote_id: lote.id, finca_id: lote.finca_id })
+    const { data: guardada, error } = reproductoraExistente
+      ? await supabase.from('reproductoras_cerdos').update(payload).eq('id', reproductoraExistente.id).select('id').single()
+      : await supabase.from('reproductoras_cerdos').insert({ ...payload, lote_id: lote.id, finca_id: lote.finca_id }).select('id').single()
 
-    if (!error) await sincronizarPieDeCria(supabase, lote.id)
+    if (!error && guardada) {
+      await actualizarEstadoCerda(supabase, guardada.id, cfg)
+      await sincronizarPieDeCria(supabase, lote.id)
+    }
     setLoading(false)
     if (error) {
       toast.error(error.code === '23505' ? 'Ya hay una hembra con ese código en el pie de cría' : 'Error al guardar la hembra')
@@ -187,18 +205,6 @@ export default function RegistrarReproductoraModal({ open, onClose, lote, naveId
               </Select>
             </div>
             <div className="space-y-1">
-              <Label>Estado</Label>
-              <Select value={form.estado} onValueChange={v => set('estado', v)}
-                items={Object.fromEntries(Object.entries(ESTADOS_REPRODUCTORA).map(([v, e]) => [v, e.label]))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {Object.entries(ESTADOS_REPRODUCTORA).map(([value, e]) => (
-                    <SelectItem key={value} value={value}>{e.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
               <Label>Fecha de nacimiento</Label>
               <Input type="date" value={form.fecha_nacimiento} onChange={e => set('fecha_nacimiento', e.target.value)} />
             </div>
@@ -207,9 +213,9 @@ export default function RegistrarReproductoraModal({ open, onClose, lote, naveId
               <Input type="date" value={form.fecha_ingreso} onChange={e => set('fecha_ingreso', e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label>Partos previos</Label>
-              <Input type="number" min="0" value={form.numero_partos} onChange={e => set('numero_partos', e.target.value)} />
-              <p className="text-xs text-gray-400">Sube solo con cada parto registrado</p>
+              <Label>Partos antes de llegar</Label>
+              <Input type="number" min="0" value={form.partos_previos} onChange={e => set('partos_previos', e.target.value)} />
+              <p className="text-xs text-gray-400">Los que tuvo en otra granja. Los de aquí se suman solos</p>
             </div>
             <div className="space-y-1">
               <Label>Peso (kg)</Label>
@@ -220,6 +226,32 @@ export default function RegistrarReproductoraModal({ open, onClose, lote, naveId
               <Input placeholder="Notas de la hembra..." value={form.observaciones} onChange={e => set('observaciones', e.target.value)} />
             </div>
           </div>
+          <label className="flex items-start gap-3 rounded-xl border border-gray-200 p-3 text-sm">
+            <input type="checkbox" className="mt-0.5 size-4 accent-green-700" checked={form.cuarentena}
+              onChange={e => setForm(prev => ({ ...prev, cuarentena: e.target.checked }))} />
+            <span>
+              <span className="font-medium text-gray-800">Entra a cuarentena</span>
+              <span className="block text-xs text-gray-500">
+                Para la primeriza que llega a la finca: {cfg.reemplazo.diasCuarentena} días desde el ingreso
+                {cuarentenaHasta && `, hasta el ${new Date(cuarentenaHasta + 'T00:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long' })}`}.
+              </span>
+            </span>
+          </label>
+          {reproductoraExistente && (
+            <label className="flex items-start gap-3 rounded-xl border border-gray-200 p-3 text-sm">
+              <input type="checkbox" className="mt-0.5 size-4 accent-red-600" checked={form.descartada}
+                onChange={e => setForm(prev => ({ ...prev, descartada: e.target.checked }))} />
+              <span>
+                <span className="font-medium text-gray-800">Descartada</span>
+                <span className="block text-xs text-gray-500">Sale del pie de cría pero conserva su historia.</span>
+              </span>
+            </label>
+          )}
+          {!reproductoraExistente && (
+            <p className="text-xs text-gray-500">
+              El estado sale solo de su historia. Si ya llega servida o preñada, registra después su último servicio con la fecha real.
+            </p>
+          )}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
             <Button type="submit" disabled={loading} className="bg-pink-600 hover:bg-pink-700 text-white">

@@ -11,6 +11,15 @@
 import type { Json } from '@/types/database'
 
 export type EtapaEngorde = 'precebo' | 'levante' | 'ceba'
+/** Cómo se sabe que la cerda quedó preñada (o que salió vacía) */
+export type MetodoConfirmacion = 'no_repeticion' | 'ecografia' | 'otro'
+
+export const METODOS_CONFIRMACION: { value: MetodoConfirmacion; label: string }[] = [
+  { value: 'no_repeticion', label: 'No repitió celo' },
+  { value: 'ecografia', label: 'Ecografía' },
+  { value: 'otro', label: 'Otro método' },
+]
+
 export type GrupoAnimal = 'gestacion' | 'lactancia' | 'precebo' | 'levante' | 'ceba'
 
 export interface EtapaEngordeConfig {
@@ -40,6 +49,10 @@ export interface ConfigCerdos {
     trasladoParideras: number
     /** Desde cuántos días antes del parto empieza el aviso diario */
     avisoParto: number
+    /** Cómo confirma la granja la preñez (por validar con los profesores) */
+    metodoConfirmacion: MetodoConfirmacion
+    /** Día después del servicio en que se confirma la preñez */
+    diaConfirmacion: number
   }
   engorde: Record<EtapaEngorde, EtapaEngordeConfig>
   reemplazo: {
@@ -49,6 +62,8 @@ export interface ConfigCerdos {
     pesoIngresoKg: number
     /** En qué celo se le hace el primer servicio */
     celoPrimerServicio: number
+    /** Días de cuarentena de la primeriza que llega a la finca (por validar) */
+    diasCuarentena: number
   }
   alertas: {
     /** Mortalidad de una semana que dispara la alerta, en % de los animales del grupo */
@@ -99,6 +114,8 @@ export const CONFIG_CERDOS_DEFECTO: ConfigCerdos = {
     cicloEstral: 21,
     trasladoParideras: 3,
     avisoParto: 7,
+    metodoConfirmacion: 'no_repeticion',
+    diaConfirmacion: 21,
   },
   engorde: {
     precebo: { pesoEntrada: 6.5, pesoSalida: 30, dias: 49 },
@@ -110,6 +127,7 @@ export const CONFIG_CERDOS_DEFECTO: ConfigCerdos = {
     edadMinimaDias: 210,
     pesoIngresoKg: 140,
     celoPrimerServicio: 3,
+    diasCuarentena: 30,
   },
   alertas: {
     mortalidadSemanalPct: { gestacion: 0.5, lactancia: 3, precebo: 1, levante: 0.5, ceba: 0.5 },
@@ -166,7 +184,10 @@ function mezclar<T>(base: T, cambios: unknown): T {
 
 /** Los parámetros de la granja: los por defecto con lo que la granja haya cambiado. */
 export function configCerdos(guardado: Json | Parcial<ConfigCerdos> | null | undefined): ConfigCerdos {
-  return mezclar(CONFIG_CERDOS_DEFECTO, guardado ?? {})
+  const cfg = mezclar(CONFIG_CERDOS_DEFECTO, guardado ?? {})
+  if (!METODOS_CONFIRMACION.some(m => m.value === cfg.reproduccion.metodoConfirmacion))
+    cfg.reproduccion.metodoConfirmacion = CONFIG_CERDOS_DEFECTO.reproduccion.metodoConfirmacion
+  return cfg
 }
 
 /**

@@ -15,11 +15,15 @@ import RegistrarServicioModal from './RegistrarServicioModal'
 import RegistrarPartoModal from './RegistrarPartoModal'
 import RegistrarDesteteModal from './RegistrarDesteteModal'
 import FichaCerdaModal from './FichaCerdaModal'
+import ResultadoServicioModal from './ResultadoServicioModal'
 import type { Database } from '@/types/database'
 import {
   ESTADOS_REPRODUCTORA,
-  diaDeGestacion, diasDesde, edadTexto, fechaRepeticionCelo, sincronizarPieDeCria,
+  diaDeGestacion, diasDesde, edadTexto, sincronizarPieDeCria,
 } from '@/lib/cerdos'
+import {
+  actualizarEstadoCerda, desdeCuando, sincronizarEstados, type ResultadoEstado,
+} from '@/lib/estadoCerda'
 import { hoyLocal } from '@/lib/fechas'
 import { useConfigCerdos } from '@/lib/useConfigCerdos'
 import { nombrePuestos, type NaveRef } from '@/lib/instalaciones'
@@ -34,6 +38,7 @@ type Parto = Database['public']['Tables']['partos_cerdos']['Row']
 type Destete = Database['public']['Tables']['destetes_cerdos']['Row']
 
 type Aplicacion = Database['public']['Tables']['inseminaciones_cerdos']['Row']
+type EventoGestacion = Database['public']['Tables']['eventos_gestacion_cerdos']['Row']
 
 type Lechon = Database['public']['Tables']['lechones_cerdos']['Row']
 
@@ -69,7 +74,10 @@ export default function TabReproduccion({ loteActual, onLoteUpdated, nave, naves
   const [servicioEditar, setServicioEditar] = useState<Servicio | null>(null)
   const [modalParto, setModalParto] = useState(false)
   const [partoEditar, setPartoEditar] = useState<Parto | null>(null)
-  const [confirmandoPrenez, setConfirmandoPrenez] = useState<string | null>(null)
+  const [eventos, setEventos] = useState<EventoGestacion[]>([])
+  // El estado calculado de cada cerda (lib/estadoCerda), con desde cuándo
+  const [estados, setEstados] = useState<Map<string, ResultadoEstado>>(new Map())
+  const [servicioResultado, setServicioResultado] = useState<Servicio | null>(null)
   const [lechones, setLechones] = useState<Lechon[]>([])
   const [fichaCerda, setFichaCerda] = useState<Reproductora | null>(null)
   // Un plantel grande no se lee como lista: primero los grupos, y al abrir uno su detalle
@@ -81,11 +89,12 @@ export default function TabReproduccion({ loteActual, onLoteUpdated, nave, naves
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
-    const [h, s, p, d] = await Promise.all([
+    const [h, s, p, d, ev] = await Promise.all([
       supabase.from('reproductoras_cerdos').select('*').eq('lote_id', loteActual.id).eq('ubicacion_id', nave.id).order('codigo'),
       supabase.from('servicios_cerdos').select('*').eq('lote_id', loteActual.id).order('fecha_servicio', { ascending: false }),
       supabase.from('partos_cerdos').select('*').eq('lote_id', loteActual.id).order('fecha_parto', { ascending: false }),
       supabase.from('destetes_cerdos').select('*').eq('lote_id', loteActual.id).order('fecha_destete', { ascending: false }),
+      supabase.from('eventos_gestacion_cerdos').select('*').eq('lote_id', loteActual.id).order('fecha', { ascending: false }),
     ])
     // Lo de la nave: los registros de sus cerdas
     const deLaNave = new Set((h.data ?? []).map(x => x.id))
@@ -98,12 +107,25 @@ export default function TabReproduccion({ loteActual, onLoteUpdated, nave, naves
     setAplicaciones(ap.data ?? [])
     const lech = await supabase.from('lechones_cerdos').select('*').eq('lote_id', loteActual.id).order('codigo')
     setLechones((lech.data ?? []).filter(x => x.madre_id && deLaNave.has(x.madre_id)))
-    setHembras(h.data ?? [])
+    const partosNave = (p.data ?? []).filter(x => deLaNave.has(x.reproductora_id))
+    const destetesNave = (d.data ?? []).filter(x => deLaNave.has(x.reproductora_id))
+    const eventosNave = (ev.data ?? []).filter(x => deLaNave.has(x.reproductora_id))
+    // El estado de cada cerda sale de su historia; si el guardado quedó viejo
+    // (p. ej. ya pasaron los días sin celo), se pone al día en la base
+    const calculados = await sincronizarEstados(supabase, {
+      cerdas: h.data ?? [], servicios: serviciosNave, eventos: eventosNave, partos: partosNave, destetes: destetesNave, cfg,
+    })
+    setEstados(calculados)
+    setHembras((h.data ?? []).map(x => {
+      const r = calculados.get(x.id)
+      return r ? { ...x, estado: r.estado, numero_partos: r.numeroPartos } : x
+    }))
     setServicios(serviciosNave)
-    setPartos((p.data ?? []).filter(x => deLaNave.has(x.reproductora_id)))
-    setDestetes((d.data ?? []).filter(x => deLaNave.has(x.reproductora_id)))
+    setPartos(partosNave)
+    setDestetes(destetesNave)
+    setEventos(eventosNave)
     setLoading(false)
-  }, [loteActual.id, nave.id, supabase])
+  }, [loteActual.id, nave.id, supabase, cfg])
 
   useEffect(() => { fetchAll() }, [fetchAll])
 
@@ -120,9 +142,6 @@ export default function TabReproduccion({ loteActual, onLoteUpdated, nave, naves
   }
   const activas = hembras.filter(h => h.estado !== 'descartada')
   const gestantes = activas.filter(h => h.estado === 'gestante')
-  const lactantes = activas.filter(h => h.estado === 'lactante')
-  const vacias = activas.filter(h => h.estado === 'vacia')
-  const servidas = activas.filter(h => h.estado === 'servida')
 
   // Indicadores del núcleo
   const hoyStr = hoyLocal()
@@ -138,14 +157,14 @@ export default function TabReproduccion({ loteActual, onLoteUpdated, nave, naves
 
   // Servicios pendientes de confirmar preñez y partos que ya vienen
   const serviciosActivos = servicios.filter(s => s.estado === 'pendiente' || s.estado === 'confirmado')
-  const porConfirmar = serviciosActivos.filter(s => !s.prenez_confirmada && diasDesde(s.fecha_servicio) >= cfg.reproduccion.cicloEstral)
+  const porConfirmar = serviciosActivos.filter(s => !s.prenez_confirmada && diasDesde(s.fecha_servicio) >= cfg.reproduccion.diaConfirmacion)
 
   // Camadas sin destetar, con su día de lactancia
   const partosConDestete = new Set(destetes.map(d => d.parto_id).filter(Boolean))
   const camadasLactando = partos.filter(p => !partosConDestete.has(p.id))
   // El parto más cercano de las hembras preñadas, para el cuadro de "por venir"
-  const proximoParto = servicios
-    .filter(s => s.estado !== 'parido' && s.fecha_probable_parto)
+  const proximoParto = serviciosActivos
+    .filter(s => s.fecha_probable_parto)
     .map(s => s.fecha_probable_parto!)
     .sort()[0] ?? null
 
@@ -154,11 +173,15 @@ export default function TabReproduccion({ loteActual, onLoteUpdated, nave, naves
 
   // Las hembras por estado: es como las mira el encargado del plantel
   const gruposHembras = [
-    { id: 'gestante', label: 'Gestantes', tono: 'bg-purple-50 text-purple-800 ring-purple-200' },
-    { id: 'lactante', label: 'Lactantes', tono: 'bg-pink-50 text-pink-800 ring-pink-200' },
-    { id: 'servida', label: 'Servidas', tono: 'bg-blue-50 text-blue-800 ring-blue-200' },
-    { id: 'vacia', label: 'Vacías', tono: 'bg-gray-50 text-gray-700 ring-gray-200' },
-    { id: 'descartada', label: 'Descartadas', tono: 'bg-red-50 text-red-700 ring-red-200' },
+    { id: 'gestante', label: 'Gestantes', uno: 'gestante', tono: 'bg-purple-50 text-purple-800 ring-purple-200' },
+    { id: 'lactante', label: 'Lactantes', uno: 'lactante', tono: 'bg-pink-50 text-pink-800 ring-pink-200' },
+    { id: 'servida', label: 'Servidas', uno: 'servida', tono: 'bg-blue-50 text-blue-800 ring-blue-200' },
+    { id: 'vacia', label: 'Vacías', uno: 'vacía', tono: 'bg-gray-50 text-gray-700 ring-gray-200' },
+    { id: 'repetidora', label: 'Repetidoras', uno: 'repetidora', tono: 'bg-amber-50 text-amber-800 ring-amber-200' },
+    { id: 'aborto', label: 'Abortaron', uno: 'abortó', tono: 'bg-red-50 text-red-700 ring-red-200' },
+    { id: 'en_recuperacion', label: 'En recuperación', uno: 'en recuperación', tono: 'bg-amber-50 text-amber-800 ring-amber-200' },
+    { id: 'en_cuarentena', label: 'En cuarentena', uno: 'en cuarentena', tono: 'bg-sky-50 text-sky-800 ring-sky-200' },
+    { id: 'descartada', label: 'Descartadas', uno: 'descartada', tono: 'bg-red-50 text-red-700 ring-red-200' },
   ].map(g => ({ ...g, total: hembras.filter(h => h.estado === g.id).length }))
     .filter(g => g.total > 0)
 
@@ -173,36 +196,9 @@ export default function TabReproduccion({ loteActual, onLoteUpdated, nave, naves
 
   // Las alertas de las cerdas de esta nave salen del motor (parto, traslado, celo, destete)
   const alertas = alertasPieDeCria({
-    cerdas: hembras, servicios, partos, destetes, cfg, hoy: hoyStr,
+    cerdas: hembras, servicios, partos, destetes, eventos, cfg, hoy: hoyStr,
     naveDeParideras: id => naves.some(n => n.id === id && n.uso === 'parideras'),
   })
-
-  /**
-   * A los 21 días se sabe si el servicio prendió. Responder aquí deja a la cerda
-   * gestante y el parto en pie, o la devuelve a vacía por haber repetido celo.
-   */
-  async function responderPrenez(servicio: Servicio, prendio: boolean) {
-    setConfirmandoPrenez(servicio.id)
-    const { error } = await supabase.from('servicios_cerdos').update({
-      estado: prendio ? 'confirmado' : 'repetido',
-      prenez_confirmada: prendio,
-      fecha_confirmacion: prendio ? hoyLocal() : null,
-    }).eq('id', servicio.id)
-
-    if (!error) {
-      await supabase.from('reproductoras_cerdos')
-        .update({ estado: prendio ? 'gestante' : 'vacia' })
-        .eq('id', servicio.reproductora_id)
-    }
-    setConfirmandoPrenez(null)
-    if (error) { toast.error('Error al guardar la confirmación'); return }
-
-    const codigo = hembraPorId.get(servicio.reproductora_id)?.codigo ?? 'La hembra'
-    toast.success(prendio
-      ? `${codigo} queda preñada · parto probable el ${servicio.fecha_probable_parto ? fmt(servicio.fecha_probable_parto) : 'por calcular'}`
-      : `${codigo} repitió celo y vuelve a estar vacía: hay que servirla de nuevo`)
-    fetchAll()
-  }
 
   /**
    * Borrar un registro deshace lo que ese registro había cambiado: si se borra el
@@ -215,6 +211,7 @@ export default function TabReproduccion({ loteActual, onLoteUpdated, nave, naves
     setConfirmandoEliminar(null)
 
     const parto = tabla === 'partos_cerdos' ? partos.find(p => p.id === id) ?? null : null
+    const servicio = tabla === 'servicios_cerdos' ? servicios.find(x => x.id === id) ?? null : null
 
     // Una camada destetada ya salió: primero se anula su destete en el Historial
     if (parto && partosConDestete.has(parto.id)) {
@@ -228,16 +225,18 @@ export default function TabReproduccion({ loteActual, onLoteUpdated, nave, naves
 
     if (parto) {
       const hembra = hembraPorId.get(parto.reproductora_id)
-      await supabase.from('reproductoras_cerdos').update({
-        estado: 'gestante',
-        numero_partos: Math.max(0, (hembra?.numero_partos ?? 1) - 1),
-      }).eq('id', parto.reproductora_id)
       if (parto.servicio_id) {
         await supabase.from('servicios_cerdos')
           .update({ estado: 'confirmado', prenez_confirmada: true })
           .eq('id', parto.servicio_id)
       }
+      // El estado y el número de partos salen de su historia (lib/estadoCerda)
+      await actualizarEstadoCerda(supabase, parto.reproductora_id, cfg)
       toast.success(`Parto eliminado · ${hembra?.codigo ?? 'la hembra'} vuelve a figurar preñada`)
+    } else if (servicio) {
+      // Sus eventos (repetición, vacía, aborto) se borran con él
+      await actualizarEstadoCerda(supabase, servicio.reproductora_id, cfg)
+      toast.success('Servicio eliminado')
     } else {
       toast.success('Registro eliminado')
     }
@@ -302,14 +301,14 @@ export default function TabReproduccion({ loteActual, onLoteUpdated, nave, naves
         ...alertas.map(a => ({ id: a.id, nivel: nivelBandeja(a.prioridad), texto: a.texto, detalle: a.detalle })),
         ...(porConfirmar.length > 0 ? [{
           id: 'por-confirmar', nivel: 'revisar' as const,
-          texto: `${porConfirmar.length} ${porConfirmar.length === 1 ? 'hembra servida lleva' : 'hembras servidas llevan'} más de ${cfg.reproduccion.cicloEstral} días sin confirmar preñez`,
+          texto: `${porConfirmar.length} ${porConfirmar.length === 1 ? 'hembra servida lleva' : 'hembras servidas llevan'} ${cfg.reproduccion.diaConfirmacion} días o más sin confirmar preñez`,
           detalle: porConfirmar.map(s => hembraPorId.get(s.reproductora_id)?.codigo ?? '—').join(', '),
         }] : []),
       ]} />
 
       {/* KPIs del núcleo de cría */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Indicador tono="pink" icono="cerdo" etiqueta="Hembras activas" valor={activas.length} detalle={<>{servidas.length > 0 && <>{servidas.length} {servidas.length === 1 ? 'servida' : 'servidas'} · </>}{gestantes.length} gestantes · {lactantes.length} lactantes · {vacias.length} vacías</>} />
+        <Indicador tono="pink" icono="cerdo" etiqueta="Hembras activas" valor={activas.length} detalle={gruposHembras.filter(g => g.id !== 'descartada').map(g => `${g.total} ${g.total === 1 ? g.uno : g.label.toLowerCase()}`).join(' · ') || 'Sin hembras'} />
         {gestantes.length > 0 && (
           <Indicador
             tono="purple" icono="tetero" etiqueta="Partos por venir" valor={gestantes.length}
@@ -430,7 +429,9 @@ export default function TabReproduccion({ loteActual, onLoteUpdated, nave, naves
                               ? `Día ${diasDesde(partoAbierto.fecha_parto)} de lactancia`
                               : dia != null
                                 ? `Día ${dia} de gestación${servicioActivo?.fecha_probable_parto ? ` · parto ${fmt(servicioActivo.fecha_probable_parto)}` : ''}`
-                                : '—'}
+                                : estados.get(h.id) && h.estado !== 'descartada'
+                                  ? (desdeCuando(estados.get(h.id)!) ?? '—')
+                                  : '—'}
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center justify-end gap-1">
@@ -500,36 +501,23 @@ export default function TabReproduccion({ loteActual, onLoteUpdated, nave, naves
                           </TableCell>
                           <TableCell className="text-xs">
                             {s.estado === 'parido' ? <span className="text-green-700"><Ic n="tetero" /> Parió</span>
-                              : s.prenez_confirmada ? <span className="text-purple-700"><Ic n="listo" /> Preñez confirmada</span>
                               : s.estado === 'repetido' ? <span className="text-amber-700"><Ic n="repetir" /> Repitió celo</span>
-                              : s.estado === 'fallido' ? <span className="text-red-600"><Ic n="x" /> Falló</span>
+                              : s.estado === 'fallido' ? <span className="text-gray-600"><Ic n="x" /> Salió vacía</span>
+                              : s.estado === 'abortado' ? <span className="text-red-600"><Ic n="x" /> Abortó</span>
                               : (
                                 <div className="space-y-1.5">
-                                  <span className="block text-blue-700">
-                                    <Ic n="reloj" /> ¿Quedó preñada? Se revisa hacia el {fmt(fechaRepeticionCelo(s.fecha_servicio, cfg))}
-                                  </span>
-                                  <div className="flex gap-1.5">
-                                    <Button
-                                      size="sm" variant="outline" className="h-7 text-xs"
-                                      disabled={confirmandoPrenez === s.id}
-                                      onClick={() => responderPrenez(s, true)}
-                                    >
-                                      <Ic n="listo" /> Sí, está preñada
-                                    </Button>
-                                    <Button
-                                      size="sm" variant="ghost" className="h-7 text-xs text-amber-700"
-                                      disabled={confirmandoPrenez === s.id}
-                                      onClick={() => responderPrenez(s, false)}
-                                    >
-                                      <Ic n="repetir" /> No, repitió celo
-                                    </Button>
-                                  </div>
+                                  {s.prenez_confirmada
+                                    ? <span className="block text-purple-700"><Ic n="listo" /> Preñez confirmada</span>
+                                    : <span className="block text-blue-700"><Ic n="reloj" /> Se confirma hacia el día {cfg.reproduccion.diaConfirmacion}</span>}
+                                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setServicioResultado(s)}>
+                                    ¿Cómo va?
+                                  </Button>
                                 </div>
                               )}
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center justify-end gap-1">
-                              {s.estado !== 'parido' && (
+                              {(s.estado === 'pendiente' || s.estado === 'confirmado') && (
                                 <Button
                                   size="sm" variant="outline" className="h-7 text-xs"
                                   onClick={() => { setServicioParaParto(s); setPartoEditar(null); setModalParto(true) }}
@@ -747,6 +735,13 @@ export default function TabReproduccion({ loteActual, onLoteUpdated, nave, naves
         servicioPreseleccionado={servicioParaParto}
         partoExistente={partoEditar}
         onCreated={fetchAll}
+      />
+      <ResultadoServicioModal
+        open={servicioResultado != null}
+        onClose={() => setServicioResultado(null)}
+        servicio={servicioResultado}
+        codigoCerda={servicioResultado ? hembraPorId.get(servicioResultado.reproductora_id)?.codigo ?? '' : ''}
+        onGuardado={fetchAll}
       />
       <FichaCerdaModal
         open={fichaCerda != null}
