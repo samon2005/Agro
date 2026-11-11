@@ -38,23 +38,28 @@ type Props = {
 interface GalponNuevo { nombre: string; area_m2: string; uso: string }
 
 /**
- * Registro de la finca en dos pasos: primero la finca y lo que produce (una sola
- * especie), y luego sus lugares fijos con su medida: los galpones de las aves o
- * los corrales de los cerdos (con el tipo de producción de cada corral). Después
- * solo se registran los animales que entran a cada uno.
+ * Registro de la finca por pasos: primero la finca y lo que produce, y luego los
+ * lugares fijos de cada especie con su medida: los galpones de las aves y las
+ * naves de los cerdos (con para qué es cada nave). Después solo se registran los
+ * animales que entran a cada uno.
+ *
+ * Por ahora una finca puede producir más de una especie (decisión del 11 nov
+ * 2026, para la prueba de José en Jericó; revisar si se queda).
  */
 export default function CrearFincaModal({ open, onCreated }: Props) {
   const [loading, setLoading] = useState(false)
-  const [paso, setPaso] = useState<1 | 2>(1)
+  // 0 = la finca; luego un paso por cada especie que lleva lugares
+  const [paso, setPaso] = useState(0)
   const [nombre, setNombre] = useState('')
   const [municipio, setMunicipio] = useState('')
   const [departamento, setDepartamento] = useState('')
   const [areaValor, setAreaValor] = useState('')
-  const [especie, setEspecie] = useState<EspecieFinca | null>(null)
+  const [especies, setEspecies] = useState<EspecieFinca[]>([])
   const [areaUnidad, setAreaUnidad] = useState('ha')
   const [unidadOtra, setUnidadOtra] = useState('')
   const [unidadesGuardadas, setUnidadesGuardadas] = useState<string[]>([])
-  const [galpones, setGalpones] = useState<GalponNuevo[]>([{ nombre: '', area_m2: '', uso: '' }])
+  // Los lugares de cada especie: galpones de las aves, naves de los cerdos
+  const [lugares, setLugares] = useState<Partial<Record<EspecieFinca, GalponNuevo[]>>>({})
 
   useEffect(() => {
     if (!open) return
@@ -70,9 +75,21 @@ export default function CrearFincaModal({ open, onCreated }: Props) {
     })
   }, [open])
 
-  const llevaGalpones = llevaLugares(especie)
+  // Las especies que piden registrar sus lugares, en el orden de la lista
+  const conLugares = ESPECIES_FINCA.map(e => e.value).filter(e => especies.includes(e) && llevaLugares(e))
+  const especie: EspecieFinca | null = paso > 0 ? conLugares[paso - 1] ?? null : null
   const lugar = (especie && LUGAR[especie]) || LUGAR.aves_ponedoras!
   const esCorral = especie === 'cerdos'
+  // "las naves", "los galpones"; "las aves", "los cerdos"
+  const femenino = lugar.tipo === 'nave'
+  const artAnimales = lugar.animales === 'aves' ? 'las' : 'los'
+  const galpones = (especie && lugares[especie]) || []
+  const ultimoPaso = paso >= conLugares.length
+
+  function setGalpones(cambio: (prev: GalponNuevo[]) => GalponNuevo[]) {
+    if (!especie) return
+    setLugares(prev => ({ ...prev, [especie]: cambio(prev[especie] ?? []) }))
+  }
 
   function setGalpon(i: number, campo: keyof GalponNuevo, valor: string) {
     setGalpones(prev => prev.map((g, j) => j === i ? { ...g, [campo]: valor } : g))
@@ -82,9 +99,22 @@ export default function CrearFincaModal({ open, onCreated }: Props) {
     setGalpones(prev => [...prev, { nombre: `${lugar.base} ${prev.length + 1}`, area_m2: '', uso: '' }])
   }
 
+  function alternarEspecie(e: EspecieFinca) {
+    setEspecies(prev => prev.includes(e) ? prev.filter(x => x !== e) : [...prev, e])
+  }
+
+  /** Va al paso de la especie n.º i, con un primer lugar de ejemplo si no tiene ninguno. */
+  function irA(i: number) {
+    const esp = conLugares[i - 1]
+    if (esp && !(lugares[esp]?.length)) {
+      setLugares(prev => ({ ...prev, [esp]: [{ nombre: `${LUGAR[esp]!.base} 1`, area_m2: '', uso: '' }] }))
+    }
+    setPaso(i)
+  }
+
   function validarPaso1(): boolean {
     if (!nombre.trim()) { toast.error('Escribe el nombre de la finca'); return false }
-    if (!especie) { toast.error('Elige qué produce la finca'); return false }
+    if (especies.length === 0) { toast.error('Elige qué produce la finca'); return false }
     if (areaUnidad === UNIDAD_OTRA && areaValor && !unidadOtra.trim()) {
       toast.error('Escribe el nombre de la unidad de área'); return false
     }
@@ -92,7 +122,7 @@ export default function CrearFincaModal({ open, onCreated }: Props) {
   }
 
   function validarGalpones(): boolean {
-    if (galpones.length === 0) { toast.error(`Registra al menos un ${lugar.singular}`); return false }
+    if (galpones.length === 0) { toast.error(`Registra al menos ${femenino ? 'una' : 'un'} ${lugar.singular}`); return false }
     const nombres = galpones.map(g => g.nombre.trim().toLowerCase())
     if (nombres.some(n => !n)) { toast.error(`Cada ${lugar.singular} necesita su nombre`); return false }
     if (new Set(nombres).size !== nombres.length) { toast.error(`Hay dos ${lugar.plural} con el mismo nombre`); return false }
@@ -107,17 +137,18 @@ export default function CrearFincaModal({ open, onCreated }: Props) {
   function siguiente(e: React.FormEvent) {
     e.preventDefault()
     if (!validarPaso1()) return
-    if (llevaGalpones) {
-      // Los nombres de ejemplo siguen a la especie elegida: "Galpón 1" o "Corral 1"
-      setGalpones(prev => prev.map((g, i) => ({ ...g, nombre: g.nombre.trim() ? g.nombre : `${lugar.base} ${i + 1}` })))
-      setPaso(2)
-      return
-    }
+    if (conLugares.length > 0) { irA(1); return }
     guardar()
   }
 
+  /** Desde el paso de una especie: a la siguiente especie, o guardar si es la última. */
+  function continuar() {
+    if (!validarGalpones()) return
+    if (ultimoPaso) guardar()
+    else irA(paso + 1)
+  }
+
   async function guardar() {
-    if (llevaGalpones && !validarGalpones()) return
     setLoading(true)
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -137,7 +168,7 @@ export default function CrearFincaModal({ open, onCreated }: Props) {
       departamento: departamento || null,
       area_valor: area,
       area_unidad: area && unidadFinal ? unidadFinal : null,
-      tipo_produccion: [especie!],
+      tipo_produccion: ESPECIES_FINCA.map(e => e.value).filter(e => especies.includes(e)),
       latitud: coords?.lat ?? null,
       longitud: coords?.lon ?? null,
       propietario_id: user.id,
@@ -149,21 +180,20 @@ export default function CrearFincaModal({ open, onCreated }: Props) {
       return
     }
 
-    if (llevaGalpones) {
-      const { error: errGalpones } = await supabase.from('instalaciones').insert(
-        galpones.map(g => ({
-          finca_id: fincaId,
-          especie: especie!,
-          tipo: lugar.tipo,
-          nombre: g.nombre.trim(),
-          area_m2: g.area_m2 ? Number(g.area_m2) : null,
-          uso: esCorral ? g.uso : null,
-          registrado_por: user.id,
-        })),
-      )
+    const filas = conLugares.flatMap(esp => (lugares[esp] ?? []).map(g => ({
+      finca_id: fincaId,
+      especie: esp,
+      tipo: LUGAR[esp]!.tipo,
+      nombre: g.nombre.trim(),
+      area_m2: g.area_m2 ? Number(g.area_m2) : null,
+      uso: esp === 'cerdos' ? g.uso : null,
+      registrado_por: user.id,
+    })))
+    if (filas.length > 0) {
+      const { error: errGalpones } = await supabase.from('instalaciones').insert(filas)
       if (errGalpones) {
         // La finca ya quedó: los lugares se pueden agregar después desde su configuración
-        toast.warning(`La finca se creó, pero los ${lugar.plural} no se guardaron. Agrégalos en Datos de la finca.`)
+        toast.warning('La finca se creó, pero sus galpones o naves no se guardaron. Agrégalos en Datos de la finca.')
       }
     }
 
@@ -184,23 +214,29 @@ export default function CrearFincaModal({ open, onCreated }: Props) {
       <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-green-900">
-            <Ic n="hoja" /> {paso === 1 ? 'Registra tu finca' : `${lugar.plural.charAt(0).toUpperCase()}${lugar.plural.slice(1)} de la finca`}
+            <Ic n="hoja" /> {paso === 0 ? 'Registra tu finca' : `${lugar.plural.charAt(0).toUpperCase()}${lugar.plural.slice(1)} de la finca`}
           </DialogTitle>
           <p className="text-sm text-gray-500">
-            {paso === 1
+            {paso === 0
               ? 'Primero la finca y lo que produce.'
-              : `Los ${lugar.plural} son los lugares fijos de la finca. Después solo registrarás los ${lugar.animales} que entran a cada uno.`}
+              : `${femenino ? 'Las' : 'Los'} ${lugar.plural} son los lugares fijos de la finca. Después solo registrarás ${artAnimales} ${lugar.animales} que entran a cada ${femenino ? 'una' : 'uno'}.`}
           </p>
-          {llevaGalpones && (
-            <div className="flex items-center gap-2 pt-1 text-xs">
-              <span className={cn('rounded-full px-2 py-0.5', paso === 1 ? 'bg-green-700 text-white' : 'bg-green-100 text-green-800')}>1. Finca</span>
-              <span className="text-gray-300">→</span>
-              <span className={cn('rounded-full px-2 py-0.5', paso === 2 ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-500')}>2. <span className="capitalize">{lugar.plural}</span></span>
+          {conLugares.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
+              <span className={cn('rounded-full px-2 py-0.5', paso === 0 ? 'bg-green-700 text-white' : 'bg-green-100 text-green-800')}>1. Finca</span>
+              {conLugares.map((esp, i) => (
+                <span key={esp} className="contents">
+                  <span className="text-gray-300">→</span>
+                  <span className={cn('rounded-full px-2 py-0.5', paso === i + 1 ? 'bg-green-700 text-white' : paso > i + 1 ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-500')}>
+                    {i + 2}. <span className="capitalize">{LUGAR[esp]!.plural}</span>
+                  </span>
+                </span>
+              ))}
             </div>
           )}
         </DialogHeader>
 
-        {paso === 1 ? (
+        {paso === 0 ? (
           <form onSubmit={siguiente} className="mt-2 space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="nombre">Nombre de la finca *</Label>
@@ -254,15 +290,15 @@ export default function CrearFincaModal({ open, onCreated }: Props) {
             </div>
             <div className="space-y-1.5">
               <Label>¿Qué produce la finca? *</Label>
-              <p className="text-xs text-gray-400">Una finca trabaja una sola especie: el panel solo mostrará lo de esa producción.</p>
+              <p className="text-xs text-gray-400">Marca todo lo que produce la finca: el panel mostrará lo de cada producción.</p>
               <div className="grid grid-cols-3 gap-2">
                 {ESPECIES_FINCA.map(esp => {
-                  const elegida = especie === esp.value
+                  const elegida = especies.includes(esp.value)
                   return (
                     <button
                       key={esp.value}
                       type="button"
-                      onClick={() => setEspecie(esp.value)}
+                      onClick={() => alternarEspecie(esp.value)}
                       aria-pressed={elegida}
                       className={cn(
                         'flex flex-col items-center gap-1 rounded-lg border px-2 py-3 text-xs font-medium transition-colors',
@@ -277,14 +313,14 @@ export default function CrearFincaModal({ open, onCreated }: Props) {
               </div>
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Creando...' : llevaGalpones ? `Siguiente: ${lugar.plural}` : 'Crear finca'}
+              {loading ? 'Creando...' : conLugares.length > 0 ? `Siguiente: ${LUGAR[conLugares[0]]!.plural}` : 'Crear finca'}
             </Button>
           </form>
         ) : (
           <div className="mt-2 space-y-4">
             <div className="space-y-2">
               <div className={cn('grid gap-2 px-1 text-xs font-medium text-gray-500', esCorral ? 'grid-cols-[1fr_6.5rem_7.5rem_2rem]' : 'grid-cols-[1fr_8rem_2rem]')}>
-                <span>Nombre del {lugar.singular}</span>
+                <span>Nombre {femenino ? 'de la' : 'del'} {lugar.singular}</span>
                 <span>Medida (m²)</span>
                 {esCorral && <span>Para qué es</span>}
                 <span />
@@ -325,11 +361,11 @@ export default function CrearFincaModal({ open, onCreated }: Props) {
               </p>
             )}
             <div className="flex gap-2">
-              <Button type="button" variant="outline" className="flex-1" disabled={loading} onClick={() => setPaso(1)}>
+              <Button type="button" variant="outline" className="flex-1" disabled={loading} onClick={() => setPaso(paso - 1)}>
                 Atrás
               </Button>
-              <Button type="button" className="flex-1" disabled={loading} onClick={guardar}>
-                {loading ? 'Creando...' : 'Guardar y ver el resumen'}
+              <Button type="button" className="flex-1" disabled={loading} onClick={continuar}>
+                {loading ? 'Creando...' : ultimoPaso ? 'Guardar y ver el resumen' : `Siguiente: ${LUGAR[conLugares[paso]]!.plural}`}
               </Button>
             </div>
           </div>

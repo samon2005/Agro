@@ -86,18 +86,21 @@ export default function FinanzasPage() {
   const [ventaEditar, setVentaEditar] = useState<VentaAvesLote | null>(null)
   const [confirmandoEliminar, setConfirmandoEliminar] = useState<string | null>(null)
 
-  // Una finca es de una sola especie
-  const especie = (fincaActual?.tipo_produccion?.[0] ?? null) as EspecieFinca | null
+  // Las finanzas suman todas las especies de la finca. Los formularios de costo
+  // usan la principal (la primera); por ahora una finca puede tener varias.
+  const especiesFinca = (fincaActual?.tipo_produccion ?? []) as EspecieFinca[]
+  const especie = especiesFinca[0] ?? null
+  const conAves = especiesFinca.includes('aves_ponedoras')
 
   const fetchTodo = useCallback(async () => {
     if (!fincaActual) return
     setLoading(true)
-    const datos = await cargarFinanzasFinca(supabase, fincaActual.id, especie ? [especie] : [])
+    const datos = await cargarFinanzasFinca(supabase, fincaActual.id, (fincaActual.tipo_produccion ?? []) as EspecieFinca[])
     setLotes(datos.lotes)
     setCostos(datos.costos)
     setIngresos(datos.ingresos)
     setLoading(false)
-  }, [fincaActual, especie, supabase])
+  }, [fincaActual, supabase])
 
   useEffect(() => { fetchTodo() }, [fetchTodo])
 
@@ -199,7 +202,7 @@ export default function FinanzasPage() {
               <Ic n="mas" /> Registrar costo
             </Button>
           )}
-          {tab !== 'costos' && especie === 'aves_ponedoras' && (
+          {tab !== 'costos' && conAves && (
             <Button variant={tab === 'ventas' ? 'default' : 'outline'} onClick={() => { setVentaEditar(null); setModalVenta(true) }}>
               <Ic n="mas" /> Registrar venta
             </Button>
@@ -372,7 +375,7 @@ export default function FinanzasPage() {
                 </CardContent>
               </Card>
 
-              {especie === 'aves_ponedoras' && fincaActual && (
+              {conAves && fincaActual && (
                 <div className="xl:col-span-2"><CostoHuevoGalpones finca={fincaActual} /></div>
               )}
             </div>
@@ -488,7 +491,7 @@ export default function FinanzasPage() {
                 ))}
               </div>
 
-              {especie === 'aves_ponedoras' && (
+              {conAves && (
                 <p className="text-xs text-gray-500">
                   El huevo cuenta el día en que entró el pago; las ventas y cobros de huevo se registran en{' '}
                   <Link href="/ventas" className="font-medium text-green-700 hover:underline">Ventas de la finca</Link>.
@@ -575,7 +578,7 @@ export default function FinanzasPage() {
         />
       )}
 
-      {fincaActual && especie === 'aves_ponedoras' && (
+      {fincaActual && conAves && (
         <RegistrarVentaAvesModal
           open={modalVenta}
           onClose={() => { setModalVenta(false); setVentaEditar(null) }}

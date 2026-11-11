@@ -28,7 +28,7 @@ type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
 type LotePollo = Database['public']['Tables']['lotes_pollo']['Row']
 
-interface DiaFinca { fecha: string; lote: string; huevos: number; aves: number | null; muertes: number; alimentoKg: number }
+interface DiaFinca { fecha: string; lote: string; huevos: number; aves: number | null; muertes: number; alimentoKg: number; especie: EspecieFinca }
 
 export interface DatosInicio {
   instalaciones: Instalacion[]
@@ -69,6 +69,9 @@ export default function TableroInicio<F extends Finca>({ finca, fincas, onEditar
   const especies = (finca.tipo_produccion ?? []) as EspecieFinca[]
   const hayAves = especies.includes('aves_ponedoras')
   const hoy = hoyLocal()
+  // Con varias especies el resumen se ve por especie, no todo junto
+  const [vistaElegida, setVista] = useState<EspecieFinca | null>(null)
+  const vista = vistaElegida && especies.includes(vistaElegida) ? vistaElegida : especies[0] ?? null
 
   useEffect(() => {
     let vigente = true
@@ -94,10 +97,10 @@ export default function TableroInicio<F extends Finca>({ finca, fincas, onEditar
       if (!vigente) return
       const dias: DiaFinca[] = [
         ...((prodAves.data ?? []) as { lote_id: string; fecha: string; huevos_totales: number; aves_en_dia: number | null; muertes: number; alimento_kg: number }[])
-          .map(p => ({ fecha: p.fecha, lote: p.lote_id, huevos: p.huevos_totales, aves: p.aves_en_dia, muertes: p.muertes ?? 0, alimentoKg: Number(p.alimento_kg ?? 0) })),
-        ...((nutCerdos.data ?? []) as { lote_id: string; fecha: string; alimento_kg: number; consumo_real_kg: number | null }[]).map(n => ({ fecha: n.fecha, lote: n.lote_id, huevos: 0, aves: null, muertes: 0, alimentoKg: Number(n.consumo_real_kg ?? n.alimento_kg ?? 0) })),
-        ...((mortCerdos.data ?? []) as { lote_id: string; fecha: string; cantidad: number }[]).map(m => ({ fecha: m.fecha, lote: m.lote_id, huevos: 0, aves: null, muertes: m.cantidad ?? 0, alimentoKg: 0 })),
-        ...((prodPollo.data ?? []) as { lote_id: string; fecha: string; alimento_kg: number; muertes: number }[]).map(p => ({ fecha: p.fecha, lote: p.lote_id, huevos: 0, aves: null, muertes: p.muertes ?? 0, alimentoKg: Number(p.alimento_kg ?? 0) })),
+          .map(p => ({ fecha: p.fecha, lote: p.lote_id, huevos: p.huevos_totales, aves: p.aves_en_dia, muertes: p.muertes ?? 0, alimentoKg: Number(p.alimento_kg ?? 0), especie: 'aves_ponedoras' as const })),
+        ...((nutCerdos.data ?? []) as { lote_id: string; fecha: string; alimento_kg: number; consumo_real_kg: number | null }[]).map(n => ({ fecha: n.fecha, lote: n.lote_id, huevos: 0, aves: null, muertes: 0, alimentoKg: Number(n.consumo_real_kg ?? n.alimento_kg ?? 0), especie: 'cerdos' as const })),
+        ...((mortCerdos.data ?? []) as { lote_id: string; fecha: string; cantidad: number }[]).map(m => ({ fecha: m.fecha, lote: m.lote_id, huevos: 0, aves: null, muertes: m.cantidad ?? 0, alimentoKg: 0, especie: 'cerdos' as const })),
+        ...((prodPollo.data ?? []) as { lote_id: string; fecha: string; alimento_kg: number; muertes: number }[]).map(p => ({ fecha: p.fecha, lote: p.lote_id, huevos: 0, aves: null, muertes: p.muertes ?? 0, alimentoKg: Number(p.alimento_kg ?? 0), especie: 'pollo_engorde' as const })),
       ]
       const vacio: Record<string, string> = {}
       for (const c of cerrados.data ?? []) {
@@ -126,7 +129,9 @@ export default function TableroInicio<F extends Finca>({ finca, fincas, onEditar
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [finca.id, especies.join(',')])
 
-  const d = datos?.fincaId === finca.id ? datos.d : null
+  const todo = datos?.fincaId === finca.id ? datos.d : null
+  const d = todo && especies.length > 1 && vista ? datosDeEspecie(todo, vista) : todo
+  const especiesVista = especies.length > 1 && vista ? [vista] : especies
 
   return (
     <div className="space-y-5">
@@ -135,7 +140,7 @@ export default function TableroInicio<F extends Finca>({ finca, fincas, onEditar
         <div className="flex flex-wrap items-center gap-1.5">
           {(finca.municipio || finca.departamento) && <Pildora icono="ubicacion">{[finca.municipio, finca.departamento].filter(Boolean).join(', ')}</Pildora>}
           {finca.area_valor != null && <Pildora>{Number(finca.area_valor).toLocaleString('es-CO')} {finca.area_unidad === 'ha' ? 'ha' : finca.area_unidad === 'm2' ? 'm²' : finca.area_unidad}</Pildora>}
-          {ESPECIES_FINCA.filter(e => especies.includes(e.value)).map(e => (
+          {especies.length === 1 && ESPECIES_FINCA.filter(e => especies.includes(e.value)).map(e => (
             <Pildora key={e.value} tono="verde" icono={e.icon}>{e.labelNav ?? e.label}</Pildora>
           ))}
         </div>
@@ -144,7 +149,25 @@ export default function TableroInicio<F extends Finca>({ finca, fincas, onEditar
         </button>
       </div>
 
-      {!d ? <EsqueletoInicio /> : <ContenidoInicio d={d} finca={finca} fincas={fincas} especies={especies} periodo={periodo} setPeriodo={setPeriodo} onEditarFinca={onEditarFinca} onEditarOtra={f => onEditarOtra(f as F)} />}
+      {/* Varias especies: un resumen para cada una */}
+      {especies.length > 1 && (
+        <div role="tablist" aria-label="Resumen por especie" className="flex flex-wrap gap-2">
+          {ESPECIES_FINCA.filter(e => especies.includes(e.value)).map(e => (
+            <button
+              key={e.value} type="button" role="tab" aria-selected={vista === e.value}
+              onClick={() => setVista(e.value)}
+              className={cn(
+                'inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors',
+                vista === e.value ? 'bg-green-800 text-white shadow-sm' : 'bg-white text-gray-600 ring-1 ring-black/5 hover:bg-green-50 hover:text-green-900',
+              )}
+            >
+              <Ic n={e.icon} className="size-4" /> {e.labelNav ?? e.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {!d ? <EsqueletoInicio /> : <ContenidoInicio key={vista ?? 'todo'} d={d} finca={finca} fincas={fincas} especies={especiesVista} periodo={periodo} setPeriodo={setPeriodo} onEditarFinca={onEditarFinca} onEditarOtra={f => onEditarOtra(f as F)} />}
     </div>
   )
 }
@@ -471,6 +494,26 @@ export function ContenidoInicio({ d, finca, fincas, especies, periodo, setPeriod
       </Cuadricula>
     </>
   )
+}
+
+/**
+ * Los datos del resumen de una sola especie, para las fincas que tienen varias:
+ * sus lugares, sus lotes, sus registros del día y su dinero. El inventario es
+ * de toda la finca y se deja igual.
+ */
+function datosDeEspecie(d: DatosInicio, especie: EspecieFinca): DatosInicio {
+  return {
+    ...d,
+    instalaciones: d.instalaciones.filter(i => i.especie === especie),
+    aves: especie === 'aves_ponedoras' ? d.aves : [],
+    cerdos: especie === 'cerdos' ? d.cerdos : [],
+    pollos: especie === 'pollo_engorde' ? d.pollos : [],
+    dias: d.dias.filter(x => x.especie === especie),
+    stock: especie === 'aves_ponedoras' ? d.stock : [],
+    dinero: d.dinero.filter(x => x.especie === especie),
+    vacioSanitario: especie === 'aves_ponedoras' ? d.vacioSanitario : {},
+    cerdasPorUbicacion: especie === 'cerdos' ? d.cerdasPorUbicacion : {},
+  }
 }
 
 function EsqueletoInicio() {

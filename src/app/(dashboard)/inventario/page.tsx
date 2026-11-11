@@ -87,7 +87,10 @@ export default function InventarioPage() {
   const [borrandoId, setBorrandoId] = useState<string | null>(null)
   const [confirmandoId, setConfirmandoId] = useState<string | null>(null)
 
+  // Equipos de la especie principal; el huevo aparece si la finca tiene aves
+  // (por ahora una finca puede tener varias especies)
   const especie = (fincaActual?.tipo_produccion?.[0] ?? null) as EspecieFinca | null
+  const conAves = (fincaActual?.tipo_produccion ?? []).includes('aves_ponedoras')
 
   async function fetchInventario() {
     if (!fincaActual) return
@@ -158,7 +161,7 @@ export default function InventarioPage() {
   const TABS: { id: Tab; label: string; icon: NombreIcono }[] = [
     { id: 'general', label: 'General', icon: 'inventario' },
     { id: 'alimento', label: 'Alimento', icon: 'alimento' },
-    ...(especie === 'aves_ponedoras' ? [{ id: 'huevos' as const, label: 'Huevos', icon: 'huevo' as const }] : []),
+    ...(conAves ? [{ id: 'huevos' as const, label: 'Huevos', icon: 'huevo' as const }] : []),
     { id: 'farmacos', label: 'Fármacos', icon: 'medicamento' },
     { id: 'equipos', label: 'Equipos', icon: 'ajustes' },
   ]
@@ -230,7 +233,7 @@ export default function InventarioPage() {
               valor={`${bultosEnBodega.toLocaleString('es-CO', { maximumFractionDigits: 1 })} bultos`}
               detalle={`${conteo.alimento} alimento${conteo.alimento === 1 ? '' : 's'} en bodega`}
             />
-            {especie === 'aves_ponedoras' && (
+            {conAves && (
               <TarjetaCategoria
                 icono="huevo" titulo="Huevos" onClick={() => setTab('huevos')} cargando={loading}
                 valor={`${huevosEnBodega.toLocaleString('es-CO')} huevos`}

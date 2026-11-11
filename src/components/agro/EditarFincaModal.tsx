@@ -65,8 +65,10 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated, onDe
     latitud: '',
     longitud: '',
   })
-  // Una finca produce una sola especie. Solo se elige si todavía no tiene.
-  const [especie, setEspecie] = useState<EspecieFinca | null>(null)
+  // Lo que produce la finca. Por ahora puede ser más de una especie (decisión del
+  // 11 nov 2026, para la prueba de José; revisar si se queda). Aquí no se quitan
+  // especies: solo se eligen si la finca todavía no tiene ninguna.
+  const [especies, setEspecies] = useState<EspecieFinca[]>([])
   const [buscandoUbicacion, setBuscandoUbicacion] = useState(false)
   const [areaValor, setAreaValor] = useState('')
   const [areaUnidad, setAreaUnidad] = useState('ha')
@@ -85,7 +87,7 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated, onDe
       latitud: finca.latitud != null ? String(finca.latitud) : '',
       longitud: finca.longitud != null ? String(finca.longitud) : '',
     })
-    setEspecie(((finca.tipo_produccion ?? [])[0] as EspecieFinca | undefined) ?? null)
+    setEspecies((finca.tipo_produccion ?? []) as EspecieFinca[])
     setAreaValor(finca.area_valor != null ? String(finca.area_valor) : '')
     const unidadActual = finca.area_unidad ?? 'ha'
     setAreaUnidad(unidadActual === 'ha' || unidadActual === 'm2' ? unidadActual : (unidadActual ? UNIDAD_OTRA : 'ha'))
@@ -137,7 +139,7 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated, onDe
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!especie) { toast.error('Elige qué produce la finca'); return }
+    if (especies.length === 0) { toast.error('Elige qué produce la finca'); return }
     setLoading(true)
 
     const areaNum = areaValor ? Number(areaValor) : null
@@ -152,7 +154,8 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated, onDe
         velocidad_viento_kmh: form.velocidad_viento_kmh ? Number(form.velocidad_viento_kmh) : null,
         clima_predominante: form.clima_predominante || null,
         temperatura_promedio_ext: form.temperatura_promedio_ext ? Number(form.temperatura_promedio_ext) : null,
-        tipo_produccion: [especie],
+        // Se guardan todas: nunca se pierde una especie al editar otros datos
+        tipo_produccion: ESPECIES_FINCA.map(e => e.value).filter(e => especies.includes(e)),
         latitud: form.latitud ? Number(form.latitud) : null,
         longitud: form.longitud ? Number(form.longitud) : null,
         area_valor: areaNum,
@@ -247,28 +250,29 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated, onDe
           </div>
           <div className="space-y-1.5">
             <Label>Lo que produce la finca</Label>
-            {finca.tipo_produccion && finca.tipo_produccion.length > 0 && especie ? (
-              <div className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm font-medium text-green-900">
-                <Ic n={ESPECIES_FINCA.find(e => e.value === especie)?.icon ?? 'hoja'} className="size-5" />
-                {NOMBRE_ESPECIE[especie]}
-                <span className="ml-auto text-[0.6875rem] font-normal text-green-700">
-                  Una finca trabaja una sola especie
-                </span>
+            {finca.tipo_produccion && finca.tipo_produccion.length > 0 ? (
+              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm font-medium text-green-900">
+                {especies.map(esp => (
+                  <span key={esp} className="flex items-center gap-1.5">
+                    <Ic n={ESPECIES_FINCA.find(e => e.value === esp)?.icon ?? 'hoja'} className="size-5" />
+                    {NOMBRE_ESPECIE[esp]}
+                  </span>
+                ))}
               </div>
             ) : (
               <>
                 <p className="text-xs text-amber-700">
-                  Esta finca todavía no tiene especie. Elige la que produce: el panel solo mostrará lo de esa producción.
+                  Esta finca todavía no tiene especie. Marca lo que produce: el panel mostrará lo de cada producción.
                 </p>
                 <div className="grid grid-cols-3 gap-2">
                   {ESPECIES_FINCA.map(esp => (
                     <button
                       key={esp.value}
                       type="button"
-                      onClick={() => setEspecie(esp.value)}
-                      aria-pressed={especie === esp.value}
+                      onClick={() => setEspecies(prev => prev.includes(esp.value) ? prev.filter(x => x !== esp.value) : [...prev, esp.value])}
+                      aria-pressed={especies.includes(esp.value)}
                       className={`flex flex-col items-center gap-1 rounded-lg border px-2 py-3 text-xs font-medium transition-colors ${
-                        especie === esp.value ? 'border-green-600 bg-green-50 text-green-800' : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                        especies.includes(esp.value) ? 'border-green-600 bg-green-50 text-green-800' : 'border-gray-200 text-gray-500 hover:border-gray-300'
                       }`}
                     >
                       <Ic n={esp.icon} className="size-5" />
@@ -280,8 +284,8 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated, onDe
             )}
           </div>
           {/* Los lugares fijos de la finca: galpones de aves o corrales de cerdos */}
-          {especie && LUGAR[especie] && (
-            <div className="space-y-1.5">
+          {(finca.tipo_produccion ?? []).filter((e): e is EspecieFinca => LUGAR[e as EspecieFinca] != null).map(especie => (
+            <div key={especie} className="space-y-1.5">
               <Label>{LUGAR[especie]!.plural.charAt(0).toUpperCase() + LUGAR[especie]!.plural.slice(1)} de la finca</Label>
               <p className="text-xs text-gray-500">
                 {especie === 'cerdos'
@@ -292,7 +296,7 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated, onDe
                 ? <NavesFinca fincaId={finca.id} onCambio={onUpdated} />
                 : <GalponesFinca fincaId={finca.id} especie={especie} onCambio={onUpdated} />}
             </div>
-          )}
+          ))}
           <div className="border border-red-200 bg-red-50 rounded-lg p-3 space-y-2">
             <p className="text-sm font-semibold text-red-800"><Ic n="alerta" /> Zona de peligro</p>
             <p className="text-xs text-red-600">
