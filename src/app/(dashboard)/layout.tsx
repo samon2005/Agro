@@ -19,7 +19,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <FincaProvider>
         <div className="flex h-screen bg-background">
           <DashboardSidebar user={user} />
-          <main className="flex-1 overflow-auto">
+          {/* En celular deja lugar para la barra superior del menú */}
+          <main className="flex-1 overflow-auto pt-14 md:pt-0">
             <PaginaEntra>{children}</PaginaEntra>
           </main>
           {/* La finca sin especie elige la suya antes de seguir */}

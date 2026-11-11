@@ -1,7 +1,9 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
+import { Menu } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import { Ic, type NombreIcono } from '@/components/ui/icon'
@@ -24,6 +26,8 @@ export default function DashboardSidebar({ user }: { user: User }) {
   const supabase = createClient()
   const { fincaActual } = useFinca()
   const rol = useRol()
+  // En celular el menú es un cajón que se abre con el botón de arriba; en computador siempre está visible
+  const [abierto, setAbierto] = useState(false)
 
   const especiesFinca = (fincaActual?.tipo_produccion ?? []) as EspecieFinca[]
   const navItems: Item[] = [
@@ -64,7 +68,37 @@ export default function DashboardSidebar({ user }: { user: User }) {
     .slice(0, 2) || (user.email?.[0].toUpperCase() ?? 'U')
 
   return (
-    <aside className="flex w-60 shrink-0 flex-col bg-sidebar">
+    <>
+      {/* Celular: barra superior con el botón del menú */}
+      <header className="fixed inset-x-0 top-0 z-30 flex h-14 items-center gap-3 border-b border-black/5 bg-sidebar px-3 md:hidden">
+        <button
+          type="button"
+          onClick={() => setAbierto(true)}
+          aria-label="Abrir menú"
+          aria-expanded={abierto}
+          className="flex size-9 items-center justify-center rounded-lg text-gray-700 hover:bg-white"
+        >
+          <Menu className="size-5" />
+        </button>
+        <span className="flex items-center gap-2">
+          <span className="flex size-6 items-center justify-center rounded-md bg-green-600 text-white">
+            <Ic n="hoja" className="size-3.5" strokeWidth={2} />
+          </span>
+          <span className="font-heading text-lg font-medium tracking-tight text-gray-900">AgroGestión</span>
+        </span>
+        {fincaActual && <span className="ml-auto truncate text-xs text-gray-500">{fincaActual.nombre}</span>}
+      </header>
+
+      {/* Fondo oscuro que cierra el menú del celular */}
+      {abierto && (
+        <div className="fixed inset-0 z-40 bg-black/30 md:hidden" onClick={() => setAbierto(false)} aria-hidden />
+      )}
+
+      <aside className={cn(
+        'flex w-60 shrink-0 flex-col bg-sidebar',
+        'fixed inset-y-0 left-0 z-50 transition-transform duration-200 md:static md:translate-x-0',
+        abierto ? 'translate-x-0 shadow-xl' : '-translate-x-full',
+      )}>
       {/* Marca */}
       <div className="flex items-center justify-between px-5 pt-6 pb-5">
         <Link href="/dashboard" className="flex items-center gap-2.5">
@@ -93,6 +127,7 @@ export default function DashboardSidebar({ user }: { user: User }) {
             <Link
               key={item.href}
               href={item.href}
+              onClick={() => setAbierto(false)}
               className={cn(
                 'group relative flex items-center gap-3 rounded-lg px-3 py-2 text-[0.875rem] font-medium transition-colors',
                 activo
@@ -130,6 +165,7 @@ export default function DashboardSidebar({ user }: { user: User }) {
           </button>
         </div>
       </div>
-    </aside>
+      </aside>
+    </>
   )
 }
