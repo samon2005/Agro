@@ -10,7 +10,8 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
-import { fechaProbableParto, fechaRepeticionCelo, DIAS_GESTACION } from '@/lib/cerdos'
+import { fechaProbableParto, fechaRepeticionCelo } from '@/lib/cerdos'
+import { useConfigCerdos } from '@/lib/useConfigCerdos'
 import { Ic } from '@/components/ui/icon'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
@@ -51,11 +52,12 @@ function defaultForm(s?: Servicio | null) {
 }
 
 export default function RegistrarServicioModal({ open, onClose, lote, hembras, servicioExistente, onCreated }: Props) {
+  const cfg = useConfigCerdos()
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState(() => defaultForm(servicioExistente))
   const [aplicaciones, setAplicaciones] = useState<Aplicacion[]>([{ fecha: hoyLocal(), hora: '', codigo_semen: '' }])
-  // El parto sale solo a los 114 días, pero cada granja ajusta: se puede corregir
+  // El parto sale solo con los días de gestación de la granja, pero se puede corregir
   const [partoManual, setPartoManual] = useState<string | null>(null)
 
   useEffect(() => {
@@ -66,8 +68,8 @@ export default function RegistrarServicioModal({ open, onClose, lote, hembras, s
       setPartoManual(null)
       return
     }
-    // Si la fecha guardada no es la que dan los 114 días, es que la corrigieron
-    const calculada = fechaProbableParto(servicioExistente.fecha_servicio)
+    // Si la fecha guardada no es la que dan los días de gestación, es que la corrigieron
+    const calculada = fechaProbableParto(servicioExistente.fecha_servicio, cfg)
     setPartoManual(
       servicioExistente.fecha_probable_parto && servicioExistente.fecha_probable_parto !== calculada
         ? servicioExistente.fecha_probable_parto
@@ -79,7 +81,7 @@ export default function RegistrarServicioModal({ open, onClose, lote, hembras, s
           ? (data ?? []).map(a => ({ fecha: a.fecha, hora: a.hora?.slice(0, 5) ?? '', codigo_semen: a.codigo_semen ?? '' }))
           : [{ fecha: servicioExistente.fecha_servicio, hora: '', codigo_semen: servicioExistente.codigo_semen ?? '' }]
       ))
-  }, [open, servicioExistente, supabase])
+  }, [open, servicioExistente, supabase, cfg])
 
   function setAplicacion(i: number, campo: keyof Aplicacion, valor: string) {
     setAplicaciones(prev => prev.map((a, j) => j === i ? { ...a, [campo]: valor } : a))
@@ -91,9 +93,9 @@ export default function RegistrarServicioModal({ open, onClose, lote, hembras, s
 
   // El parto se cuenta desde la primera aplicación, salvo que se haya corregido
   const fechaBase = aplicaciones[0]?.fecha ?? form.fecha_servicio
-  const partoCalculado = fechaBase ? fechaProbableParto(fechaBase) : null
+  const partoCalculado = fechaBase ? fechaProbableParto(fechaBase, cfg) : null
   const parto = partoManual ?? partoCalculado
-  const celo = fechaBase ? fechaRepeticionCelo(fechaBase) : null
+  const celo = fechaBase ? fechaRepeticionCelo(fechaBase, cfg) : null
   const diasHastaParto = parto && fechaBase
     ? Math.round((new Date(parto + 'T00:00:00').getTime() - new Date(fechaBase + 'T00:00:00').getTime()) / 86400000)
     : null
@@ -158,7 +160,7 @@ export default function RegistrarServicioModal({ open, onClose, lote, hembras, s
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{servicioExistente ? 'Editar Servicio' : 'Registrar Servicio'}</DialogTitle>
-          <p className="text-sm text-gray-500">Monta natural o inseminación. La gestación dura {DIAS_GESTACION} días.</p>
+          <p className="text-sm text-gray-500">Monta natural o inseminación. La gestación dura {cfg.reproduccion.diasGestacion} días.</p>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -284,7 +286,7 @@ export default function RegistrarServicioModal({ open, onClose, lote, hembras, s
                   />
                   {partoManual && (
                     <Button type="button" size="sm" variant="outline" className="h-8 text-xs" onClick={() => setPartoManual(null)}>
-                      Volver a {DIAS_GESTACION} días
+                      Volver a {cfg.reproduccion.diasGestacion} días
                     </Button>
                   )}
                 </div>

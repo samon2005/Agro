@@ -10,11 +10,12 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
-import { ESTADOS_REPRODUCTORA } from '@/lib/cerdos'
+import { ESTADOS_REPRODUCTORA, sincronizarPieDeCria } from '@/lib/cerdos'
+import { cn } from '@/lib/utils'
+import { nombrePuestos, type NaveRef } from '@/lib/instalaciones'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
 type Reproductora = Database['public']['Tables']['reproductoras_cerdos']['Row']
-type Nave = Database['public']['Tables']['naves_cerdos']['Row']
 
 interface Props {
   open: boolean
@@ -22,8 +23,8 @@ interface Props {
   lote: LoteCerdos
   /** La nave en la que se registra la cerda */
   naveId: string
-  /** Las naves del corral: al editar, la cerda se puede pasar a otra */
-  naves: Nave[]
+  /** Las naves de cría de la granja: la cerda se puede pasar de una a otra */
+  naves: NaveRef[]
   reproductoraExistente?: Reproductora | null
   onCreated: () => void
 }
@@ -32,7 +33,8 @@ const LINEAS = ['Landrace', 'Yorkshire (Large White)', 'Duroc', 'Pietrain', 'Ham
 
 function defaultForm(lote: LoteCerdos, naveId: string, r?: Reproductora | null) {
   return {
-    nave_id: r?.nave_id ?? naveId,
+    ubicacion_id: r?.ubicacion_id ?? naveId,
+    puesto: r?.puesto != null ? String(r.puesto) : '',
     codigo: r?.codigo ?? '',
     nombre: r?.nombre ?? '',
     tipo_identificacion: r?.tipo_identificacion ?? 'arete',
@@ -58,14 +60,38 @@ export default function RegistrarReproductoraModal({ open, onClose, lote, naveId
     setForm(prev => ({ ...prev, [field]: value ?? '' }))
   }
 
+  const naveElegida = naves.find(n => n.id === form.ubicacion_id) ?? null
+  const puestosNave = nombrePuestos(naveElegida?.uso) ? naveElegida?.puestos ?? null : null
+  // "jaula" o "paridera", para los mensajes
+  const nombrePuesto = nombrePuestos(naveElegida?.uso)?.replace(/s$/, '') ?? 'puesto'
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!form.codigo.trim()) { toast.error('El código o número de arete es obligatorio'); return }
 
+    if (!form.ubicacion_id) { toast.error('Elige la nave de la cerda'); return }
+    const nave = naves.find(n => n.id === form.ubicacion_id)
+    const puesto = nave?.puestos && form.puesto.trim() ? Number(form.puesto) : null
+    if (puesto != null && (!Number.isInteger(puesto) || puesto < 1 || puesto > (nave?.puestos ?? 0))) {
+      toast.error(`La ${nombrePuesto} va del 1 al ${nave?.puestos}`); return
+    }
+
     setLoading(true)
-    if (!form.nave_id) { toast.error('Elige la nave de la cerda'); return }
+    // Dos cerdas no pueden estar en el mismo puesto de la misma nave
+    if (puesto != null) {
+      let q = supabase.from('reproductoras_cerdos').select('codigo')
+        .eq('ubicacion_id', form.ubicacion_id).eq('puesto', puesto).neq('estado', 'descartada')
+      if (reproductoraExistente) q = q.neq('id', reproductoraExistente.id)
+      const { data: ocupada } = await q.limit(1)
+      if (ocupada && ocupada.length > 0) {
+        setLoading(false)
+        toast.error(`La ${nombrePuesto} ${puesto} de ${nave?.nombre} ya la tiene la cerda ${ocupada[0].codigo}`)
+        return
+      }
+    }
     const payload = {
-      nave_id: form.nave_id,
+      ubicacion_id: form.ubicacion_id,
+      puesto,
       codigo: form.codigo.trim(),
       nombre: form.nombre || null,
       tipo_identificacion: form.identificacion.trim() ? form.tipo_identificacion : null,
@@ -82,9 +108,10 @@ export default function RegistrarReproductoraModal({ open, onClose, lote, naveId
       ? await supabase.from('reproductoras_cerdos').update(payload).eq('id', reproductoraExistente.id)
       : await supabase.from('reproductoras_cerdos').insert({ ...payload, lote_id: lote.id, finca_id: lote.finca_id })
 
+    if (!error) await sincronizarPieDeCria(supabase, lote.id)
     setLoading(false)
     if (error) {
-      toast.error(error.code === '23505' ? 'Ya hay una hembra con ese código en este corral (en esta u otra nave)' : 'Error al guardar la hembra')
+      toast.error(error.code === '23505' ? 'Ya hay una hembra con ese código en el pie de cría' : 'Error al guardar la hembra')
       return
     }
     toast.success(reproductoraExistente ? 'Hembra actualizada' : 'Hembra registrada')
@@ -99,19 +126,26 @@ export default function RegistrarReproductoraModal({ open, onClose, lote, naveId
           <DialogTitle>{reproductoraExistente ? 'Editar Hembra' : 'Registrar Hembra Reproductora'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          {reproductoraExistente && naves.length > 1 && (
-            <div className="space-y-1">
+          <div className="grid grid-cols-2 gap-4">
+            <div className={cn('space-y-1', !puestosNave && 'col-span-2')}>
               <Label>Nave</Label>
               <Select
-                value={form.nave_id}
-                onValueChange={v => set('nave_id', v)}
+                value={form.ubicacion_id}
+                onValueChange={v => { set('ubicacion_id', v); set('puesto', '') }}
                 items={Object.fromEntries(naves.map(n => [n.id, n.nombre]))}
+                disabled={naves.length < 2}
               >
                 <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                 <SelectContent>{naves.map(n => <SelectItem key={n.id} value={n.id}>{n.nombre}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-          )}
+            {puestosNave && (
+              <div className="space-y-1">
+                <Label className="capitalize">{nombrePuestos(naveElegida?.uso)?.replace(/s$/, '') ?? 'Puesto'} n.º</Label>
+                <Input inputMode="numeric" placeholder={`1 a ${puestosNave}`} value={form.puesto} onChange={e => set('puesto', e.target.value)} />
+              </div>
+            )}
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <Label>Código / arete *</Label>
@@ -154,7 +188,8 @@ export default function RegistrarReproductoraModal({ open, onClose, lote, naveId
             </div>
             <div className="space-y-1">
               <Label>Estado</Label>
-              <Select value={form.estado} onValueChange={v => set('estado', v)}>
+              <Select value={form.estado} onValueChange={v => set('estado', v)}
+                items={Object.fromEntries(Object.entries(ESTADOS_REPRODUCTORA).map(([v, e]) => [v, e.label]))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {Object.entries(ESTADOS_REPRODUCTORA).map(([value, e]) => (

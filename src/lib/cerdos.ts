@@ -1,19 +1,19 @@
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { desdeFechaLocal, aFechaLocal } from '@/lib/fechas'
+import type { Database } from '@/types/database'
+import type { ConfigCerdos, EtapaEngorde } from '@/lib/configCerdos'
+import { textoPesosEtapa } from '@/lib/configCerdos'
 
 const MS_DIA = 24 * 60 * 60 * 1000
 
-/** Gestación de la cerda: 114 días — tres meses, tres semanas y tres días. */
-export const DIAS_GESTACION = 114
+/*
+ * Los días de gestación, lactancia, ciclo, etc. ya no están fijos aquí: son
+ * parámetros de cada granja (src/lib/configCerdos.ts, hook useConfigCerdos).
+ */
 
-/** El lechón se desteta entre los 21 y los 28 días de nacido. */
-export const DIAS_LACTANCIA_MIN = 21
-export const DIAS_LACTANCIA_MAX = 28
-
-/** La cerda vuelve a celo entre 5 y 7 días después del destete. */
-export const DIAS_DESTETE_SERVICIO = 6
-
-/** El ciclo estral de la cerda es de 21 días: si repite celo, es a los 21 del servicio. */
-export const DIAS_CICLO_ESTRAL = 21
+function sumarDias(fecha: string, dias: number): string {
+  return aFechaLocal(new Date(desdeFechaLocal(fecha).getTime() + dias * MS_DIA))
+}
 
 /** Días transcurridos desde una fecha hasta hoy (o hasta la fecha dada). */
 export function diasDesde(fecha: string, hasta?: string): number {
@@ -36,16 +36,19 @@ export function edadTexto(fechaNacimiento: string | null): string {
   return `${meses} ${meses === 1 ? 'mes' : 'meses'}`
 }
 
-/** Fecha probable de parto: 114 días después del servicio. */
-export function fechaProbableParto(fechaServicio: string): string {
-  const d = desdeFechaLocal(fechaServicio)
-  return aFechaLocal(new Date(d.getTime() + DIAS_GESTACION * MS_DIA))
+/** Fecha probable de parto: servicio + días de gestación de la granja (114 por defecto). */
+export function fechaProbableParto(fechaServicio: string, cfg: ConfigCerdos): string {
+  return sumarDias(fechaServicio, cfg.reproduccion.diasGestacion)
 }
 
-/** Fecha en que la cerda repetiría celo si el servicio no prendió (21 días). */
-export function fechaRepeticionCelo(fechaServicio: string): string {
-  const d = desdeFechaLocal(fechaServicio)
-  return aFechaLocal(new Date(d.getTime() + DIAS_CICLO_ESTRAL * MS_DIA))
+/** Fecha en que la cerda repetiría celo si el servicio no prendió (ciclo estral, 21 días por defecto). */
+export function fechaRepeticionCelo(fechaServicio: string, cfg: ConfigCerdos): string {
+  return sumarDias(fechaServicio, cfg.reproduccion.cicloEstral)
+}
+
+/** Fecha en que la cerda pasa a parideras: unos días antes del parto probable. */
+export function fechaTrasladoParideras(fechaServicio: string, cfg: ConfigCerdos): string {
+  return sumarDias(fechaProbableParto(fechaServicio, cfg), -cfg.reproduccion.trasladoParideras)
 }
 
 /** Día de gestación en que va la cerda hoy, o null si el servicio es futuro. */
@@ -76,9 +79,9 @@ export const CAUSAS_MUERTE_CERDOS = [
 export const ETAPAS_CERDOS = [
   { value: 'cria', label: 'Cría', detalle: 'Gestación y parto' },
   { value: 'lactancia', label: 'Lactancia', detalle: 'Hasta el destete' },
-  { value: 'precebo', label: 'Precebo', detalle: '7–40 kg' },
-  { value: 'levante', label: 'Levante', detalle: '40–60 kg' },
-  { value: 'ceba', label: 'Ceba', detalle: '60 kg en adelante' },
+  { value: 'precebo', label: 'Precebo', detalle: 'Del destete al levante' },
+  { value: 'levante', label: 'Levante', detalle: 'Crecimiento' },
+  { value: 'ceba', label: 'Ceba', detalle: 'Hasta el peso de venta' },
 ] as const
 
 export type EtapaCerdos = typeof ETAPAS_CERDOS[number]['value']
@@ -96,9 +99,11 @@ export function fincaCria(etapas: string[] | null | undefined): boolean {
   return propias.includes('cria') || propias.includes('lactancia')
 }
 
-/** Etapas de engorde que puede tener un lote, según lo que maneje la finca. */
-export function etapasEngordeDeFinca(etapas: string[] | null | undefined) {
-  return ETAPAS_CERDOS.filter(e => e.value !== 'cria' && e.value !== 'lactancia' && etapasDeFinca(etapas).includes(e.value))
+/** Etapas de engorde que puede tener un lote, según lo que maneje la finca, con sus pesos. */
+export function etapasEngordeDeFinca(etapas: string[] | null | undefined, cfg: ConfigCerdos) {
+  return ETAPAS_CERDOS
+    .filter(e => e.value !== 'cria' && e.value !== 'lactancia' && etapasDeFinca(etapas).includes(e.value))
+    .map(e => ({ ...e, detalle: textoPesosEtapa(cfg.engorde[e.value as EtapaEngorde]) }))
 }
 
 /**
@@ -157,4 +162,18 @@ export const ESTADOS_LECHON: Record<string, { label: string; clase: string }> = 
   ceba: { label: 'Ceba', clase: 'bg-orange-100 text-orange-700' },
   vendido: { label: 'Vendido', clase: 'bg-gray-100 text-gray-600' },
   muerto: { label: 'Muerto', clase: 'bg-red-100 text-red-700' },
+}
+
+/**
+ * El pie de cría cuenta sus cerdas reales: animales_actuales = las que no están
+ * descartadas y numero_animales = todas las que ha tenido. Ese número lo usan
+ * los reportes, el Resumen, el diario (gramos por animal) y las alertas, así
+ * que se recalcula cada vez que se registra, edita o borra una cerda.
+ */
+export async function sincronizarPieDeCria(supabase: SupabaseClient<Database>, loteId: string): Promise<void> {
+  const { data } = await supabase.from('reproductoras_cerdos').select('estado').eq('lote_id', loteId)
+  if (!data) return
+  await supabase.from('lotes_cerdos')
+    .update({ animales_actuales: data.filter(c => c.estado !== 'descartada').length, numero_animales: data.length })
+    .eq('id', loteId).eq('sistema', 'cria')
 }

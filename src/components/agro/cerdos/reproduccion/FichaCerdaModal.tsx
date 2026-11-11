@@ -7,10 +7,11 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Indicador } from '@/components/ui/indicador'
+import { useConfigCerdos } from '@/lib/useConfigCerdos'
 import { Ic } from '@/components/ui/icon'
 import type { Database } from '@/types/database'
 import {
-  ESTADOS_REPRODUCTORA, ESTADOS_LECHON, DIAS_GESTACION,
+  ESTADOS_REPRODUCTORA, ESTADOS_LECHON,
   diaDeGestacion, diasDesde, edadTexto,
 } from '@/lib/cerdos'
 
@@ -37,6 +38,7 @@ function fmt(d: string) {
  * permite decidir si sigue en el plantel o se descarta.
  */
 export default function FichaCerdaModal({ open, onClose, cerda }: Props) {
+  const cfg = useConfigCerdos()
   const supabase = createClient()
   const [loading, setLoading] = useState(true)
   const [servicios, setServicios] = useState<Servicio[]>([])
@@ -118,7 +120,7 @@ export default function FichaCerdaModal({ open, onClose, cerda }: Props) {
                 valor={<Badge className={`text-xs ${estado.clase}`}>{estado.label}</Badge>}
                 detalle={
                   servicioAbierto && diaGestacion != null && cerda.estado === 'gestante'
-                    ? `Día ${diaGestacion} de ${DIAS_GESTACION}`
+                    ? `Día ${diaGestacion} de ${cfg.reproduccion.diasGestacion}`
                     : `${cerda.numero_partos} parto${cerda.numero_partos === 1 ? '' : 's'}`
                 }
               />

@@ -11,7 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import type { Database } from '@/types/database'
 import { hoyLocal, aFechaLocal, desdeFechaLocal } from '@/lib/fechas'
 import { Ic } from '@/components/ui/icon'
-import { usoCorralLabel } from '@/lib/instalaciones'
+import { usoCorralLabel, esNaveDeCria } from '@/lib/instalaciones'
+import { useConfigCerdos } from '@/lib/useConfigCerdos'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
 type Instalacion = Database['public']['Tables']['instalaciones']['Row']
@@ -49,6 +50,7 @@ function formVacio() {
  */
 export default function CrearLoteCerdosModal({ open, onClose, fincaId, corral, onCreated }: Props) {
   const supabase = createClient()
+  const cfg = useConfigCerdos()
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState(formVacio)
 
@@ -58,8 +60,9 @@ export default function CrearLoteCerdosModal({ open, onClose, fincaId, corral, o
     setForm(prev => ({ ...prev, [field]: value ?? '' }))
   }
 
-  const esCria = corral?.uso === 'cria'
-  const etapa = esCria ? 'cria' : (corral?.uso ?? 'precebo')
+  // Una nave de cría recibe el pie de cría (todas las cerdas de la granja); un corral de engorde, su grupo
+  const esCria = esNaveDeCria(corral?.uso)
+  const etapa = esCria ? 'cria' : corral?.uso === 'levante' || corral?.uso === 'ceba' ? corral.uso : 'precebo'
 
   /** La edad se guarda como fecha de nacimiento para que no quede congelada. */
   function fechaNacimientoDesdeEdad(): string | null {
@@ -77,8 +80,9 @@ export default function CrearLoteCerdosModal({ open, onClose, fincaId, corral, o
     e.preventDefault()
     if (!corral) { toast.error('Elige el corral'); return }
     if (!form.nombre.trim()) { toast.error('El nombre del lote es requerido'); return }
-    const cant = Number(form.numero_animales)
-    if (!(cant > 0) || !Number.isInteger(cant)) {
+    // El pie de cría arranca en cero: cuenta solo las cerdas a medida que se registran
+    const cant = esCria ? 0 : Number(form.numero_animales)
+    if (!esCria && (!(cant > 0) || !Number.isInteger(cant))) {
       toast.error(esCria ? 'Ingresa cuántas hembras entran' : 'Ingresa cuántos animales entran'); return
     }
     if (form.fecha_ingreso > hoyLocal()) { toast.error('La fecha de ingreso no puede ser futura'); return }
@@ -111,7 +115,7 @@ export default function CrearLoteCerdosModal({ open, onClose, fincaId, corral, o
       toast.error(error.code === '23505' ? `${corral.nombre} ya tiene un lote activo` : 'Error al crear el lote')
       return
     }
-    toast.success(`Lote "${data.nombre}" en ${corral.nombre}. Ahora registra su alimento y su consumo.`)
+    toast.success(esCria ? `Pie de cría "${data.nombre}" creado. Ahora registra las cerdas de cada nave.` : `Lote "${data.nombre}" en ${corral.nombre}. Ahora registra su alimento y su consumo.`)
     onCreated(data)
     onClose()
   }
@@ -120,25 +124,26 @@ export default function CrearLoteCerdosModal({ open, onClose, fincaId, corral, o
     <Dialog open={open} onOpenChange={v => !v && !loading && onClose()}>
       <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
         <DialogHeader>
-          <DialogTitle><Ic n="cerdo" /> Agregar lote a {corral?.nombre ?? 'el corral'}</DialogTitle>
+          <DialogTitle><Ic n="cerdo" /> {esCria ? 'Crear el pie de cría' : `Agregar lote a ${corral?.nombre ?? 'el corral'}`}</DialogTitle>
           <p className="text-sm text-gray-500">
-            {corral && <>Corral de <strong>{usoCorralLabel(corral.uso)?.toLowerCase() ?? 'cerdos'}</strong>{corral.area_m2 ? ` · ${Number(corral.area_m2).toLocaleString('es-CO')} m²` : ''}. </>}
+            {corral && !esCria && <>Corral de <strong>{usoCorralLabel(corral.uso)?.toLowerCase() ?? 'cerdos'}</strong>{corral.area_m2 ? ` · ${Number(corral.area_m2).toLocaleString('es-CO')} m²` : ''}. </>}
+            {esCria && <>Todas las cerdas de la granja van en un solo grupo; cada una queda ubicada en su nave y su puesto. </>}
             El alimento se registra después, en Alimento.
           </p>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className={`rounded-lg border p-3 text-xs ${esCria ? 'border-pink-200 bg-pink-50 text-pink-800' : 'border-orange-200 bg-orange-50 text-orange-800'}`}>
-            <p className="text-sm font-semibold"><Ic n="cerdo" /> {esCria ? 'Cría / Reproducción' : 'Precebo'}</p>
+            <p className="text-sm font-semibold"><Ic n="cerdo" /> {esCria ? 'Pie de cría' : usoCorralLabel(etapa)}</p>
             {esCria
-              ? 'Las cerdas se reparten en naves y cada nave lleva sus hembras, servicios (monta o inseminación), gestación de 114 días, partos, lechones y destetes.'
-              : 'Lechones destetados: entran de los destetes de la finca o de afuera.'}
+              ? `Las cerdas se ubican en las naves de gestación, parideras o cuarentena, y llevan su historia completa: servicios, gestación de ${cfg.reproduccion.diasGestacion} días, partos, lechones y destetes.`
+              : etapa === 'precebo' ? 'Lechones destetados: entran de los destetes de la finca o de afuera.' : 'Cerdos que vienen de la etapa anterior o de afuera.'}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2 space-y-1">
-              <Label>Nombre del lote *</Label>
+              <Label>{esCria ? 'Nombre *' : 'Nombre del lote *'}</Label>
               <Input
-                placeholder={esCria ? 'Ej: Cerdas 2026' : 'Ej: Precebo octubre'}
+                placeholder={esCria ? 'Ej: Pie de cría' : 'Ej: Precebo octubre'}
                 value={form.nombre}
                 onChange={e => set('nombre', e.target.value)}
               />
@@ -154,10 +159,14 @@ export default function CrearLoteCerdosModal({ open, onClose, fincaId, corral, o
               <Label>Fecha de ingreso</Label>
               <Input type="date" max={hoyLocal()} value={form.fecha_ingreso} onChange={e => set('fecha_ingreso', e.target.value)} />
             </div>
-            <div className="space-y-1">
-              <Label>{esCria ? 'N° de hembras *' : 'N° de animales *'}</Label>
-              <Input type="number" min="1" step="1" placeholder="Ej: 10" value={form.numero_animales} onChange={e => set('numero_animales', e.target.value)} />
-            </div>
+            {!esCria && (
+              <div className="space-y-1">
+                <Label>N° de animales *</Label>
+                <Input type="number" min="1" step="1" placeholder="Ej: 10" value={form.numero_animales} onChange={e => set('numero_animales', e.target.value)} />
+              </div>
+            )}
+            {/* En el pie de cría el peso y la edad se anotan cerda por cerda */}
+            {!esCria && <>
             <div className="space-y-1">
               <Label>Peso prom. inicial (kg)</Label>
               <Input type="number" min="0" step="0.1" placeholder={esCria ? 'Ej: 180' : 'Ej: 7'} value={form.peso_promedio_inicial} onChange={e => set('peso_promedio_inicial', e.target.value)} />
@@ -182,9 +191,10 @@ export default function CrearLoteCerdosModal({ open, onClose, fincaId, corral, o
               </div>
               <p className="text-xs text-gray-400">Se guarda como fecha de nacimiento, así la edad se actualiza sola cada día.</p>
             </div>
+            </>}
 
             <div className="space-y-1">
-              <Label>Corral</Label>
+              <Label>{esCria ? 'Nave' : 'Corral'}</Label>
               <p className="flex h-9 items-center rounded-md bg-gray-50 px-3 text-sm text-gray-700">{corral?.nombre ?? '—'}</p>
             </div>
             <div className="space-y-1">
@@ -200,7 +210,7 @@ export default function CrearLoteCerdosModal({ open, onClose, fincaId, corral, o
           <DialogFooter>
             <Button type="button" variant="outline" disabled={loading} onClick={onClose}>Cancelar</Button>
             <Button type="submit" disabled={loading || !corral} className="bg-orange-600 text-white hover:bg-orange-700">
-              {loading ? 'Guardando...' : 'Agregar lote'}
+              {loading ? 'Guardando...' : esCria ? 'Crear pie de cría' : 'Agregar lote'}
             </Button>
           </DialogFooter>
         </form>

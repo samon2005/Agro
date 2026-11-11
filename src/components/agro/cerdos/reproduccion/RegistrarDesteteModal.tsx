@@ -16,9 +16,11 @@ import { cn } from '@/lib/utils'
 import { dbGenerico } from '@/lib/especiesConfig'
 import { useFinca } from '@/components/agro/FincaProvider'
 import {
-  diasDesde, DIAS_LACTANCIA_MIN, DIAS_LACTANCIA_MAX, DIAS_DESTETE_SERVICIO,
+  diasDesde,
   tallasDeFinca, tallaDePeso, describirTallas, type TallaDestete,
 } from '@/lib/cerdos'
+import { textoDesteteServicio } from '@/lib/configCerdos'
+import { useConfigCerdos } from '@/lib/useConfigCerdos'
 import { Ic } from '@/components/ui/icon'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
@@ -47,6 +49,7 @@ interface CorralPrecebo { corral: Instalacion; loteActivo: { nombre: string; ani
  * lechones dejan de estar con la cerda y pasan al Historial.
  */
 export default function RegistrarDesteteModal({ open, onClose, lote, hembras, partos, partoPreseleccionado, onCreated }: Props) {
+  const cfg = useConfigCerdos()
   const supabase = createClient()
   const { fincaActual, refetch: refetchFinca } = useFinca()
   const [loading, setLoading] = useState(false)
@@ -83,7 +86,7 @@ export default function RegistrarDesteteModal({ open, onClose, lote, hembras, pa
     setTallas(tallasDeFinca(fincaActual?.tallas_destete))
     // Los corrales de precebo de la finca y si ya tienen un lote
     Promise.all([
-      supabase.from('instalaciones').select('*').eq('finca_id', lote.finca_id).eq('especie', 'cerdos').eq('uso', 'precebo'),
+      supabase.from('instalaciones').select('*').eq('finca_id', lote.finca_id).eq('especie', 'cerdos').eq('uso', 'precebo').neq('tipo', 'nave'),
       supabase.from('lotes_cerdos').select('instalacion_id, nombre, animales_actuales').eq('finca_id', lote.finca_id).eq('estado', 'activo'),
     ]).then(([inst, lotes]) => {
       const porCorral = new Map((lotes.data ?? []).map(l => [l.instalacion_id, l]))
@@ -199,7 +202,7 @@ export default function RegistrarDesteteModal({ open, onClose, lote, hembras, pa
         <DialogHeader>
           <DialogTitle><Ic n="cerdo" /> Registrar destete</DialogTitle>
           <p className="text-sm text-gray-500">
-            El destete normal va entre los {DIAS_LACTANCIA_MIN} y los {DIAS_LACTANCIA_MAX} días de nacidos.
+            El destete normal va entre los {cfg.reproduccion.lactanciaMin} y los {cfg.reproduccion.lactanciaMax} días de nacidos.
           </p>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -226,7 +229,7 @@ export default function RegistrarDesteteModal({ open, onClose, lote, hembras, pa
             {parto && diasLactancia != null && (
               <div className="space-y-1">
                 <Label>Lactancia</Label>
-                <p className={cn('flex h-9 items-center text-sm', diasLactancia < DIAS_LACTANCIA_MIN || diasLactancia > DIAS_LACTANCIA_MAX ? 'text-amber-700' : 'text-gray-700')}>
+                <p className={cn('flex h-9 items-center text-sm', diasLactancia < cfg.reproduccion.lactanciaMin || diasLactancia > cfg.reproduccion.lactanciaMax ? 'text-amber-700' : 'text-gray-700')}>
                   {diasLactancia} días · {hembra?.codigo ?? '—'}
                 </p>
               </div>
@@ -339,7 +342,7 @@ export default function RegistrarDesteteModal({ open, onClose, lote, hembras, pa
             {destino === 'corral' && (
               corrales.length === 0 ? (
                 <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                  La finca no tiene corrales de precebo. Agrégalo en Datos de la finca (Corrales) para poder pasar los lechones.
+                  La finca no tiene corrales de precebo. Agrégalos en Naves y finca, dentro de la nave de precebo, para poder pasar los lechones.
                 </p>
               ) : (
                 <>
@@ -388,7 +391,7 @@ export default function RegistrarDesteteModal({ open, onClose, lote, hembras, pa
 
           {parto && (
             <p className="text-[0.6875rem] text-gray-500">
-              <Ic n="repetir" /> {hembra?.codigo ?? 'La cerda'} queda vacía: debería volver a celo unos {DIAS_DESTETE_SERVICIO} días después del destete.
+              <Ic n="repetir" /> {hembra?.codigo ?? 'La cerda'} queda vacía: debería volver a celo {textoDesteteServicio(cfg)} después del destete.
             </p>
           )}
 

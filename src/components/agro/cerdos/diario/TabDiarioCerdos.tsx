@@ -17,6 +17,8 @@ import { CurvaArea } from '@/components/ui/widgets/Curva'
 import { Torta } from '@/components/ui/graficos/Torta'
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
+import { useConfigCerdos } from '@/lib/useConfigCerdos'
+import { alertasGrupo, nivelBandeja } from '@/lib/alertasCerdos'
 import { Ic } from '@/components/ui/icon'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
@@ -36,6 +38,7 @@ interface Props {
  */
 export default function TabDiarioCerdos({ loteActual, onLoteUpdated, onIrAlimento }: Props) {
   const supabase = createClient()
+  const cfg = useConfigCerdos()
   const [registros, setRegistros] = useState<NutricionDiaria[]>([])
   const [mortalidad, setMortalidad] = useState<Mortalidad[]>([])
   const [loading, setLoading] = useState(true)
@@ -94,16 +97,32 @@ export default function TabDiarioCerdos({ loteActual, onLoteUpdated, onIrAliment
     m[k] = (m[k] ?? 0) + (x.cantidad ?? 0)
     return m
   }, {})).map(([causa, cantidad]) => ({ causa, cantidad }))
-  const diaDelMes = Number(hoyStr.slice(8, 10))
+  // Días del mes que el grupo ha estado en la granja (si entró este mes, desde su ingreso)
+  const inicioMes = hoyStr.slice(0, 8) + '01'
+  const desdeMes = loteActual.fecha_ingreso > inicioMes ? loteActual.fecha_ingreso : inicioMes
+  const diaDelMes = Math.max(1, Math.round((new Date(hoyStr + 'T00:00:00').getTime() - new Date(desdeMes + 'T00:00:00').getTime()) / 86_400_000) + 1)
   const diasEsteMes = registros.filter(r => r.fecha.startsWith(hoyStr.slice(0, 7))).length
-  const alimento7 = ultimos7.reduce((s, r) => s + Number(r.alimento_kg), 0)
+  // Lo que comieron: servido menos sobrante (lo calcula la base en consumo_real_kg)
+  const comido = (r: NutricionDiaria) => Number(r.consumo_real_kg ?? r.alimento_kg)
+  const alimento7 = ultimos7.reduce((s, r) => s + comido(r), 0)
+  const servido7 = ultimos7.reduce((s, r) => s + Number(r.alimento_kg), 0)
+  // El sobrante solo se compara en los días en que se midió
+  const conSobrante = registros.slice(0, 14).filter(r => r.sobrante_kg != null)
+  const sobranteKg = conSobrante.reduce((s, r) => s + Number(r.sobrante_kg), 0)
+  const servidoMedido = conSobrante.reduce((s, r) => s + Number(r.alimento_kg), 0)
+  const sobrantePct = servidoMedido > 0 ? (sobranteKg / servidoMedido) * 100 : null
+  // El agua solo aparece si la granja la mide o si ya hay agua anotada
+  const mostrarAgua = cfg.opciones.medirAgua || registros.some(r => r.agua_litros != null)
+  const kg1 = (v: number) => v.toLocaleString('es-CO', { maximumFractionDigits: 1 })
+  // Alertas del grupo: día sin registrar, mortalidad alta, comieron menos de lo esperado
+  const alertas = loading ? [] : alertasGrupo({ grupo: loteActual, registros, mortalidad, cfg, hoy: hoyStr })
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h2 className="text-lg font-semibold text-gray-800">Diario del lote</h2>
-          <p className="text-xs text-gray-400">Lo que se registra todos los días: alimento, agua y mortalidad.</p>
+          <p className="text-xs text-gray-400">{mostrarAgua ? 'Lo que se registra todos los días: alimento, agua y mortalidad.' : 'Lo que se registra todos los días: alimento y mortalidad.'}</p>
         </div>
         <Button
           onClick={() => { setRegistroEditar(null); setModalOpen(true) }}
@@ -114,30 +133,33 @@ export default function TabDiarioCerdos({ loteActual, onLoteUpdated, onIrAliment
         </Button>
       </div>
 
-      {sinAlimento && (
-        <BandejaAlertas alertas={[{
-          id: 'alimento', nivel: 'revisar',
+      <BandejaAlertas alertas={[
+        ...(sinAlimento ? [{
+          id: 'alimento', nivel: 'revisar' as const,
           texto: 'Falta registrar el consumo de alimento del corral. Sin él no se puede llevar el diario.',
           accion: onIrAlimento ? { texto: 'Ir a Alimento', onClick: onIrAlimento } : undefined,
-        }]} />
-      )}
+        }] : []),
+        ...alertas.map(a => ({ id: a.id, nivel: nivelBandeja(a.prioridad), texto: a.texto, detalle: a.detalle })),
+      ]} />
 
       <Cuadricula>
         <Widget className={ANCHO.cuarto} titulo="Hoy" icono="diario">
           <div className="flex items-center gap-4">
             <Anillo pct={registroHoy ? 100 : 0} centro={registroHoy ? '✓' : '—'} sub={registroHoy ? 'registrado' : 'pendiente'} estado={registroHoy ? 'bien' : 'revisar'} tamano={96} />
             <div className="min-w-0 space-y-1.5">
-              <Cifra etiqueta="Alimento de hoy" valor={registroHoy ? `${Number(registroHoy.alimento_kg).toLocaleString('es-CO', { maximumFractionDigits: 1 })} kg` : '—'} />
+              <Cifra etiqueta="Comieron hoy" valor={registroHoy ? `${kg1(comido(registroHoy))} kg` : '—'} />
               <TextoEstado estado={registroHoy ? 'bien' : 'revisar'}>{registroHoy ? 'Día al día' : 'Falta registrar el día'}</TextoEstado>
             </div>
           </div>
         </Widget>
 
-        <Widget className={ANCHO.cuarto} titulo="Alimento" icono="alimento" info="Kilos del corral por día; las barras son los últimos 14 días registrados">
-          <Cifra etiqueta="Últimos 7 días" valor={`${alimento7.toLocaleString('es-CO', { maximumFractionDigits: 1 })} kg`} grande
-            nota={loteActual.animales_actuales > 0 && ultimos7.length > 0 ? `${Math.round((alimento7 * 1000) / ultimos7.length / loteActual.animales_actuales).toLocaleString('es-CO')} g por animal al día` : undefined} />
+        <Widget className={ANCHO.cuarto} titulo="Alimento" icono="alimento" info="Lo que comieron (servido menos sobrante); las barras son los últimos 14 días registrados">
+          <Cifra etiqueta="Comieron en 7 días" valor={`${kg1(alimento7)} kg`} grande
+            nota={loteActual.animales_actuales > 0 && ultimos7.length > 0
+              ? `${Math.round((alimento7 * 1000) / ultimos7.length / loteActual.animales_actuales).toLocaleString('es-CO')} g por animal al día${servido7 > alimento7 ? ` · se sirvieron ${kg1(servido7)} kg` : ''}`
+              : undefined} />
           <div className="mt-3">
-            <MiniBarras valores={ultimos14.map(r => Number(r.alimento_kg))} etiquetas={ultimos14.map(r => etiquetaDia(r.fecha))} formato={v => `${v.toLocaleString('es-CO', { maximumFractionDigits: 1 })} kg`} alto={40} />
+            <MiniBarras valores={ultimos14.map(r => comido(r))} etiquetas={ultimos14.map(r => etiquetaDia(r.fecha))} formato={v => `${v.toLocaleString('es-CO', { maximumFractionDigits: 1 })} kg`} alto={40} />
           </div>
         </Widget>
 
@@ -160,9 +182,9 @@ export default function TabDiarioCerdos({ loteActual, onLoteUpdated, onIrAliment
           </div>
         </Widget>
 
-        <Widget className={ANCHO.dosTercios} titulo="Alimento por día" icono="grafica" info="Kilos de alimento registrados cada día (últimos 30)">
-          <CurvaArea id="alim-cerdos" nombre="Alimento" barras formato={v => `${v.toLocaleString('es-CO', { maximumFractionDigits: 1 })} kg`}
-            datos={[...registros.slice(0, 30)].reverse().map(r => ({ x: etiquetaDia(r.fecha), y: Number(r.alimento_kg) }))} />
+        <Widget className={ANCHO.dosTercios} titulo="Alimento por día" icono="grafica" info="Kilos que comieron cada día: servido menos sobrante (últimos 30)">
+          <CurvaArea id="alim-cerdos" nombre="Comieron" barras formato={v => `${kg1(v)} kg`}
+            datos={[...registros.slice(0, 30)].reverse().map(r => ({ x: etiquetaDia(r.fecha), y: comido(r) }))} />
         </Widget>
 
         <Widget className={ANCHO.tercio} titulo="De qué se murieron" icono="clinico">
@@ -171,11 +193,12 @@ export default function TabDiarioCerdos({ loteActual, onLoteUpdated, onIrAliment
             : <Torta etiquetaTotal="Muertes" porciones={causas.map(c => ({ nombre: c.causa, valor: c.cantidad }))} />}
         </Widget>
 
-        <Widget className={ANCHO.tercio} titulo="Registros del mes" icono="calendario" info="Cada día pintado según los kilos de alimento; el punto rojo marca muertes">
-          <CalendarioMes valores={new Map(registros.map(r => [r.fecha, Number(r.alimento_kg)]))} marcados={new Set(mortalidad.map(m => m.fecha))}
+        <Widget className={ANCHO.tercio} titulo="Registros del mes" icono="calendario" info="Cada día pintado según los kilos que comieron; el punto rojo marca muertes">
+          <CalendarioMes valores={new Map(registros.map(r => [r.fecha, comido(r)]))} marcados={new Set(mortalidad.map(m => m.fecha))}
             formato={v => `${v.toLocaleString('es-CO', { maximumFractionDigits: 1 })} kg`} />
         </Widget>
 
+        {mostrarAgua ? (
         <Widget className={ANCHO.tercio} titulo="Agua" icono="agua" info="Litros registrados por día (últimos 14)">
           <Cifra etiqueta="Últimos 7 días" valor={agua7 > 0 ? `${agua7.toLocaleString('es-CO', { maximumFractionDigits: 0 })} L` : '—'} grande
             nota={agua7 > 0 && alimento7 > 0 ? `${(agua7 / alimento7).toLocaleString('es-CO', { maximumFractionDigits: 1 })} L por kg de alimento` : 'Sin agua registrada'} />
@@ -183,6 +206,15 @@ export default function TabDiarioCerdos({ loteActual, onLoteUpdated, onIrAliment
             <MiniBarras valores={ultimos14.map(r => (r.agua_litros != null ? Number(r.agua_litros) : null))} etiquetas={ultimos14.map(r => etiquetaDia(r.fecha))} formato={v => `${v.toLocaleString('es-CO')} L`} alto={40} />
           </div>
         </Widget>
+        ) : (
+        <Widget className={ANCHO.tercio} titulo="Sobrante" icono="alimento" info="Lo que quedó en el comedero frente a lo servido, en los días en que se midió (últimos 14)">
+          <Cifra etiqueta="Quedó en el comedero" valor={sobrantePct != null ? `${sobrantePct.toLocaleString('es-CO', { maximumFractionDigits: 1 })} %` : '—'} grande
+            nota={sobrantePct != null ? `${kg1(sobranteKg)} kg de ${kg1(servidoMedido)} kg servidos, en ${conSobrante.length} ${conSobrante.length === 1 ? 'día' : 'días'}` : 'Anota el sobrante en el registro del día para ver lo que de verdad comen'} />
+          <div className="mt-3">
+            <MiniBarras valores={ultimos14.map(r => (r.sobrante_kg != null ? Number(r.sobrante_kg) : null))} etiquetas={ultimos14.map(r => etiquetaDia(r.fecha))} formato={v => `${kg1(v)} kg`} alto={40} />
+          </div>
+        </Widget>
+        )}
 
         <Widget className={ANCHO.tercio} titulo="El lote" icono="cerdo">
           <div className="grid grid-cols-2 gap-x-3 gap-y-4">
@@ -220,8 +252,10 @@ export default function TabDiarioCerdos({ loteActual, onLoteUpdated, onIrAliment
                 <TableHeader>
                   <TableRow>
                     <TableHead>Fecha</TableHead>
-                    <TableHead className="text-right">Alimento kg</TableHead>
-                    <TableHead className="text-right">Agua L</TableHead>
+                    <TableHead className="text-right">Servido kg</TableHead>
+                    <TableHead className="text-right">Sobrante kg</TableHead>
+                    <TableHead className="text-right">Comieron kg</TableHead>
+                    {mostrarAgua && <TableHead className="text-right">Agua L</TableHead>}
                     <TableHead className="text-right">Muertes</TableHead>
                     <TableHead>Causa</TableHead>
                     <TableHead>Observaciones</TableHead>
@@ -235,8 +269,10 @@ export default function TabDiarioCerdos({ loteActual, onLoteUpdated, onIrAliment
                     return (
                       <TableRow key={r.id}>
                         <TableCell className="font-medium text-sm">{fmt(r.fecha)}</TableCell>
-                        <TableCell className="text-right text-sm">{Number(r.alimento_kg).toFixed(1)}</TableCell>
-                        <TableCell className="text-right text-sm text-gray-500">{r.agua_litros != null ? Number(r.agua_litros).toFixed(0) : '—'}</TableCell>
+                        <TableCell className="text-right text-sm text-gray-500">{Number(r.alimento_kg).toFixed(1)}</TableCell>
+                        <TableCell className="text-right text-sm text-gray-500">{r.sobrante_kg != null ? Number(r.sobrante_kg).toFixed(1) : '—'}</TableCell>
+                        <TableCell className="text-right text-sm font-medium">{comido(r).toFixed(1)}</TableCell>
+                        {mostrarAgua && <TableCell className="text-right text-sm text-gray-500">{r.agua_litros != null ? Number(r.agua_litros).toFixed(0) : '—'}</TableCell>}
                         <TableCell className="text-right">
                           {totalMuertes > 0 ? <Badge variant="destructive" className="text-xs">{totalMuertes}</Badge> : '—'}
                         </TableCell>

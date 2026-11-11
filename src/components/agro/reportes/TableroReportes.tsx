@@ -111,9 +111,11 @@ export default function TableroReportes({ fincaId, fincaNombre, especies, especi
   const hayCarne = especie === 'cerdos' || especie === 'pollo_engorde'
   const hayPesos = d.pesos.some(p => p.fecha >= desde)
   const unSolo = !!loteId || unidades.length <= 1
-  const lugar = lugarDe(especie)
-  const lugares = especie === 'cerdos' ? 'corrales' : especie ? 'galpones' : 'galpones y corrales'
-  const animales = especie === 'aves_ponedoras' || especie === 'pollo_engorde' ? 'aves' : 'animales'
+  // Si la finca tiene una sola especie, los textos hablan de ella aunque se vea "toda la finca"
+  const especieTexto = especie ?? (especies.length === 1 ? especies[0] : null)
+  const lugar = lugarDe(especieTexto)
+  const lugares = especieTexto === 'cerdos' ? 'corrales' : especieTexto ? 'galpones' : 'galpones y corrales'
+  const animales = especieTexto === 'aves_ponedoras' || especieTexto === 'pollo_engorde' ? 'aves' : 'animales'
   const Animales = animales[0].toUpperCase() + animales.slice(1)
 
   const secciones: { id: Seccion; t: string }[] = [

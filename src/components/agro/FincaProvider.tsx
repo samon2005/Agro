@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import type { Json } from '@/types/database'
 
 type Finca = {
   id: string
@@ -13,6 +14,8 @@ type Finca = {
   area_unidad: string | null
   tipo_produccion: string[] | null
   etapas_cerdos: string[] | null
+  /** Parámetros de cerdos que la granja cambió (ver src/lib/configCerdos.ts) */
+  config_cerdos?: Json | null
   /** Rangos de peso con que la granja clasifica los lechones al destete */
   tallas_destete?: { nombre: string; desde: number }[] | null
   altitud_msnm: number | null

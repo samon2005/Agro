@@ -12,6 +12,7 @@ import { ESPECIES_FINCA, type EspecieFinca } from '@/lib/especies'
 import { LUGAR } from '@/lib/instalaciones'
 import { Ic } from '@/components/ui/icon'
 import GalponesFinca from './GalponesFinca'
+import NavesFinca from './cerdos/NavesFinca'
 
 type Finca = {
   id: string
@@ -284,10 +285,12 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated, onDe
               <Label>{LUGAR[especie]!.plural.charAt(0).toUpperCase() + LUGAR[especie]!.plural.slice(1)} de la finca</Label>
               <p className="text-xs text-gray-500">
                 {especie === 'cerdos'
-                  ? 'Los corrales son lugares fijos: cada uno con su medida y para qué es (cría o precebo). Agrega uno cuando se construya, o corrige sus datos.'
+                  ? 'Una nave por cada etapa (gestación, parideras, precebo, levante, ceba, clínica…). Las de engorde se dividen en corrales; las de cría pueden tener jaulas o parideras numeradas.'
                   : 'Los lugares fijos donde entran las aves. Agrega uno cuando se construya, o corrige su nombre o su medida.'}
               </p>
-              <GalponesFinca fincaId={finca.id} especie={especie} onCambio={onUpdated} />
+              {especie === 'cerdos'
+                ? <NavesFinca fincaId={finca.id} onCambio={onUpdated} />
+                : <GalponesFinca fincaId={finca.id} especie={especie} onCambio={onUpdated} />}
             </div>
           )}
           <div className="border border-red-200 bg-red-50 rounded-lg p-3 space-y-2">

@@ -21,6 +21,7 @@ import ClasificarPorPesoModal from './ClasificarPorPesoModal'
 import ProgramarPesajeModal from './ProgramarPesajeModal'
 import { gdpEntre, gdpAcumulada, estadoPesaje, diasHasta } from '@/lib/crecimiento'
 import { etapasEngordeDeFinca } from '@/lib/cerdos'
+import { useConfigCerdos } from '@/lib/useConfigCerdos'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
 type PesoLote = Database['public']['Tables']['pesos_lote_cerdos']['Row']
@@ -45,7 +46,8 @@ const TIPOS_MOV = [
 
 export default function TabCrecimiento({ loteActual, onLoteUpdated }: Props) {
   const { fincaActual } = useFinca()
-  const etapasEngorde = etapasEngordeDeFinca(fincaActual?.etapas_cerdos)
+  const cfg = useConfigCerdos()
+  const etapasEngorde = etapasEngordeDeFinca(fincaActual?.etapas_cerdos, cfg)
   const supabase = createClient()
   const [pesos, setPesos] = useState<PesoLote[]>([])
   const [mortalidad, setMortalidad] = useState<Mortalidad[]>([])

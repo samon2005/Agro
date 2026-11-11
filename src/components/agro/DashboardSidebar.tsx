@@ -33,7 +33,7 @@ export default function DashboardSidebar({ user }: { user: User }) {
     ...(especiesFinca.length > 0 ? [{ href: '/alimento', label: 'Alimento', icon: 'alimento' as const }] : []),
     ...ESPECIES_FINCA
       .filter(esp => especiesFinca.includes(esp.value))
-      // Con una sola especie el menú dice el lugar ("Galpones", "Corrales"):
+      // Con una sola especie el menú dice el lugar ("Galpones", "Naves"):
       // nombrar la especie sobra cuando la finca solo trabaja esa.
       .map(esp => ({ href: esp.href, icon: esp.icon, label: nombreSeccion(esp.value, fincaActual?.tipo_produccion) })),
     // Huevos y ventas son de la finca entera, no de un galpón: van debajo de Galpones
@@ -44,7 +44,7 @@ export default function DashboardSidebar({ user }: { user: User }) {
           ...(rol !== 'trabajador' ? [{ href: '/ventas', label: 'Ventas de la finca', icon: 'recibo' as const }] : []),
         ]
       : []),
-    // La historia de la cría (servicios, partos, destetes y lechones) va debajo de Corrales
+    // La historia de la cría (servicios, partos, destetes y lechones) va debajo de Naves
     ...(especiesFinca.includes('cerdos') ? [{ href: '/historial', label: 'Historial', icon: 'agenda' as const }] : []),
     ...(rol !== 'trabajador' ? [{ href: '/operarios', label: 'Operarios', icon: 'operario' as const }] : []),
   ]

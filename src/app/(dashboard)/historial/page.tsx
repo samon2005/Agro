@@ -78,7 +78,7 @@ export default function HistorialPage() {
       supabase.from('lechones_cerdos').select('*').eq('finca_id', f).order('codigo'),
       supabase.from('ventas_cerdos').select('id, cantidad, precio_animal, cliente').eq('finca_id', f),
       supabase.from('lotes_cerdos').select('id, nombre, corral').eq('finca_id', f),
-      supabase.from('naves_cerdos').select('id, nombre').eq('finca_id', f),
+      supabase.from('instalaciones').select('id, nombre').eq('finca_id', f).eq('especie', 'cerdos'),
     ])
     setHembras(h.data ?? [])
     setServicios(s.data ?? [])
@@ -233,7 +233,7 @@ export default function HistorialPage() {
                           <TableRow key={s.id}>
                             <TableCell className="py-2">{fmt(s.fecha_servicio)}</TableCell>
                             <TableCell className="py-2 font-medium">{codigo(s.reproductora_id)}</TableCell>
-                            <TableCell className="py-2 text-gray-500">{nombreNave[hembraPorId.get(s.reproductora_id)?.nave_id ?? ''] ?? '—'}</TableCell>
+                            <TableCell className="py-2 text-gray-500">{nombreNave[hembraPorId.get(s.reproductora_id)?.ubicacion_id ?? ''] ?? '—'}</TableCell>
                             <TableCell className="py-2 text-gray-600">{s.tipo === 'monta_natural' ? 'Monta' : 'Inseminación'}</TableCell>
                             <TableCell className="py-2 text-gray-500">{s.codigo_semen ?? s.verraco ?? '—'}</TableCell>
                             <TableCell className="py-2">{fmt(s.fecha_probable_parto)}</TableCell>

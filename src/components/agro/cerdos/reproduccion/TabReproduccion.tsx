@@ -17,10 +17,14 @@ import RegistrarDesteteModal from './RegistrarDesteteModal'
 import FichaCerdaModal from './FichaCerdaModal'
 import type { Database } from '@/types/database'
 import {
-  ESTADOS_REPRODUCTORA, DIAS_GESTACION, DIAS_LACTANCIA_MIN, DIAS_LACTANCIA_MAX,
-  diaDeGestacion, diasDesde, edadTexto, fechaRepeticionCelo,
+  ESTADOS_REPRODUCTORA,
+  diaDeGestacion, diasDesde, edadTexto, fechaRepeticionCelo, sincronizarPieDeCria,
 } from '@/lib/cerdos'
 import { hoyLocal } from '@/lib/fechas'
+import { useConfigCerdos } from '@/lib/useConfigCerdos'
+import { nombrePuestos, type NaveRef } from '@/lib/instalaciones'
+import { alertasPieDeCria, nivelBandeja } from '@/lib/alertasCerdos'
+import { BandejaAlertas } from '@/components/ui/widgets/Alertas'
 import { Ic } from '@/components/ui/icon'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
@@ -34,15 +38,14 @@ type Aplicacion = Database['public']['Tables']['inseminaciones_cerdos']['Row']
 type Lechon = Database['public']['Tables']['lechones_cerdos']['Row']
 
 type SubTab = 'hembras' | 'servicios' | 'partos' | 'lechones' | 'destetes'
-type Nave = Database['public']['Tables']['naves_cerdos']['Row']
 
 interface Props {
   loteActual: LoteCerdos
   onLoteUpdated: () => void
   /** La nave que se está viendo: solo sus cerdas y lo de ellas */
-  nave: Nave
-  /** Todas las naves del corral, para pasar una cerda de una a otra */
-  naves: Nave[]
+  nave: NaveRef
+  /** Las naves de cría de la granja, para pasar una cerda de una a otra */
+  naves: NaveRef[]
 }
 
 /**
@@ -51,6 +54,7 @@ interface Props {
  * queda en el Historial.
  */
 export default function TabReproduccion({ loteActual, onLoteUpdated, nave, naves }: Props) {
+  const cfg = useConfigCerdos()
   const supabase = createClient()
   const [subTab, setSubTab] = useState<SubTab>('hembras')
   const [hembras, setHembras] = useState<Reproductora[]>([])
@@ -78,7 +82,7 @@ export default function TabReproduccion({ loteActual, onLoteUpdated, nave, naves
   const fetchAll = useCallback(async () => {
     setLoading(true)
     const [h, s, p, d] = await Promise.all([
-      supabase.from('reproductoras_cerdos').select('*').eq('lote_id', loteActual.id).eq('nave_id', nave.id).order('codigo'),
+      supabase.from('reproductoras_cerdos').select('*').eq('lote_id', loteActual.id).eq('ubicacion_id', nave.id).order('codigo'),
       supabase.from('servicios_cerdos').select('*').eq('lote_id', loteActual.id).order('fecha_servicio', { ascending: false }),
       supabase.from('partos_cerdos').select('*').eq('lote_id', loteActual.id).order('fecha_parto', { ascending: false }),
       supabase.from('destetes_cerdos').select('*').eq('lote_id', loteActual.id).order('fecha_destete', { ascending: false }),
@@ -118,6 +122,7 @@ export default function TabReproduccion({ loteActual, onLoteUpdated, nave, naves
   const gestantes = activas.filter(h => h.estado === 'gestante')
   const lactantes = activas.filter(h => h.estado === 'lactante')
   const vacias = activas.filter(h => h.estado === 'vacia')
+  const servidas = activas.filter(h => h.estado === 'servida')
 
   // Indicadores del núcleo
   const hoyStr = hoyLocal()
@@ -133,15 +138,11 @@ export default function TabReproduccion({ loteActual, onLoteUpdated, nave, naves
 
   // Servicios pendientes de confirmar preñez y partos que ya vienen
   const serviciosActivos = servicios.filter(s => s.estado === 'pendiente' || s.estado === 'confirmado')
-  const porConfirmar = serviciosActivos.filter(s => !s.prenez_confirmada && diasDesde(s.fecha_servicio) >= 21)
-  const partosProximos = serviciosActivos
-    .filter(s => s.fecha_probable_parto && diasDesde(hoyStr, s.fecha_probable_parto) <= 7 && diasDesde(hoyStr, s.fecha_probable_parto) >= 0)
+  const porConfirmar = serviciosActivos.filter(s => !s.prenez_confirmada && diasDesde(s.fecha_servicio) >= cfg.reproduccion.cicloEstral)
 
   // Camadas sin destetar, con su día de lactancia
   const partosConDestete = new Set(destetes.map(d => d.parto_id).filter(Boolean))
   const camadasLactando = partos.filter(p => !partosConDestete.has(p.id))
-  const destetesVencidos = camadasLactando.filter(p => diasDesde(p.fecha_parto) > DIAS_LACTANCIA_MAX)
-  // En la ventana de destete: ya se pueden destetar, todavía sin atraso
   // El parto más cercano de las hembras preñadas, para el cuadro de "por venir"
   const proximoParto = servicios
     .filter(s => s.estado !== 'parido' && s.fecha_probable_parto)
@@ -167,9 +168,13 @@ export default function TabReproduccion({ loteActual, onLoteUpdated, nave, naves
       ? hembras
       : hembras.filter(h => h.estado === grupoHembras)
 
-  const destetesListos = camadasLactando.filter(p => {
-    const d = diasDesde(p.fecha_parto)
-    return d >= DIAS_LACTANCIA_MIN && d <= DIAS_LACTANCIA_MAX
+  // Si la nave tiene jaulas o parideras numeradas, la tabla muestra el número de cada cerda
+  const puestoNave = nave.puestos ? nombrePuestos(nave.uso)?.replace(/s$/, '') ?? null : null
+
+  // Las alertas de las cerdas de esta nave salen del motor (parto, traslado, celo, destete)
+  const alertas = alertasPieDeCria({
+    cerdas: hembras, servicios, partos, destetes, cfg, hoy: hoyStr,
+    naveDeParideras: id => naves.some(n => n.id === id && n.uso === 'parideras'),
   })
 
   /**
@@ -219,6 +224,7 @@ export default function TabReproduccion({ loteActual, onLoteUpdated, nave, naves
 
     const { error } = await supabase.from(tabla).delete().eq('id', id)
     if (error) { toast.error('Error al eliminar el registro'); return }
+    if (tabla === 'reproductoras_cerdos') await sincronizarPieDeCria(supabase, loteActual.id)
 
     if (parto) {
       const hembra = hembraPorId.get(parto.reproductora_id)
@@ -252,7 +258,7 @@ export default function TabReproduccion({ loteActual, onLoteUpdated, nave, naves
         <div>
           <h2 className="text-lg font-semibold text-gray-800">{nave.nombre}</h2>
           <p className="text-xs text-gray-400">
-            Gestación de {DIAS_GESTACION} días · destete entre los 21 y los {DIAS_LACTANCIA_MAX} días · la cerda repite celo a los 21 días si no prendió
+            Gestación de {cfg.reproduccion.diasGestacion} días · destete entre los {cfg.reproduccion.lactanciaMin} y los {cfg.reproduccion.lactanciaMax} días · la cerda repite celo a los {cfg.reproduccion.cicloEstral} días si no prendió
           </p>
         </div>
         <div className="flex gap-2">
@@ -291,42 +297,19 @@ export default function TabReproduccion({ loteActual, onLoteUpdated, nave, naves
         </div>
       </div>
 
-      {/* Avisos de manejo: lo que hay que hacer esta semana */}
-      {(porConfirmar.length > 0 || partosProximos.length > 0 || destetesVencidos.length > 0 || destetesListos.length > 0) && (
-        <div className="space-y-2">
-          {porConfirmar.length > 0 && (
-            <div className="p-3 bg-blue-50 border border-blue-300 rounded-lg text-sm text-blue-800">
-              <Ic n="buscar" /> <strong>{porConfirmar.length}</strong> {porConfirmar.length === 1 ? 'hembra servida lleva' : 'hembras servidas llevan'} más
-              de 21 días sin confirmar preñez: {porConfirmar.map(s => hembraPorId.get(s.reproductora_id)?.codigo ?? '—').join(', ')}
-            </div>
-          )}
-          {partosProximos.length > 0 && (
-            <div className="p-3 bg-purple-50 border border-purple-300 rounded-lg text-sm text-purple-800">
-              <Ic n="tetero" /> <strong>Partos esta semana:</strong> {partosProximos.map(s =>
-                `${hembraPorId.get(s.reproductora_id)?.codigo ?? '—'} (${fmt(s.fecha_probable_parto!)})`
-              ).join(', ')}
-            </div>
-          )}
-          {destetesListos.length > 0 && (
-            <div className="p-3 bg-green-50 border border-green-300 rounded-lg text-sm text-green-800">
-              <Ic n="tetero" /> <strong>{destetesListos.length}</strong> {destetesListos.length === 1 ? 'camada está' : 'camadas están'} en edad de destete
-              ({DIAS_LACTANCIA_MIN} a {DIAS_LACTANCIA_MAX} días): {destetesListos.map(p =>
-                `${hembraPorId.get(p.reproductora_id)?.codigo ?? '—'} · día ${diasDesde(p.fecha_parto)}`
-              ).join(', ')}. Al destetar se registra el peso de salida.
-            </div>
-          )}
-          {destetesVencidos.length > 0 && (
-            <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg text-sm text-amber-800">
-              <Ic n="cerdo" /> <strong>{destetesVencidos.length}</strong> {destetesVencidos.length === 1 ? 'camada pasó' : 'camadas pasaron'} los {DIAS_LACTANCIA_MAX} días
-              de lactancia sin registrar destete.
-            </div>
-          )}
-        </div>
-      )}
+      {/* Lo que hay que hacer con las cerdas de esta nave (motor de alertas: src/lib/alertasCerdos.ts) */}
+      <BandejaAlertas titulo="Para hacer" alertas={[
+        ...alertas.map(a => ({ id: a.id, nivel: nivelBandeja(a.prioridad), texto: a.texto, detalle: a.detalle })),
+        ...(porConfirmar.length > 0 ? [{
+          id: 'por-confirmar', nivel: 'revisar' as const,
+          texto: `${porConfirmar.length} ${porConfirmar.length === 1 ? 'hembra servida lleva' : 'hembras servidas llevan'} más de ${cfg.reproduccion.cicloEstral} días sin confirmar preñez`,
+          detalle: porConfirmar.map(s => hembraPorId.get(s.reproductora_id)?.codigo ?? '—').join(', '),
+        }] : []),
+      ]} />
 
       {/* KPIs del núcleo de cría */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Indicador tono="pink" icono="cerdo" etiqueta="Hembras activas" valor={activas.length} detalle={<>{gestantes.length} gestantes · {lactantes.length} lactantes · {vacias.length} vacías</>} />
+        <Indicador tono="pink" icono="cerdo" etiqueta="Hembras activas" valor={activas.length} detalle={<>{servidas.length > 0 && <>{servidas.length} {servidas.length === 1 ? 'servida' : 'servidas'} · </>}{gestantes.length} gestantes · {lactantes.length} lactantes · {vacias.length} vacías</>} />
         {gestantes.length > 0 && (
           <Indicador
             tono="purple" icono="tetero" etiqueta="Partos por venir" valor={gestantes.length}
@@ -406,6 +389,7 @@ export default function TabReproduccion({ loteActual, onLoteUpdated, nave, naves
                   <TableHeader>
                     <TableRow>
                       <TableHead>Código</TableHead>
+                      {puestoNave && <TableHead className="capitalize">{puestoNave}</TableHead>}
                       <TableHead>Nombre</TableHead>
                       <TableHead>Edad</TableHead>
                       <TableHead className="text-right">Partos</TableHead>
@@ -436,6 +420,7 @@ export default function TabReproduccion({ loteActual, onLoteUpdated, nave, naves
                               </span>
                             )}
                           </TableCell>
+                          {puestoNave && <TableCell className="text-sm tabular-nums text-gray-600">{h.puesto ?? '—'}</TableCell>}
                           <TableCell className="text-sm text-gray-600">{h.nombre ?? '—'}</TableCell>
                           <TableCell className="text-sm text-gray-500">{edadTexto(h.fecha_nacimiento)}</TableCell>
                           <TableCell className="text-right text-sm">{h.numero_partos}</TableCell>
@@ -509,8 +494,8 @@ export default function TabReproduccion({ loteActual, onLoteUpdated, nave, naves
                           </TableCell>
                           <TableCell className="text-sm">
                             {s.fecha_probable_parto ? fmt(s.fecha_probable_parto) : '—'}
-                            {(s.estado === 'pendiente' || s.estado === 'confirmado') && dia != null && dia <= DIAS_GESTACION && (
-                              <span className="block text-[11px] text-gray-400">día {dia} de {DIAS_GESTACION}</span>
+                            {(s.estado === 'pendiente' || s.estado === 'confirmado') && dia != null && dia <= cfg.reproduccion.diasGestacion && (
+                              <span className="block text-[11px] text-gray-400">día {dia} de {cfg.reproduccion.diasGestacion}</span>
                             )}
                           </TableCell>
                           <TableCell className="text-xs">
@@ -521,7 +506,7 @@ export default function TabReproduccion({ loteActual, onLoteUpdated, nave, naves
                               : (
                                 <div className="space-y-1.5">
                                   <span className="block text-blue-700">
-                                    <Ic n="reloj" /> ¿Quedó preñada? Se revisa hacia el {fmt(fechaRepeticionCelo(s.fecha_servicio))}
+                                    <Ic n="reloj" /> ¿Quedó preñada? Se revisa hacia el {fmt(fechaRepeticionCelo(s.fecha_servicio, cfg))}
                                   </span>
                                   <div className="flex gap-1.5">
                                     <Button
@@ -645,11 +630,11 @@ export default function TabReproduccion({ loteActual, onLoteUpdated, nave, naves
                           <TableCell className="text-xs">
                             {destetado
                               ? <span className="text-green-700"><Ic n="listo" /> Destetada</span>
-                              : dias > DIAS_LACTANCIA_MAX
+                              : dias > cfg.reproduccion.lactanciaMax
                                 ? <span className="font-medium text-red-700">Día {dias} · destete atrasado</span>
-                                : dias >= DIAS_LACTANCIA_MIN
+                                : dias >= cfg.reproduccion.lactanciaMin
                                   ? <span className="font-medium text-green-700">Día {dias} · lista para destetar</span>
-                                  : <span className="text-gray-500">Día {dias} de {DIAS_LACTANCIA_MIN}</span>}
+                                  : <span className="text-gray-500">Día {dias} de {cfg.reproduccion.lactanciaObjetivo}</span>}
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center justify-end gap-1">
@@ -713,11 +698,11 @@ export default function TabReproduccion({ loteActual, onLoteUpdated, nave, naves
                           <TableCell className="text-sm">{fmt(p.fecha_parto)}</TableCell>
                           <TableCell className="text-right text-sm">{vivos > 0 ? vivos : p.nacidos_vivos}</TableCell>
                           <TableCell className="text-xs">
-                            {dias > DIAS_LACTANCIA_MAX
+                            {dias > cfg.reproduccion.lactanciaMax
                               ? <span className="font-medium text-red-700">Día {dias} · destete atrasado</span>
-                              : dias >= DIAS_LACTANCIA_MIN
+                              : dias >= cfg.reproduccion.lactanciaMin
                                 ? <span className="font-medium text-green-700">Día {dias} · lista para destetar</span>
-                                : <span className="text-gray-500">Día {dias} de {DIAS_LACTANCIA_MIN}</span>}
+                                : <span className="text-gray-500">Día {dias} de {cfg.reproduccion.lactanciaObjetivo}</span>}
                           </TableCell>
                           <TableCell className="text-right">
                             <Button size="sm" className="h-7 bg-pink-600 text-xs text-white hover:bg-pink-700"

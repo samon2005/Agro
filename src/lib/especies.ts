@@ -10,7 +10,7 @@ export type EspecieFinca = 'aves_ponedoras' | 'cerdos' | 'pollo_engorde'
  */
 export const ESPECIES_FINCA: { value: EspecieFinca; label: string; labelNav?: string; lugar: string; icon: NombreIcono; href: string }[] = [
   { value: 'aves_ponedoras', label: 'Galpones', labelNav: 'Aves ponedoras', lugar: 'Galpones', icon: 'gallina', href: '/aves-ponedoras' },
-  { value: 'cerdos', label: 'Cerdos', lugar: 'Corrales', icon: 'cerdo', href: '/cerdos' },
+  { value: 'cerdos', label: 'Cerdos', lugar: 'Naves', icon: 'cerdo', href: '/cerdos' },
   { value: 'pollo_engorde', label: 'Pollo de Engorde', lugar: 'Galpones', icon: 'pollo', href: '/pollo-engorde' },
 ]
 
@@ -28,7 +28,7 @@ export function unaSolaEspecie(tipoProduccion: string[] | null | undefined): boo
 /**
  * Cómo se titula la sección de una especie. Con varias especies se nombra la
  * especie ("Aves ponedoras", "Cerdos"); con una sola basta el lugar donde
- * viven los animales ("Galpones", "Corrales"), porque el productor ya sabe
+ * viven los animales ("Galpones", "Naves"), porque el productor ya sabe
  * con qué trabaja.
  */
 export function nombreSeccion(especie: EspecieFinca, tipoProduccion: string[] | null | undefined): string {

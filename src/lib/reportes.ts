@@ -90,7 +90,7 @@ export async function cargarReporte(
       .eq('finca_id', fincaId).gte('fecha', desde)) : vacio,
     tiene('aves_ponedoras') ? delLote(supabase.from('eventos_clinicos_aves').select('lote_id, fecha, tipo_evento, aves_muertas, origen').eq('finca_id', fincaId).gte('fecha', desde)) : vacio,
     tiene('cerdos') ? supabase.from('lotes_cerdos').select('id, nombre, estado, animales_actuales, fecha_ingreso, alimento_activo_id').eq('finca_id', fincaId) : vacio,
-    tiene('cerdos') ? delLote(supabase.from('nutricion_diaria_cerdos').select('lote_id, fecha, alimento_kg, tipo_alimento_id').eq('finca_id', fincaId).gte('fecha', desde)) : vacio,
+    tiene('cerdos') ? delLote(supabase.from('nutricion_diaria_cerdos').select('lote_id, fecha, alimento_kg, consumo_real_kg, tipo_alimento_id').eq('finca_id', fincaId).gte('fecha', desde)) : vacio,
     tiene('cerdos') ? delLote(supabase.from('mortalidad_cerdos').select('lote_id, fecha, cantidad, causa').eq('finca_id', fincaId).gte('fecha', desde)) : vacio,
     tiene('cerdos') ? delLote(supabase.from('pesos_lote_cerdos').select('lote_id, fecha, peso_promedio').eq('finca_id', fincaId).gte('fecha', desde)) : vacio,
     tiene('cerdos') ? delLote(supabase.from('eventos_clinicos_cerdos').select('lote_id, fecha, tipo_evento, animales_muertos').eq('finca_id', fincaId).gte('fecha', desde)) : vacio,
@@ -122,7 +122,7 @@ export async function cargarReporte(
       alimentoKg: Number(p.alimento_kg ?? 0), malos: (p.huevos_rotos ?? 0) + (p.huevos_sucios ?? 0) + (p.huevos_deformes ?? 0),
       tipo: tipoDe(p.lote_id, p.tipo_alimento_id), causa: p.causa_muerte,
     })),
-    ...(nutCerdos.data ?? []).map(n => ({ fecha: n.fecha, lote: n.lote_id, huevos: 0, aves: null, muertes: 0, alimentoKg: Number(n.alimento_kg ?? 0), malos: 0, tipo: tipoDe(n.lote_id, n.tipo_alimento_id), causa: null })),
+    ...(nutCerdos.data ?? []).map(n => ({ fecha: n.fecha, lote: n.lote_id, huevos: 0, aves: null, muertes: 0, alimentoKg: Number(n.consumo_real_kg ?? n.alimento_kg ?? 0), malos: 0, tipo: tipoDe(n.lote_id, n.tipo_alimento_id), causa: null })),
     ...(mortCerdos.data ?? []).map(m => ({ fecha: m.fecha, lote: m.lote_id, huevos: 0, aves: null, muertes: m.cantidad ?? 0, alimentoKg: 0, malos: 0, tipo: null, causa: m.causa })),
     ...(prodPollo.data ?? []).map(p => ({ fecha: p.fecha, lote: p.lote_id, huevos: 0, aves: null, muertes: p.muertes ?? 0, alimentoKg: Number(p.alimento_kg ?? 0), malos: 0, tipo: tipoDe(p.lote_id, p.tipo_alimento_id), causa: p.causa_muerte })),
   ]

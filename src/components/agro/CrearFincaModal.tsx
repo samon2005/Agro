@@ -96,10 +96,11 @@ export default function CrearFincaModal({ open, onCreated }: Props) {
     const nombres = galpones.map(g => g.nombre.trim().toLowerCase())
     if (nombres.some(n => !n)) { toast.error(`Cada ${lugar.singular} necesita su nombre`); return false }
     if (new Set(nombres).size !== nombres.length) { toast.error(`Hay dos ${lugar.plural} con el mismo nombre`); return false }
-    if (galpones.some(g => !g.area_m2 || Number(g.area_m2) <= 0)) {
+    // En cerdos la medida de la nave es opcional (los corrales se miden aparte)
+    if (galpones.some(g => esCorral ? g.area_m2 !== '' && Number(g.area_m2) <= 0 : !g.area_m2 || Number(g.area_m2) <= 0)) {
       toast.error(`Escribe la medida de cada ${lugar.singular} en m²`); return false
     }
-    if (esCorral && galpones.some(g => !g.uso)) { toast.error('Elige para qué es cada corral (cría o precebo)'); return false }
+    if (esCorral && galpones.some(g => !g.uso)) { toast.error('Elige para qué es cada nave'); return false }
     return true
   }
 
@@ -155,7 +156,7 @@ export default function CrearFincaModal({ open, onCreated }: Props) {
           especie: especie!,
           tipo: lugar.tipo,
           nombre: g.nombre.trim(),
-          area_m2: Number(g.area_m2),
+          area_m2: g.area_m2 ? Number(g.area_m2) : null,
           uso: esCorral ? g.uso : null,
           registrado_por: user.id,
         })),
@@ -291,7 +292,7 @@ export default function CrearFincaModal({ open, onCreated }: Props) {
               {galpones.map((g, i) => (
                 <div key={i} className={cn('grid items-center gap-2', esCorral ? 'grid-cols-[1fr_6.5rem_7.5rem_2rem]' : 'grid-cols-[1fr_8rem_2rem]')}>
                   <Input placeholder={`Ej: ${lugar.base} A`} value={g.nombre} onChange={e => setGalpon(i, 'nombre', e.target.value)} />
-                  <Input type="number" min="0" step="0.1" placeholder={esCorral ? 'Ej: 60' : 'Ej: 500'} value={g.area_m2} onChange={e => setGalpon(i, 'area_m2', e.target.value)} />
+                  <Input type="number" min="0" step="0.1" placeholder={esCorral ? 'Opcional' : 'Ej: 500'} value={g.area_m2} onChange={e => setGalpon(i, 'area_m2', e.target.value)} />
                   {esCorral && (
                     <Select
                       value={g.uso}
@@ -318,7 +319,9 @@ export default function CrearFincaModal({ open, onCreated }: Props) {
             </div>
             {esCorral && (
               <p className="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-500">
-                {USOS_CORRAL.map(u => `${u.label}: ${u.detalle.toLowerCase()}`).join(' · ')}.
+                Una nave por etapa. Cría: {USOS_CORRAL.filter(u => u.grupo === 'cria').map(u => u.label.toLowerCase()).join(', ')}.
+                Engorde: {USOS_CORRAL.filter(u => u.grupo === 'engorde').map(u => u.label.toLowerCase()).join(', ')}.
+                Los corrales de cada nave y las jaulas o parideras se agregan después en Datos de la finca.
               </p>
             )}
             <div className="flex gap-2">

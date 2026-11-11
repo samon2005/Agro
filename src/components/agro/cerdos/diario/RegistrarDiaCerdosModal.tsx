@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
 import { CAUSAS_MUERTE_CERDOS } from '@/lib/cerdos'
+import { useConfigCerdos } from '@/lib/useConfigCerdos'
 import { Ic } from '@/components/ui/icon'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
@@ -36,6 +37,7 @@ function defaultForm(lote: LoteCerdos, r?: NutricionDiaria | null) {
   return {
     fecha: r?.fecha ?? hoyLocal(),
     alimento_kg: r ? String(r.alimento_kg) : consumoSugerido,
+    sobrante_kg: r?.sobrante_kg != null ? String(r.sobrante_kg) : '',
     agua_litros: r?.agua_litros != null ? String(r.agua_litros) : '',
     observaciones: r?.observaciones ?? '',
     // La mortalidad del día se registra aquí: conteo, causa y peso
@@ -47,6 +49,7 @@ function defaultForm(lote: LoteCerdos, r?: NutricionDiaria | null) {
 
 export default function RegistrarDiaCerdosModal({ open, onClose, lote, registroExistente, onCreated }: Props) {
   const supabase = createClient()
+  const cfg = useConfigCerdos()
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState(() => defaultForm(lote, registroExistente))
   const [causaNueva, setCausaNueva] = useState(false)
@@ -61,10 +64,17 @@ export default function RegistrarDiaCerdosModal({ open, onClose, lote, registroE
   }
 
   const muertes = Number(form.muertes) || 0
+  // El agua solo se pide si la granja la mide (o si este día ya la tenía anotada)
+  const pedirAgua = cfg.opciones.medirAgua || registroExistente?.agua_litros != null
+  const servido = Number(form.alimento_kg) || 0
+  const sobrante = form.sobrante_kg === '' ? null : Number(form.sobrante_kg)
+  const sobranteInvalido = sobrante != null && (sobrante < 0 || sobrante > servido)
+  const kg = (n: number) => n.toLocaleString('es-CO', { maximumFractionDigits: 1 })
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.alimento_kg || Number(form.alimento_kg) < 0) { toast.error('Ingresa el alimento consumido'); return }
+    if (!form.alimento_kg || Number(form.alimento_kg) < 0) { toast.error('Ingresa el alimento que se sirvió'); return }
+    if (sobranteInvalido) { toast.error('El sobrante no puede ser mayor que lo servido'); return }
     if (muertes > 0 && !form.causa_muerte) { toast.error('Indica la causa de la muerte'); return }
 
     setLoading(true)
@@ -79,6 +89,7 @@ export default function RegistrarDiaCerdosModal({ open, onClose, lote, registroE
       fecha: form.fecha,
       alimento_kg: Number(form.alimento_kg) || 0,
       tipo_alimento_id: lote.alimento_activo_id,
+      sobrante_kg: sobrante,
       agua_litros: form.agua_litros ? Number(form.agua_litros) : null,
       observaciones: form.observaciones || null,
     }
@@ -119,25 +130,39 @@ export default function RegistrarDiaCerdosModal({ open, onClose, lote, registroE
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{registroExistente ? 'Editar Registro del Día' : 'Registrar Día'}</DialogTitle>
-          <p className="text-sm text-gray-500">Lo que se anota todos los días del lote: alimento, agua y mortalidad.</p>
+          <p className="text-sm text-gray-500">{pedirAgua ? 'Lo que se anota todos los días del lote: alimento, agua y mortalidad.' : 'Lo que se anota todos los días del lote: alimento y mortalidad.'}</p>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1">
+            <div className={pedirAgua ? 'space-y-1' : 'col-span-2 space-y-1'}>
               <Label>Fecha</Label>
               <Input type="date" value={form.fecha} onChange={e => set('fecha', e.target.value)} />
             </div>
+            {pedirAgua && (
+              <div className="space-y-1">
+                <Label>Agua (litros)</Label>
+                <Input type="number" min="0" step="0.1" placeholder="0" value={form.agua_litros} onChange={e => set('agua_litros', e.target.value)} />
+              </div>
+            )}
             <div className="space-y-1">
-              <Label>Agua (litros)</Label>
-              <Input type="number" min="0" step="0.1" placeholder="0" value={form.agua_litros} onChange={e => set('agua_litros', e.target.value)} />
-            </div>
-            <div className="col-span-2 space-y-1">
-              <Label>Alimento consumido (kg) *</Label>
+              <Label>Alimento servido (kg) *</Label>
               <Input type="number" min="0" step="0.1" value={form.alimento_kg} onChange={e => set('alimento_kg', e.target.value)} />
-              <p className="text-xs text-gray-400">
-                Es el total del lote en el día. Viene sugerido del consumo configurado del lote.
-              </p>
             </div>
+            <div className="space-y-1">
+              <Label>Sobrante (kg)</Label>
+              <Input
+                type="number" min="0" step="0.1" placeholder="No se midió"
+                aria-invalid={sobranteInvalido || undefined}
+                value={form.sobrante_kg} onChange={e => set('sobrante_kg', e.target.value)}
+              />
+            </div>
+            <p className={`col-span-2 -mt-2 text-xs ${sobranteInvalido ? 'text-red-600' : 'text-gray-500'}`}>
+              {sobranteInvalido
+                ? 'El sobrante no puede ser mayor que lo servido.'
+                : sobrante != null && servido > 0
+                  ? <>Comieron <strong className="text-gray-700">{kg(servido - sobrante)} kg</strong>: con eso se calculan la conversión y los costos.</>
+                  : 'Lo servido viene sugerido del consumo del lote. Si mides lo que quedó en el comedero, anótalo y la app calcula lo que de verdad comieron.'}
+            </p>
           </div>
 
           <div className="p-3 bg-red-50 rounded-lg border border-red-200 space-y-3">
