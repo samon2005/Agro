@@ -14,6 +14,9 @@ import { LINEAS_PONEDORAS, nacimientoDesdeEdad, semanaDeVida } from '@/lib/refer
 import { hoyLocal } from '@/lib/fechas'
 import SelectorReferencia from '../referencias/SelectorReferencia'
 import CerrarLoteModal from '../CerrarLoteModal'
+import MetasSemanalesEditor from '../MetasSemanalesEditor'
+import { useReferencia } from '@/lib/useReferencia'
+import { huevosDeMeta, leerMetasSemanales, metasParaGuardar, semanasDelCiclo, type MetasSemanales } from '@/lib/metasPostura'
 import { PROPOSITOS, type Proposito } from '@/lib/lotesAves'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
@@ -39,6 +42,8 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, 
   const [deleting, setDeleting] = useState(false)
   const [confirmarNombre, setConfirmarNombre] = useState('')
   const [cerrando, setCerrando] = useState(false)
+  // Meta de postura de cada semana (%): la meta en huevos sale de las aves
+  const [metas, setMetas] = useState<MetasSemanales>({})
   const [form, setForm] = useState({
     area_galpon_m2: '',
     fecha_inicio: '',
@@ -50,7 +55,6 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, 
     fecha_salida_programada: '',
     semanas_ciclo_postura: '',
     meta_postura_pct: '',
-    meta_huevos_diaria: '',
     precio_gramo_alimento: '',
     peso_bulto_alimento_kg: '',
   })
@@ -67,10 +71,10 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, 
       fecha_salida_programada: lote.fecha_salida_programada ?? '',
       semanas_ciclo_postura: lote.semanas_ciclo_postura != null ? String(lote.semanas_ciclo_postura) : '60',
       meta_postura_pct: lote.meta_postura_pct != null ? String(lote.meta_postura_pct) : '90',
-      meta_huevos_diaria: lote.meta_huevos_diaria != null ? String(lote.meta_huevos_diaria) : '',
       precio_gramo_alimento: lote.precio_gramo_alimento != null ? String(lote.precio_gramo_alimento) : '',
       peso_bulto_alimento_kg: lote.peso_bulto_alimento_kg != null ? String(lote.peso_bulto_alimento_kg) : '40',
     })
+    setMetas(leerMetasSemanales(lote.metas_postura_semanal))
     setConfirmarNombre('')
   }, [lote, open])
 
@@ -99,6 +103,15 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, 
   const edadHoy = form.edad_llegada.trim() !== '' && Number(form.edad_llegada) >= 0
     ? semanaDeVida(nacimientoDesdeEdad(form.fecha_inicio || lote.fecha_inicio, Number(form.edad_llegada)), hoyLocal())
     : null
+
+  const guia = useReferencia(form.referencia_id || null)
+  const nacimientoForm = form.edad_llegada.trim() !== '' && Number(form.edad_llegada) >= 0
+    ? (form.edad_llegada === edadAlLlegar(lote) && (form.fecha_inicio || lote.fecha_inicio) === lote.fecha_inicio
+        ? lote.fecha_nacimiento
+        : nacimientoDesdeEdad(form.fecha_inicio || lote.fecha_inicio, Number(form.edad_llegada)))
+    : null
+  const semanasCiclo = semanasDelCiclo(nacimientoForm, form.fecha_inicio_postura || null, form.semanas_ciclo_postura ? Number(form.semanas_ciclo_postura) : null)
+  const pico = form.meta_postura_pct ? Number(form.meta_postura_pct) : null
 
   const densidad = form.area_galpon_m2 && Number(form.area_galpon_m2) > 0
     ? (lote.aves_actuales / Number(form.area_galpon_m2)).toFixed(1)
@@ -130,7 +143,9 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, 
       fecha_salida_programada: form.fecha_salida_programada || null,
       semanas_ciclo_postura: form.semanas_ciclo_postura ? Number(form.semanas_ciclo_postura) : null,
       meta_postura_pct: form.meta_postura_pct ? Number(form.meta_postura_pct) : null,
-      meta_huevos_diaria: form.meta_huevos_diaria ? Number(form.meta_huevos_diaria) : null,
+      // La meta en huevos ya no se escribe: sale de las aves × el % de la semana
+      meta_huevos_diaria: null,
+      metas_postura_semanal: metasParaGuardar(metas),
       precio_gramo_alimento: form.precio_gramo_alimento ? Number(form.precio_gramo_alimento) : null,
       peso_bulto_alimento_kg: form.peso_bulto_alimento_kg ? Number(form.peso_bulto_alimento_kg) : null,
     }
@@ -243,16 +258,25 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, 
                   <Input type="number" min="1" placeholder="Ej: 60" value={form.semanas_ciclo_postura} onChange={e => set('semanas_ciclo_postura', e.target.value)} />
                 </div>
                 <div className="space-y-1">
-                  <Label>Meta de postura / pico (%)</Label>
+                  <Label>Meta de postura en el pico (%)</Label>
                   <Input type="number" min="0" max="100" step="0.1" placeholder="Ej: 90" value={form.meta_postura_pct} onChange={e => set('meta_postura_pct', e.target.value)} />
-                </div>
-                <div className="space-y-1">
-                  <Label>Meta de huevos puestos por día</Label>
-                  <Input type="number" min="0" placeholder="Ej: 4500" value={form.meta_huevos_diaria} onChange={e => set('meta_huevos_diaria', e.target.value)} />
+                  {pico != null && lote.aves_actuales > 0 && (
+                    <p className="text-xs text-gray-500">
+                      = {huevosDeMeta(lote.aves_actuales, pico)?.toLocaleString('es-CO')} huevos al día con {lote.aves_actuales.toLocaleString('es-CO')} aves
+                    </p>
+                  )}
                 </div>
               </>
             )}
           </div>
+
+          {!enLevante && (
+            <MetasSemanalesEditor
+              semanas={semanasCiclo} metas={metas} onChange={setMetas}
+              aves={lote.aves_actuales} pico={pico}
+              semanaInicio={semanasCiclo[0] ?? null} guia={guia}
+            />
+          )}
 
           {!enLevante && (
             <p className="text-xs text-gray-400">El precio de venta por tamaño de huevo se define en Ventas de la finca.</p>

@@ -20,7 +20,7 @@ type Venta = Database['public']['Tables']['ventas_huevos_aves']['Row']
 
 const VACIO = {
   nombre: '', telefono: '', notas: '', contrato: false, contrato_desde: '', contrato_hasta: '', huevos_semana: '',
-  precio_b: '', precio_a: '', precio_aa: '', precio_aaa: '', precio_jumbo: '',
+  precio_c: '', precio_b: '', precio_a: '', precio_aa: '', precio_aaa: '', precio_jumbo: '',
 }
 const fmt = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
 const DIAS = 86_400_000
@@ -59,7 +59,7 @@ export default function ClientesHuevos({ fincaId, clientes, ventas, precios, onC
     setForm(c === 'nuevo' ? VACIO : {
       nombre: c.nombre, telefono: c.telefono ?? '', notas: c.notas ?? '', contrato: c.contrato,
       contrato_desde: c.contrato_desde ?? '', contrato_hasta: c.contrato_hasta ?? '', huevos_semana: t(c.huevos_semana),
-      precio_b: t(c.precio_b), precio_a: t(c.precio_a), precio_aa: t(c.precio_aa), precio_aaa: t(c.precio_aaa), precio_jumbo: t(c.precio_jumbo),
+      precio_c: t(c.precio_c), precio_b: t(c.precio_b), precio_a: t(c.precio_a), precio_aa: t(c.precio_aa), precio_aaa: t(c.precio_aaa), precio_jumbo: t(c.precio_jumbo),
     })
   }
 
@@ -81,7 +81,7 @@ export default function ClientesHuevos({ fincaId, clientes, ventas, precios, onC
       contrato_hasta: form.contrato ? form.contrato_hasta || null : null,
       huevos_semana: form.contrato ? semana : null,
       precio_b: precio(form.precio_b), precio_a: precio(form.precio_a), precio_aa: precio(form.precio_aa),
-      precio_aaa: precio(form.precio_aaa), precio_jumbo: precio(form.precio_jumbo),
+      precio_aaa: precio(form.precio_aaa), precio_jumbo: precio(form.precio_jumbo), precio_c: precio(form.precio_c),
     }
     setGuardando(true)
     const { error } = editando === 'nuevo'
@@ -222,7 +222,7 @@ export default function ClientesHuevos({ fincaId, clientes, ventas, precios, onC
             <div className="space-y-1"><Label>Teléfono</Label><Input inputMode="tel" value={form.telefono} onChange={e => setForm(p => ({ ...p, telefono: e.target.value }))} /></div>
             <div className="col-span-2 space-y-1">
               <Label>Precio propio por tamaño</Label>
-              <div className="grid grid-cols-3 gap-2 md:grid-cols-5">
+              <div className="grid grid-cols-3 gap-2 md:grid-cols-6">
                 {TAMANOS_HUEVO.map(t => (
                   <div key={t.key} className="space-y-0.5">
                     <span className="text-[0.6875rem] text-gray-500">{t.label}</span>

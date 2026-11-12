@@ -32,6 +32,7 @@ function defaultForm(e?: Encargo | null) {
   return {
     fecha_pedido: e?.fecha_pedido ?? hoyLocal(),
     fecha_entrega: e?.fecha_entrega ?? '',
+    cantidad_c: e ? String(e.cantidad_c) : '',
     cantidad_b: e ? String(e.cantidad_b) : '',
     cantidad_a: e ? String(e.cantidad_a) : '',
     cantidad_aa: e ? String(e.cantidad_aa) : '',
@@ -84,6 +85,7 @@ export default function RegistrarEncargoModal({ open, onClose, fincaId, encargoE
       fecha_entrega: form.fecha_entrega,
       cliente: c.nombre,
       cliente_id: c.id,
+      cantidad_c: Number(form.cantidad_c) || 0,
       cantidad_b: Number(form.cantidad_b) || 0,
       cantidad_a: Number(form.cantidad_a) || 0,
       cantidad_aa: Number(form.cantidad_aa) || 0,
@@ -138,7 +140,7 @@ export default function RegistrarEncargoModal({ open, onClose, fincaId, encargoE
 
           <div className="space-y-2 rounded-xl bg-gray-50 p-3">
             <p className="text-xs font-semibold text-gray-700">Huevos encargados por tamaño</p>
-            <div className="grid grid-cols-3 gap-3 md:grid-cols-5">
+            <div className="grid grid-cols-3 gap-3 md:grid-cols-6">
               {TAMANOS_HUEVO.map(t => (
                 <div key={t.key} className="space-y-1">
                   <Label className="text-xs">{t.label}</Label>

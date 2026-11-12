@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import {
   ComposedChart, BarChart, Bar, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ReferenceLine, ResponsiveContainer,
+  Line, ReferenceLine, ResponsiveContainer,
 } from 'recharts'
 import { TooltipGrafico } from '@/components/ui/graficos/TooltipGrafico'
 import { Degradado } from '@/components/ui/graficos/Degradado'
@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils'
 import { semanaDePostura } from '@/lib/postura'
 
 const TAMANOS = [
+  { key: 'huevos_c', label: 'C', color: '#d9ead0' },
   { key: 'huevos_b', label: 'B', color: '#b6d6a6' },
   { key: 'huevos_a', label: 'A', color: '#8cbd78' },
   { key: 'huevos_aa', label: 'AA', color: '#62a24c' },
@@ -33,6 +34,8 @@ interface Props {
   /** Entrada al galpón: de respaldo para lotes viejos sin fecha de inicio de postura */
   fechaInicio: string
   metaPosturaPct: number | null
+  /** Meta (%) de la semana de un día (lib/metasPostura): con ella la curva compara semana a semana */
+  metaDeDia?: (fecha: string) => number | null
   /** Cambia cuando se registra o borra un día, para volver a cargar */
   version?: string | number
 }
@@ -45,7 +48,7 @@ function fechaCorta(f: string) {
  * La postura de todo el ciclo: el % real de cada semana frente a la meta de pico,
  * y cuántos huevos de cada gramaje salieron. Se actualiza con cada día registrado.
  */
-export default function GraficasPostura({ loteId, fechaInicioPostura, fechaInicio, metaPosturaPct, version = 0 }: Props) {
+export default function GraficasPostura({ loteId, fechaInicioPostura, fechaInicio, metaPosturaPct, metaDeDia, version = 0 }: Props) {
   const [registros, setRegistros] = useState<Registro[]>([])
   const [cargando, setCargando] = useState(true)
   const [vistaGramaje, setVistaGramaje] = useState<'semana' | 'dia'>('semana')
@@ -54,7 +57,7 @@ export default function GraficasPostura({ loteId, fechaInicioPostura, fechaInici
     let vigente = true
     createClient()
       .from('produccion_diaria_aves')
-      .select('fecha, huevos_totales, aves_en_dia, huevos_b, huevos_a, huevos_aa, huevos_aaa, huevos_jumbo')
+      .select('fecha, huevos_totales, aves_en_dia, huevos_c, huevos_b, huevos_a, huevos_aa, huevos_aaa, huevos_jumbo')
       .eq('lote_id', loteId)
       .order('fecha')
       .then(({ data }) => {
@@ -74,7 +77,7 @@ export default function GraficasPostura({ loteId, fechaInicioPostura, fechaInici
   const porSemana = new Map<number, { pct: number; dias: number; gramaje: Record<Clave, number>; desde: string }>()
   for (const r of enPostura) {
     const semana = semanaDePostura(origen, r.fecha)!
-    const s = porSemana.get(semana) ?? { pct: 0, dias: 0, gramaje: { huevos_b: 0, huevos_a: 0, huevos_aa: 0, huevos_aaa: 0, huevos_jumbo: 0 }, desde: r.fecha }
+    const s = porSemana.get(semana) ?? { pct: 0, dias: 0, gramaje: { huevos_c: 0, huevos_b: 0, huevos_a: 0, huevos_aa: 0, huevos_aaa: 0, huevos_jumbo: 0 }, desde: r.fecha }
     if (r.aves_en_dia && r.aves_en_dia > 0) {
       s.pct += (r.huevos_totales / r.aves_en_dia) * 100
       s.dias += 1
@@ -86,7 +89,10 @@ export default function GraficasPostura({ loteId, fechaInicioPostura, fechaInici
   const curva = semanas.map(([semana, s]) => ({
     semana,
     real: s.dias > 0 ? Number((s.pct / s.dias).toFixed(1)) : null,
+    // La meta de esa semana (la propia, la de la guía o la de pico)
+    meta: metaDeDia ? metaDeDia(s.desde) : meta,
   }))
+  const metaPorSemana = metaDeDia != null && curva.some(d => d.meta != null)
   const mejor = curva.reduce<{ semana: number; real: number } | null>(
     (m, d) => d.real != null && (m == null || d.real > m.real) ? { semana: d.semana, real: d.real } : m, null)
 
@@ -110,7 +116,7 @@ export default function GraficasPostura({ loteId, fechaInicioPostura, fechaInici
         <CardHeader className="pb-1">
           <CardTitle className="text-sm font-semibold text-gray-700"><Ic n="tendencia" /> Curva de postura</CardTitle>
           <p className="text-xs text-gray-400">
-            % de postura real de cada semana de postura{meta != null ? ` frente a la meta de pico (${meta} %)` : ''}.
+            % de postura real de cada semana de postura{metaDeDia ? ', frente a la meta de cada semana (línea punteada)' : ''}{meta != null ? ` y la meta de pico (${meta} %)` : ''}.
             {mejor && ` Mejor semana: ${mejor.semana} con ${mejor.real.toLocaleString('es-CO')} %.`}
           </p>
         </CardHeader>
@@ -126,6 +132,9 @@ export default function GraficasPostura({ loteId, fechaInicioPostura, fechaInici
                   <XAxis dataKey="semana" {...EJE} interval="preserveStartEnd" minTickGap={14} />
                   <YAxis {...EJE_Y} domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} tickFormatter={v => `${v} %`} />
                   <Tooltip cursor={CURSOR_LINEA} content={<TooltipGrafico formato={v => `${v.toLocaleString('es-CO')} %`} titulo={l => `Semana ${l} de postura`} />} />
+                  {metaPorSemana && (
+                    <Line dataKey="meta" name="Meta de la semana" stroke={TINTA.secundaria} strokeWidth={1.5} strokeDasharray="5 4" dot={false} connectNulls isAnimationActive={false} />
+                  )}
                   {meta != null && (
                     <ReferenceLine
                       y={meta}
@@ -181,7 +190,7 @@ export default function GraficasPostura({ loteId, fechaInicioPostura, fechaInici
                 </ResponsiveContainer>
               </div>
               <Leyenda items={TAMANOS.map(t => ({ nombre: t.label, color: t.color }))} />
-              <div className="mt-2 grid grid-cols-5 gap-1 text-center">
+              <div className="mt-2 grid grid-cols-6 gap-1 text-center">
                 {totalPorTamano.map(t => (
                   <div key={t.key} className="rounded-md bg-gray-50 py-1">
                     <p className="text-[0.625rem] font-semibold text-gray-500">{t.label}</p>

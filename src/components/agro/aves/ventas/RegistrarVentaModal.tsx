@@ -33,6 +33,7 @@ interface Props {
 function defaultForm(v?: Venta | null) {
   return {
     fecha: v?.fecha ?? hoyLocal(),
+    cantidad_c: v ? String(v.cantidad_c) : '',
     cantidad_b: v ? String(v.cantidad_b) : '',
     cantidad_a: v ? String(v.cantidad_a) : '',
     cantidad_aa: v ? String(v.cantidad_aa) : '',
@@ -67,7 +68,7 @@ export default function RegistrarVentaModal({ open, onClose, fincaId, precios, d
   // Al editar, la venta conserva los precios con los que se registró
   const preciosVenta: PreciosHuevo = ventaExistente
     ? {
-        b: ventaExistente.precio_b, a: ventaExistente.precio_a, aa: ventaExistente.precio_aa,
+        c: ventaExistente.precio_c, b: ventaExistente.precio_b, a: ventaExistente.precio_a, aa: ventaExistente.precio_aa,
         aaa: ventaExistente.precio_aaa, jumbo: ventaExistente.precio_jumbo,
       }
     : preciosParaCliente(precios, clienteSel, form.fecha)
@@ -100,12 +101,13 @@ export default function RegistrarVentaModal({ open, onClose, fincaId, precios, d
     if (c.error) { setLoading(false); toast.error(c.error); return }
     const payload = {
       fecha: form.fecha,
+      cantidad_c: cantidad('c'),
       cantidad_b: cantidad('b'),
       cantidad_a: cantidad('a'),
       cantidad_aa: cantidad('aa'),
       cantidad_aaa: cantidad('aaa'),
       cantidad_jumbo: cantidad('jumbo'),
-      precio_b: preciosVenta.b, precio_a: preciosVenta.a, precio_aa: preciosVenta.aa,
+      precio_c: preciosVenta.c, precio_b: preciosVenta.b, precio_a: preciosVenta.a, precio_aa: preciosVenta.aa,
       precio_aaa: preciosVenta.aaa, precio_jumbo: preciosVenta.jumbo,
       cliente: c.nombre,
       cliente_id: c.id,
@@ -154,7 +156,7 @@ export default function RegistrarVentaModal({ open, onClose, fincaId, precios, d
               Huevos vendidos por tamaño
               {conPrecioPropio && <span className="ml-1 font-normal text-green-700">· con el precio de {clienteSel!.nombre}</span>}
             </p>
-            <div className="grid grid-cols-3 gap-3 md:grid-cols-5">
+            <div className="grid grid-cols-3 gap-3 md:grid-cols-6">
               {TAMANOS_HUEVO.map(t => (
                 <div key={t.key} className="space-y-1">
                   <Label className="text-xs">{t.label} · {preciosVenta[t.key] ? cop(Number(preciosVenta[t.key])) : 'sin precio'}</Label>

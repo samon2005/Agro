@@ -19,7 +19,7 @@ export async function cargarSemanasLote(
 ): Promise<FilaSemana[]> {
   const [prod, eventos, ventas, pesos] = await Promise.all([
     supabase.from('produccion_diaria_aves')
-      .select('fecha, huevos_totales, huevos_b, huevos_a, huevos_aa, huevos_aaa, huevos_jumbo, muertes, alimento_kg')
+      .select('fecha, huevos_totales, huevos_c, huevos_b, huevos_a, huevos_aa, huevos_aaa, huevos_jumbo, muertes, alimento_kg')
       .eq('lote_id', lote.id),
     supabase.from('eventos_clinicos_aves').select('fecha, aves_muertas, origen').eq('lote_id', lote.id),
     supabase.from('ventas_aves_lote').select('fecha, cantidad, tipo').eq('lote_id', lote.id),

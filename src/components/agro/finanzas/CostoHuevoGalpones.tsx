@@ -22,7 +22,7 @@ const pesos1 = (v: number) => `$ ${v.toLocaleString('es-CO', { maximumFractionDi
  * frente al precio promedio de la finca y su punto de equilibrio.
  */
 export default function CostoHuevoGalpones({ finca }: {
-  finca: { id: string; precio_huevo_b?: number | null; precio_huevo_a?: number | null; precio_huevo_aa?: number | null; precio_huevo_aaa?: number | null; precio_huevo_jumbo?: number | null }
+  finca: { id: string; precio_huevo_c?: number | null; precio_huevo_b?: number | null; precio_huevo_a?: number | null; precio_huevo_aa?: number | null; precio_huevo_aaa?: number | null; precio_huevo_jumbo?: number | null }
 }) {
   const [filas, setFilas] = useState<{ fincaId: string; lista: Fila[] } | null>(null)
   const precios: PreciosHuevo = preciosDeFinca(finca)

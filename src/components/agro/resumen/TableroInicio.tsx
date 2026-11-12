@@ -20,6 +20,8 @@ import { recalcularStockAlimentoAves, leerStockAlimentoAves, type StockAlimentoA
 import { ESPECIES_FINCA, nombreSeccion, type EspecieFinca } from '@/lib/especies'
 import { usoCorralLabel } from '@/lib/instalaciones'
 import NavesResumen, { resumenNaves } from '@/components/agro/resumen/NavesResumen'
+import CierreSemanal from '@/components/agro/resumen/CierreSemanal'
+import { metaDeFecha } from '@/lib/metasPostura'
 import type { Database } from '@/types/database'
 
 type Finca = Pick<Database['public']['Tables']['fincas']['Row'], 'id' | 'nombre' | 'municipio' | 'departamento' | 'area_valor' | 'area_unidad' | 'tipo_produccion'>
@@ -28,7 +30,7 @@ type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
 type LotePollo = Database['public']['Tables']['lotes_pollo']['Row']
 
-interface DiaFinca { fecha: string; lote: string; huevos: number; aves: number | null; muertes: number; alimentoKg: number; especie: EspecieFinca }
+interface DiaFinca { fecha: string; lote: string; huevos: number; aves: number | null; muertes: number; alimentoKg: number; especie: EspecieFinca; rotos?: number; sucios?: number }
 
 export interface DatosInicio {
   instalaciones: Instalacion[]
@@ -84,7 +86,7 @@ export default function TableroInicio<F extends Finca>({ finca, fincas, onEditar
         especies.includes('aves_ponedoras') ? supabase.from('lotes_aves').select('*').eq('finca_id', finca.id).in('estado', ['activo', 'preparacion']) : Promise.resolve({ data: [] as LoteAves[] }),
         especies.includes('cerdos') ? supabase.from('lotes_cerdos').select('*').eq('finca_id', finca.id).eq('estado', 'activo') : Promise.resolve({ data: [] as LoteCerdos[] }),
         especies.includes('pollo_engorde') ? supabase.from('lotes_pollo').select('*').eq('finca_id', finca.id).eq('estado', 'activo') : Promise.resolve({ data: [] as LotePollo[] }),
-        especies.includes('aves_ponedoras') ? supabase.from('produccion_diaria_aves').select('lote_id, fecha, huevos_totales, aves_en_dia, muertes, alimento_kg').eq('finca_id', finca.id).gte('fecha', desde) : Promise.resolve({ data: [] }),
+        especies.includes('aves_ponedoras') ? supabase.from('produccion_diaria_aves').select('lote_id, fecha, huevos_totales, aves_en_dia, muertes, alimento_kg, huevos_rotos, huevos_sucios').eq('finca_id', finca.id).gte('fecha', desde) : Promise.resolve({ data: [] }),
         especies.includes('cerdos') ? supabase.from('nutricion_diaria_cerdos').select('lote_id, fecha, alimento_kg, consumo_real_kg').eq('finca_id', finca.id).gte('fecha', desde) : Promise.resolve({ data: [] }),
         especies.includes('cerdos') ? supabase.from('mortalidad_cerdos').select('lote_id, fecha, cantidad').eq('finca_id', finca.id).gte('fecha', desde) : Promise.resolve({ data: [] }),
         especies.includes('pollo_engorde') ? supabase.from('produccion_diaria_pollo').select('lote_id, fecha, alimento_kg, muertes').eq('finca_id', finca.id).gte('fecha', desde) : Promise.resolve({ data: [] }),
@@ -96,8 +98,8 @@ export default function TableroInicio<F extends Finca>({ finca, fincas, onEditar
       ])
       if (!vigente) return
       const dias: DiaFinca[] = [
-        ...((prodAves.data ?? []) as { lote_id: string; fecha: string; huevos_totales: number; aves_en_dia: number | null; muertes: number; alimento_kg: number }[])
-          .map(p => ({ fecha: p.fecha, lote: p.lote_id, huevos: p.huevos_totales, aves: p.aves_en_dia, muertes: p.muertes ?? 0, alimentoKg: Number(p.alimento_kg ?? 0), especie: 'aves_ponedoras' as const })),
+        ...((prodAves.data ?? []) as { lote_id: string; fecha: string; huevos_totales: number; aves_en_dia: number | null; muertes: number; alimento_kg: number; huevos_rotos: number | null; huevos_sucios: number | null }[])
+          .map(p => ({ fecha: p.fecha, lote: p.lote_id, huevos: p.huevos_totales, aves: p.aves_en_dia, muertes: p.muertes ?? 0, alimentoKg: Number(p.alimento_kg ?? 0), especie: 'aves_ponedoras' as const, rotos: p.huevos_rotos ?? 0, sucios: p.huevos_sucios ?? 0 })),
         ...((nutCerdos.data ?? []) as { lote_id: string; fecha: string; alimento_kg: number; consumo_real_kg: number | null }[]).map(n => ({ fecha: n.fecha, lote: n.lote_id, huevos: 0, aves: null, muertes: 0, alimentoKg: Number(n.consumo_real_kg ?? n.alimento_kg ?? 0), especie: 'cerdos' as const })),
         ...((mortCerdos.data ?? []) as { lote_id: string; fecha: string; cantidad: number }[]).map(m => ({ fecha: m.fecha, lote: m.lote_id, huevos: 0, aves: null, muertes: m.cantidad ?? 0, alimentoKg: 0, especie: 'cerdos' as const })),
         ...((prodPollo.data ?? []) as { lote_id: string; fecha: string; alimento_kg: number; muertes: number }[]).map(p => ({ fecha: p.fecha, lote: p.lote_id, huevos: 0, aves: null, muertes: p.muertes ?? 0, alimentoKg: Number(p.alimento_kg ?? 0), especie: 'pollo_engorde' as const })),
@@ -200,7 +202,8 @@ export function ContenidoInicio({ d, finca, fincas, especies, periodo, setPeriod
   const huevosAyer = huevosDe(ayer)
   const conAvesHoy = delDia(hoy).filter(x => x.aves)
   const posturaHoy = conAvesHoy.length ? (conAvesHoy.reduce((s, x) => s + x.huevos, 0) / conAvesHoy.reduce((s, x) => s + (x.aves ?? 0), 0)) * 100 : null
-  const metas = d.aves.filter(l => l.estado === 'activo' && l.meta_postura_pct != null).map(l => Number(l.meta_postura_pct))
+  // La meta de hoy de cada galpón en postura: la de su semana (lib/metasPostura)
+  const metas = d.aves.filter(l => l.estado === 'activo').map(l => metaDeFecha(l, hoy)?.pct).filter((x): x is number => x != null)
   const metaPostura = metas.length ? metas.reduce((a, b) => a + b, 0) / metas.length : null
   const activos = d.aves.filter(l => l.estado === 'activo').length
   // Hoy solo cuenta cuando todos los galpones en postura ya registraron: si no, parecería una caída
@@ -456,6 +459,9 @@ export function ContenidoInicio({ d, finca, fincas, especies, periodo, setPeriod
 
         {conRadar && (
           <div className={`${ANCHO.mitad} [&>*]:h-full`}><RadarGalpones fincaId={finca.id} /></div>
+        )}
+        {hayAves && (
+          <CierreSemanal lotes={d.aves.filter(l => l.estado === 'activo')} dias={d.dias} hoy={hoy} />
         )}
 
         <Widget className={anchoPequeno} titulo="Registros del mes" icono="calendario" info={hayAves ? 'Días pintados según los huevos de la finca' : 'Días pintados según el alimento registrado'}>

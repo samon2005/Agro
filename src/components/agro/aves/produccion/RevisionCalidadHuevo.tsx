@@ -21,12 +21,13 @@ interface Props {
   fincaId: string
   fechaInicioPostura: string | null
   fechaInicioLote: string
-  registros: Pick<ProduccionDiaria, 'fecha' | 'huevos_b' | 'huevos_a' | 'huevos_aa' | 'huevos_aaa' | 'huevos_jumbo'>[]
+  registros: Pick<ProduccionDiaria, 'fecha' | 'huevos_c' | 'huevos_b' | 'huevos_a' | 'huevos_aa' | 'huevos_aaa' | 'huevos_jumbo'>[]
 }
 
 const MS_DIA = 24 * 60 * 60 * 1000
 
-const CATEGORIAS: { key: 'cantidad_b' | 'cantidad_a' | 'cantidad_aa' | 'cantidad_aaa' | 'cantidad_jumbo'; label: string; semanaKey: 'b' | 'a' | 'aa' | 'aaa' | 'jumbo' }[] = [
+const CATEGORIAS: { key: 'cantidad_c' | 'cantidad_b' | 'cantidad_a' | 'cantidad_aa' | 'cantidad_aaa' | 'cantidad_jumbo'; label: string; semanaKey: 'c' | 'b' | 'a' | 'aa' | 'aaa' | 'jumbo' }[] = [
+  { key: 'cantidad_c', label: 'C', semanaKey: 'c' },
   { key: 'cantidad_b', label: 'B', semanaKey: 'b' },
   { key: 'cantidad_a', label: 'A', semanaKey: 'a' },
   { key: 'cantidad_aa', label: 'AA', semanaKey: 'aa' },
@@ -37,6 +38,7 @@ const CATEGORIAS: { key: 'cantidad_b' | 'cantidad_a' | 'cantidad_aa' | 'cantidad
 function defaultForm() {
   return {
     fecha: hoyLocal(),
+    cantidad_c: '0',
     cantidad_b: '0',
     cantidad_a: '0',
     cantidad_aa: '0',
@@ -57,7 +59,7 @@ export default function RevisionCalidadHuevo({ loteId, fincaId, fechaInicioPostu
   // Semana que se está mirando: por defecto la que está en curso
   const [semanaSel, setSemanaSel] = useState<number | null>(null)
   const [verTodas, setVerTodas] = useState(false)
-  const [sumaSemanaPasada, setSumaSemanaPasada] = useState<{ b: number; a: number; aa: number; aaa: number; jumbo: number } | null>(null)
+  const [sumaSemanaPasada, setSumaSemanaPasada] = useState<{ c: number; b: number; a: number; aa: number; aaa: number; jumbo: number } | null>(null)
 
   const origen = fechaInicioPostura ?? fechaInicioLote
   const origenDate = new Date(origen + 'T00:00:00')
@@ -78,27 +80,28 @@ export default function RevisionCalidadHuevo({ loteId, fincaId, fechaInicioPostu
   const semanaEnCurso = registros
     .filter(r => r.fecha >= inicioSemanaStr && r.fecha <= finSemanaStr)
     .reduce((acum, r) => ({
+      c: acum.c + (r.huevos_c ?? 0),
       b: acum.b + r.huevos_b,
       a: acum.a + r.huevos_a,
       aa: acum.aa + r.huevos_aa,
       aaa: acum.aaa + r.huevos_aaa,
       jumbo: acum.jumbo + r.huevos_jumbo,
-    }), { b: 0, a: 0, aa: 0, aaa: 0, jumbo: 0 })
+    }), { c: 0, b: 0, a: 0, aa: 0, aaa: 0, jumbo: 0 })
 
   // Semanas pasadas: los registros cargados solo cubren los últimos días, así que
   // la suma de una semana vieja se trae aparte de la base
   useEffect(() => {
     if (esSemanaActual) { setSumaSemanaPasada(null); return }
     supabase.from('produccion_diaria_aves')
-      .select('huevos_b, huevos_a, huevos_aa, huevos_aaa, huevos_jumbo')
+      .select('huevos_c, huevos_b, huevos_a, huevos_aa, huevos_aaa, huevos_jumbo')
       .eq('lote_id', loteId).gte('fecha', inicioSemanaStr).lte('fecha', finSemanaStr)
       .then(({ data }) => setSumaSemanaPasada((data ?? []).reduce((acum, r) => ({
-        b: acum.b + r.huevos_b, a: acum.a + r.huevos_a, aa: acum.aa + r.huevos_aa,
+        c: acum.c + (r.huevos_c ?? 0), b: acum.b + r.huevos_b, a: acum.a + r.huevos_a, aa: acum.aa + r.huevos_aa,
         aaa: acum.aaa + r.huevos_aaa, jumbo: acum.jumbo + r.huevos_jumbo,
-      }), { b: 0, a: 0, aa: 0, aaa: 0, jumbo: 0 })))
+      }), { c: 0, b: 0, a: 0, aa: 0, aaa: 0, jumbo: 0 })))
   }, [esSemanaActual, inicioSemanaStr, finSemanaStr, loteId, supabase])
 
-  const semanaActual = esSemanaActual ? semanaEnCurso : (sumaSemanaPasada ?? { b: 0, a: 0, aa: 0, aaa: 0, jumbo: 0 })
+  const semanaActual = esSemanaActual ? semanaEnCurso : (sumaSemanaPasada ?? { c: 0, b: 0, a: 0, aa: 0, aaa: 0, jumbo: 0 })
 
   // Todas las semanas desde que arrancó el conteo, la más reciente primero
   const semanas = Array.from({ length: Math.max(1, numSemanaActual + 1) }, (_, i) => Math.max(0, numSemanaActual) - i)
@@ -117,6 +120,7 @@ export default function RevisionCalidadHuevo({ loteId, fincaId, fechaInicioPostu
     if (!modalOpen) return
     setForm({
       fecha: hoyLocal(),
+      cantidad_c: String(semanaActual.c),
       cantidad_b: String(semanaActual.b),
       cantidad_a: String(semanaActual.a),
       cantidad_aa: String(semanaActual.aa),
@@ -131,7 +135,7 @@ export default function RevisionCalidadHuevo({ loteId, fincaId, fechaInicioPostu
   }
 
   const totalForm = CATEGORIAS.reduce((s, c) => s + (Number(form[c.key as keyof typeof form]) || 0), 0)
-  const totalSemanaActual = semanaActual.b + semanaActual.a + semanaActual.aa + semanaActual.aaa + semanaActual.jumbo
+  const totalSemanaActual = semanaActual.c + semanaActual.b + semanaActual.a + semanaActual.aa + semanaActual.aaa + semanaActual.jumbo
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -140,6 +144,7 @@ export default function RevisionCalidadHuevo({ loteId, fincaId, fechaInicioPostu
       lote_id: loteId,
       finca_id: fincaId,
       fecha: form.fecha,
+      cantidad_c: Number(form.cantidad_c) || 0,
       cantidad_b: Number(form.cantidad_b) || 0,
       cantidad_a: Number(form.cantidad_a) || 0,
       cantidad_aa: Number(form.cantidad_aa) || 0,
@@ -250,6 +255,7 @@ export default function RevisionCalidadHuevo({ loteId, fincaId, fechaInicioPostu
               <TableHeader>
                 <TableRow>
                   <TableHead>Fecha</TableHead>
+                  <TableHead className="text-right">C</TableHead>
                   <TableHead className="text-right">B</TableHead>
                   <TableHead className="text-right">A</TableHead>
                   <TableHead className="text-right">AA</TableHead>
@@ -263,13 +269,14 @@ export default function RevisionCalidadHuevo({ loteId, fincaId, fechaInicioPostu
                 {revisionesVisibles.map(r => (
                   <TableRow key={r.id}>
                     <TableCell className="font-medium text-sm">{formatDate(r.fecha)}</TableCell>
+                    <TableCell className="text-right">{(r.cantidad_c ?? 0).toLocaleString('es-CO')}</TableCell>
                     <TableCell className="text-right">{r.cantidad_b.toLocaleString('es-CO')}</TableCell>
                     <TableCell className="text-right">{r.cantidad_a.toLocaleString('es-CO')}</TableCell>
                     <TableCell className="text-right">{r.cantidad_aa.toLocaleString('es-CO')}</TableCell>
                     <TableCell className="text-right">{r.cantidad_aaa.toLocaleString('es-CO')}</TableCell>
                     <TableCell className="text-right">{r.cantidad_jumbo.toLocaleString('es-CO')}</TableCell>
                     <TableCell className="text-right font-semibold">
-                      {(r.cantidad_b + r.cantidad_a + r.cantidad_aa + r.cantidad_aaa + r.cantidad_jumbo).toLocaleString('es-CO')}
+                      {((r.cantidad_c ?? 0) + r.cantidad_b + r.cantidad_a + r.cantidad_aa + r.cantidad_aaa + r.cantidad_jumbo).toLocaleString('es-CO')}
                     </TableCell>
                     <TableCell>
                       <Button

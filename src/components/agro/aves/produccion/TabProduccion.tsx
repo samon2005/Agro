@@ -26,6 +26,8 @@ import { recalcularStockAlimentoAves } from '@/lib/inventario'
 import { Ic } from '@/components/ui/icon'
 import { useFinca } from '@/components/agro/FincaProvider'
 import { preciosDeFinca, hayPrecios } from '@/lib/huevos'
+import { useReferencia } from '@/lib/useReferencia'
+import { huevosDeMeta, metaDeFecha } from '@/lib/metasPostura'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 type ProduccionDiaria = Database['public']['Tables']['produccion_diaria_aves']['Row']
@@ -77,6 +79,9 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
   // Huevos y muertes de toda la vida del lote (el historial solo trae los últimos 60 días)
   const [huevosAcumulados, setHuevosAcumulados] = useState(0)
   const [mortAcum, setMortAcum] = useState(0)
+  // El día que se está mirando: hoy, o uno anterior elegido en el calendario
+  const [diaVista, setDiaVista] = useState<string | null>(null)
+  const guia = useReferencia(loteActual.referencia_id)
   const [verTodoHistorial, setVerTodoHistorial] = useState(false)
 
   const fetchRegistros = useCallback(async () => {
@@ -176,9 +181,15 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
   const ultimos30 = registros.slice(0, 30)
   const hoyDate = new Date()
   const hoyStr = aFechaLocal(hoyDate)
-  // Solo cuenta como "hoy" el registro que sea realmente de la fecha de hoy:
-  // al pasar la medianoche el contador arranca de nuevo en 0.
-  const hoy = registros.find(r => r.fecha === hoyStr)
+  // El día que se mira: hoy, o el que se eligió en el calendario. Solo cuenta
+  // como "hoy" el registro que sea realmente de la fecha de hoy: al pasar la
+  // medianoche el contador arranca de nuevo en 0.
+  const fechaVista = diaVista && diaVista <= hoyStr ? diaVista : hoyStr
+  const esHoy = fechaVista === hoyStr
+  const fechaCorta = new Date(fechaVista + 'T00:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })
+  /** "hoy" o "del 10 nov", para los títulos */
+  const delDia = esHoy ? 'hoy' : `del ${fechaCorta}`
+  const hoy = registros.find(r => r.fecha === fechaVista)
 
   const posturaHoy = hoy && hoy.aves_en_dia && hoy.aves_en_dia > 0
     ? ((hoy.huevos_totales / hoy.aves_en_dia) * 100).toFixed(1)
@@ -197,9 +208,13 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
     : '0.0'
 
   // ── Ciclo de postura ──
-  // Sin meta definida no hay contra qué medir: las pérdidas no se inventan con un 90 % supuesto
-  const hayMetaPostura = loteActual.meta_postura_pct != null
-  const metaPostura = loteActual.meta_postura_pct ?? 90
+  // La meta es la de la semana del día que se mira (lib/metasPostura): la propia,
+  // la de la guía o la de pico. Sin meta no hay contra qué medir: las pérdidas
+  // no se inventan con un 90 % supuesto.
+  const metaDia = metaDeFecha(loteActual, fechaVista, guia)
+  const hayMetaPostura = metaDia != null
+  const metaPostura = metaDia?.pct ?? 90
+  const origenMeta = metaDia?.origen === 'propia' ? 'meta de la semana' : metaDia?.origen === 'guia' ? 'guía de la semana' : 'meta de pico'
   const estadoPosturaHoy = estadoPostura(loteActual.fecha_inicio_postura, hoyStr)
   const semanaPostura = estadoPosturaHoy.iniciada ? estadoPosturaHoy.semana : null
   const inicioSemanaActual = estadoPosturaHoy.iniciada ? estadoPosturaHoy.inicioSemana : null
@@ -237,15 +252,16 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
   const deFinca = preciosDeFinca(fincaActual)
   const precios = hayPrecios(deFinca)
     ? deFinca
-    : { b: loteActual.precio_huevo_b, a: loteActual.precio_huevo_a, aa: loteActual.precio_huevo_aa, aaa: loteActual.precio_huevo_aaa, jumbo: loteActual.precio_huevo_jumbo }
-  const preciosTamano = [precios.b, precios.a, precios.aa, precios.aaa, precios.jumbo].filter((p): p is number => p != null && p > 0)
+    : { c: loteActual.precio_huevo_c, b: loteActual.precio_huevo_b, a: loteActual.precio_huevo_a, aa: loteActual.precio_huevo_aa, aaa: loteActual.precio_huevo_aaa, jumbo: loteActual.precio_huevo_jumbo }
+  const preciosTamano = [precios.c, precios.b, precios.a, precios.aa, precios.aaa, precios.jumbo].filter((p): p is number => p != null && p > 0)
   const precioPromedio = preciosTamano.length > 0
     ? preciosTamano.reduce((s, p) => s + p, 0) / preciosTamano.length
     : (loteActual.precio_huevo ?? 0)
 
   function valorHuevosDia(r: ProduccionDiaria | undefined) {
     if (!r) return 0
-    return r.huevos_b * (precios.b ?? 0)
+    return (r.huevos_c ?? 0) * (precios.c ?? 0)
+      + r.huevos_b * (precios.b ?? 0)
       + r.huevos_a * (precios.a ?? 0)
       + r.huevos_aa * (precios.aa ?? 0)
       + r.huevos_aaa * (precios.aaa ?? 0)
@@ -256,8 +272,9 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
   // ── Huevos perdidos por postura bajo la meta (últimos 30 días) ──
   let huevosPerdidos30 = 0
   for (const r of ultimos30) {
-    if (!r.aves_en_dia || !hayMetaPostura) continue
-    const esperados = r.aves_en_dia * (metaPostura / 100)
+    const metaR = metaDeFecha(loteActual, r.fecha, guia)
+    if (!r.aves_en_dia || !metaR) continue
+    const esperados = r.aves_en_dia * (metaR.pct / 100)
     huevosPerdidos30 += Math.max(0, esperados - r.huevos_totales)
   }
   const valorPerdido30 = huevosPerdidos30 * precioPromedio
@@ -289,7 +306,8 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
     : null
 
   // ── Meta de huevos diaria ──
-  const metaHuevosDiaria = loteActual.meta_huevos_diaria ?? null
+  // La meta en huevos sale de las aves del día × el % de la semana: nunca se escribe
+  const metaHuevosDiaria = hayMetaPostura ? huevosDeMeta(hoy?.aves_en_dia ?? loteActual.aves_actuales, metaPostura) : null
   const cumplimientoMeta = hoy && metaHuevosDiaria
     ? ((hoy.huevos_totales / metaHuevosDiaria) * 100).toFixed(0)
     : null
@@ -538,8 +556,15 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
       {/* Acciones del día, juntas */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold text-gray-900">{enPostura ? 'Producción de hoy' : 'Preparación del lote'}</h2>
-          <p className="text-xs text-gray-400">{new Date().toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+          <h2 className="text-base font-semibold text-gray-900">{enPostura ? `Producción ${delDia}` : 'Preparación del lote'}</h2>
+          <p className="text-xs text-gray-400">
+            {new Date(fechaVista + 'T00:00:00').toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' })}
+            {!esHoy && (
+              <button type="button" onClick={() => setDiaVista(null)} className="ml-2 font-medium text-green-800 hover:underline">
+                Volver a hoy
+              </button>
+            )}
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button onClick={() => setConfigOpen(true)} variant="ghost">
@@ -583,12 +608,12 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
 
       <Cuadricula>
         {enPostura ? (<>
-          <Widget className={ANCHO.cuarto} titulo="Huevos hoy" icono="huevo" info="Huevos puestos hoy frente a la meta de huevos por día del galpón">
+          <Widget className={ANCHO.cuarto} titulo={`Huevos ${delDia}`} icono="huevo" info="Huevos puestos frente a la meta del día: aves del día × % de meta de esa semana">
             <div className="flex items-center gap-4">
               <Anillo
                 pct={hoy && metaHuevosDiaria ? (hoy.huevos_totales / metaHuevosDiaria) * 100 : posturaHoy ? Number(posturaHoy) : null}
                 centro={hoy ? hoy.huevos_totales.toLocaleString('es-CO') : '—'}
-                sub={metaHuevosDiaria ? `meta ${metaHuevosDiaria.toLocaleString('es-CO')}` : 'huevos'}
+                sub={metaHuevosDiaria ? `meta ${metaHuevosDiaria.toLocaleString('es-CO')} (${String(metaPostura).replace('.', ',')} %)` : 'huevos'}
                 estado={hoy && metaHuevosDiaria ? (hoy.huevos_totales >= metaHuevosDiaria ? 'bien' : 'revisar') : 'normal'}
               />
               <div className="min-w-0 space-y-1.5 text-xs">
@@ -599,18 +624,18 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
                     </TextoEstado>
                     <p className="text-gray-400">Comerciales: {(hoy.huevos_totales - hoy.huevos_rotos - hoy.huevos_deformes).toLocaleString('es-CO')}</p>
                   </>
-                ) : <p className="text-gray-400">Sin registro de hoy</p>}
+                ) : <p className="text-gray-400">{esHoy ? 'Sin registro de hoy' : 'Sin registro ese día'}</p>}
                 {!metaHuevosDiaria && <p>{definirMeta('Definir meta')}</p>}
               </div>
             </div>
           </Widget>
 
-          <Widget className={ANCHO.cuarto} titulo="Postura hoy" icono="tendencia" info="Huevos del día ÷ aves del día. La rayita es la meta del galpón">
+          <Widget className={ANCHO.cuarto} titulo={`Postura ${delDia}`} icono="tendencia" info="Huevos del día ÷ aves del día. La rayita es la meta de esa semana (la propia, la de la guía o la de pico)">
             <div className="flex items-center gap-4">
               <Anillo
                 pct={posturaHoy ? Number(posturaHoy) : null}
                 centro={posturaHoy ? `${posturaHoy.replace('.', ',')} %` : '—'}
-                sub={hayMetaPostura ? `meta ${metaPostura} %` : 'postura'}
+                sub={hayMetaPostura ? `${origenMeta} ${String(metaPostura).replace('.', ',')} %` : 'postura'}
                 marca={hayMetaPostura ? metaPostura : null}
                 estado={diffPuntosHoy == null ? 'normal' : diffPuntosHoy >= 0 ? 'bien' : diffPuntosHoy > -5 ? 'revisar' : 'mal'}
               />
@@ -619,7 +644,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
                   <TextoEstado estado={diffPuntosHoy >= 0 ? 'bien' : diffPuntosHoy > -5 ? 'revisar' : 'mal'}>
                     {diffPuntosHoy >= 0 ? `+${n1(diffPuntosHoy)} pts sobre la meta` : `${n1(Math.abs(diffPuntosHoy))} pts bajo la meta`}
                   </TextoEstado>
-                ) : <p className="text-gray-400">{hoy ? 'Sin meta de postura' : 'Sin registro de hoy'}</p>}
+                ) : <p className="text-gray-400">{hoy ? 'Sin meta de postura' : esHoy ? 'Sin registro de hoy' : 'Sin registro ese día'}</p>}
                 {diffPuntosHoy != null && (
                   <p className="text-gray-400">
                     {diffPuntosHoy < 0
@@ -705,19 +730,20 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
               fechaInicioPostura={loteActual.fecha_inicio_postura}
               fechaInicio={loteActual.fecha_inicio}
               metaPosturaPct={loteActual.meta_postura_pct}
+              metaDeDia={f => metaDeFecha(loteActual, f, guia)?.pct ?? null}
               version={`${registros.length}-${registros[0]?.id ?? ''}-${huevosAcumulados}`}
             />
           </div>
         )}
 
         {enPostura && (
-          <Widget className={ANCHO.tercio} titulo="Dinero de hoy" icono="dinero" info="Según el precio por tamaño configurado en Ventas de la finca">
+          <Widget className={ANCHO.tercio} titulo={`Dinero ${delDia}`} icono="dinero" info="Según el precio por tamaño configurado en Ventas de la finca">
             <div className="space-y-4">
-              <Cifra etiqueta="Ingreso por venta hoy" valor={ingresoHoy > 0 ? cop(ingresoHoy) : '—'} grande
+              <Cifra etiqueta={`Ingreso por venta ${delDia}`} valor={ingresoHoy > 0 ? cop(ingresoHoy) : '—'} grande
                 nota={precioPromedio > 0 ? undefined : 'Pon el precio del huevo en Ventas de la finca'} />
               {hayMetaPostura ? (
                 <div className="grid grid-cols-2 gap-3 border-t border-gray-100 pt-3">
-                  <Cifra etiqueta="Pérdida hoy" valor={<span className={perdidaHoy > 0 ? 'text-red-600' : undefined}>{precioPromedio > 0 ? cop(valorPerdidoHoy) : Math.round(perdidaHoy).toLocaleString('es-CO')}</span>}
+                  <Cifra etiqueta={`Pérdida ${delDia}`} valor={<span className={perdidaHoy > 0 ? 'text-red-600' : undefined}>{precioPromedio > 0 ? cop(valorPerdidoHoy) : Math.round(perdidaHoy).toLocaleString('es-CO')}</span>}
                     nota={`${Math.round(perdidaHoy).toLocaleString('es-CO')} huevos`} />
                   <Cifra etiqueta="Pérdida 30 días" valor={<span className={huevosPerdidos30 > 0 ? 'text-red-600' : undefined}>{precioPromedio > 0 ? cop(valorPerdido30) : Math.round(huevosPerdidos30).toLocaleString('es-CO')}</span>}
                     nota={`${Math.round(huevosPerdidos30).toLocaleString('es-CO')} huevos`} />
@@ -748,7 +774,8 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
             <div className="grid grid-cols-2 gap-x-3 gap-y-4">
               <Cifra etiqueta="HAA" valor={haa ? haa.replace('.', ',') : '—'} nota="huevos por ave alojada" grande />
               <Cifra etiqueta="Densidad" valor={densidad ? densidad.replace('.', ',') : '—'} nota="aves / m²" grande />
-              <Cifra etiqueta="Meta huevos/día" valor={metaHuevosDiaria ? metaHuevosDiaria.toLocaleString('es-CO') : '—'} nota={metaHuevosDiaria ? undefined : definirMeta('Definir')} />
+              <Cifra etiqueta={`Meta ${delDia}`} valor={hayMetaPostura ? `${String(metaPostura).replace('.', ',')} %` : '—'}
+                nota={metaHuevosDiaria ? `${metaHuevosDiaria.toLocaleString('es-CO')} huevos · ${origenMeta}` : definirMeta('Definir')} />
               <Cifra etiqueta="Huevos del lote" valor={huevosAcumulados.toLocaleString('es-CO')} nota={`${loteActual.aves_iniciales.toLocaleString('es-CO')} aves alojadas`} />
             </div>
           </Widget>
@@ -761,8 +788,9 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
           </Widget>
         )}
 
-        <Widget className={ANCHO.tercio} titulo="Registros del mes" icono="calendario" info={enPostura ? 'Cada día pintado según los huevos de ese día; el punto rojo marca un evento clínico' : 'Días con registro; el punto rojo marca un evento clínico'}>
+        <Widget className={ANCHO.tercio} titulo="Registros del mes" icono="calendario" info={enPostura ? 'Cada día pintado según los huevos de ese día; el punto rojo marca un evento clínico. Toca un día para verlo arriba' : 'Días con registro; el punto rojo marca un evento clínico'}>
           <CalendarioMes valores={valoresCalendario} marcados={diasConEvento}
+            seleccionado={fechaVista} onElegir={f => setDiaVista(f === hoyStr ? null : f)}
             formato={v => enPostura ? `${v.toLocaleString('es-CO')} huevos` : `${n1(v)} kg de alimento`} />
         </Widget>
 

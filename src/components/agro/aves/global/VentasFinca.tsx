@@ -120,6 +120,7 @@ export default function VentasFinca({ fincaId, lotes }: Props) {
   async function guardarPrecios() {
     setGuardandoPrecios(true)
     const { data: actualizada, error } = await supabase.from('fincas').update({
+      precio_huevo_c: formPrecios.c ? Number(formPrecios.c) : null,
       precio_huevo_b: formPrecios.b ? Number(formPrecios.b) : null,
       precio_huevo_a: formPrecios.a ? Number(formPrecios.a) : null,
       precio_huevo_aa: formPrecios.aa ? Number(formPrecios.aa) : null,
@@ -220,9 +221,9 @@ export default function VentasFinca({ fincaId, lotes }: Props) {
       lote_id: null,
       finca_id: fincaId,
       fecha: hoyStr,
-      cantidad_b: e.cantidad_b, cantidad_a: e.cantidad_a, cantidad_aa: e.cantidad_aa,
+      cantidad_c: e.cantidad_c, cantidad_b: e.cantidad_b, cantidad_a: e.cantidad_a, cantidad_aa: e.cantidad_aa,
       cantidad_aaa: e.cantidad_aaa, cantidad_jumbo: e.cantidad_jumbo,
-      precio_b: p.b, precio_a: p.a, precio_aa: p.aa, precio_aaa: p.aaa, precio_jumbo: p.jumbo,
+      precio_c: p.c, precio_b: p.b, precio_a: p.a, precio_aa: p.aa, precio_aaa: p.aaa, precio_jumbo: p.jumbo,
       cliente: e.cliente,
       cliente_id: e.cliente_id,
       observaciones: `Entrega del encargo del ${e.fecha_pedido}`,
@@ -264,10 +265,10 @@ export default function VentasFinca({ fincaId, lotes }: Props) {
         <CardContent>
           {editandoPrecios ? (
             <div className="space-y-3">
-              <div className="grid grid-cols-3 gap-3 md:grid-cols-5">
+              <div className="grid grid-cols-3 gap-3 md:grid-cols-6">
                 {TAMANOS_HUEVO.map(t => (
                   <div key={t.key} className="space-y-1">
-                    <Label className="text-xs">{t.label}</Label>
+                    <Label className="text-xs">{t.label}{t.key === 'c' && <span className="font-normal text-gray-400"> (opcional)</span>}</Label>
                     <CurrencyInput placeholder="$" value={formPrecios[t.key] ?? ''} onValueChange={v => setFormPrecios(prev => ({ ...prev, [t.key]: v ?? '' }))} />
                   </div>
                 ))}
@@ -280,7 +281,7 @@ export default function VentasFinca({ fincaId, lotes }: Props) {
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-3 gap-3 md:grid-cols-5">
+            <div className="grid grid-cols-3 gap-3 md:grid-cols-6">
               {TAMANOS_HUEVO.map(t => (
                 <div key={t.key} className="rounded-xl bg-gray-50 py-2.5 text-center">
                   <p className="text-[0.6875rem] font-medium text-gray-500">{t.label}</p>

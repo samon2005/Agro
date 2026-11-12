@@ -3,7 +3,7 @@ import type { Database } from '@/types/database'
 import { TAMANOS_HUEVO, type PreciosHuevo, type TamanoHuevo } from '@/lib/huevos'
 
 export type PorTamano = Record<TamanoHuevo, number>
-export const CERO: PorTamano = { b: 0, a: 0, aa: 0, aaa: 0, jumbo: 0 }
+export const CERO: PorTamano = { c: 0, b: 0, a: 0, aa: 0, aaa: 0, jumbo: 0 }
 
 export type ClienteHuevos = Database['public']['Tables']['clientes_huevos']['Row']
 
@@ -11,10 +11,10 @@ export function totalTamanos(p: PorTamano): number {
   return TAMANOS_HUEVO.reduce((s, t) => s + p[t.key], 0)
 }
 
-type ConCantidades = { cantidad_b: number; cantidad_a: number; cantidad_aa: number; cantidad_aaa: number; cantidad_jumbo: number }
+type ConCantidades = { cantidad_c: number; cantidad_b: number; cantidad_a: number; cantidad_aa: number; cantidad_aaa: number; cantidad_jumbo: number }
 
 export function cantidadesDe(v: ConCantidades): PorTamano {
-  return { b: Number(v.cantidad_b), a: Number(v.cantidad_a), aa: Number(v.cantidad_aa), aaa: Number(v.cantidad_aaa), jumbo: Number(v.cantidad_jumbo) }
+  return { c: Number(v.cantidad_c), b: Number(v.cantidad_b), a: Number(v.cantidad_a), aa: Number(v.cantidad_aa), aaa: Number(v.cantidad_aaa), jumbo: Number(v.cantidad_jumbo) }
 }
 
 export interface ProduccionGalpon {
@@ -40,8 +40,8 @@ export interface HuevosFinca {
  */
 export async function cargarHuevosFinca(supabase: SupabaseClient<Database>, fincaId: string): Promise<HuevosFinca> {
   const [prodRes, ventasRes, lotesRes, galponesRes] = await Promise.all([
-    supabase.from('produccion_diaria_aves').select('lote_id, huevos_b, huevos_a, huevos_aa, huevos_aaa, huevos_jumbo').eq('finca_id', fincaId),
-    supabase.from('ventas_huevos_aves').select('lote_id, cantidad_b, cantidad_a, cantidad_aa, cantidad_aaa, cantidad_jumbo').eq('finca_id', fincaId),
+    supabase.from('produccion_diaria_aves').select('lote_id, huevos_c, huevos_b, huevos_a, huevos_aa, huevos_aaa, huevos_jumbo').eq('finca_id', fincaId),
+    supabase.from('ventas_huevos_aves').select('lote_id, cantidad_c, cantidad_b, cantidad_a, cantidad_aa, cantidad_aaa, cantidad_jumbo').eq('finca_id', fincaId),
     supabase.from('lotes_aves').select('id, nombre, instalacion_id').eq('finca_id', fincaId),
     supabase.from('instalaciones').select('id, nombre').eq('finca_id', fincaId),
   ])
@@ -93,6 +93,7 @@ export function preciosParaCliente(finca: PreciosHuevo, cliente: ClienteHuevos |
   if (!cliente || (cliente.contrato && !contratoVigente(cliente, fecha))) return finca
   const propio = (v: number | null) => (v != null && Number(v) > 0 ? Number(v) : null)
   return {
+    c: propio(cliente.precio_c) ?? finca.c,
     b: propio(cliente.precio_b) ?? finca.b,
     a: propio(cliente.precio_a) ?? finca.a,
     aa: propio(cliente.precio_aa) ?? finca.aa,

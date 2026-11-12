@@ -10,13 +10,17 @@ const DIAS = ['L', 'M', 'M', 'J', 'V', 'S', 'D']
  * El mes con los días pintados según cuánto pasó (registros del día, huevos…):
  * más oscuro es más. Hoy lleva un aro. Se puede ir a los meses anteriores.
  */
-export function CalendarioMes({ valores, formato = v => v.toLocaleString('es-CO'), leyenda = ['Sin registro', 'Con registro'], marcados }: {
+export function CalendarioMes({ valores, formato = v => v.toLocaleString('es-CO'), leyenda = ['Sin registro', 'Con registro'], marcados, seleccionado, onElegir }: {
   /** fecha (AAAA-MM-DD) → valor del día */
   valores: Map<string, number>
   formato?: (v: number) => string
   leyenda?: [string, string]
   /** Fechas con algo especial (un evento): llevan un punto rojo */
   marcados?: Set<string>
+  /** Día elegido para verlo (lleva un aro oscuro) */
+  seleccionado?: string
+  /** Si se da, cada día hasta hoy se puede tocar para verlo */
+  onElegir?: (fecha: string) => void
 }) {
   const hoy = hoyLocal()
   const [mes, setMes] = useState(hoy.slice(0, 7))
@@ -48,15 +52,18 @@ export function CalendarioMes({ valores, formato = v => v.toLocaleString('es-CO'
           const v = valores.get(f)
           const futuro = f > hoy
           const tono = v != null ? tonoDe(v) : undefined
+          const Celda = onElegir && !futuro ? 'button' : 'span'
           return (
-            <span key={f} title={`${new Date(f + 'T00:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })}: ${v != null ? formato(v) : futuro ? '' : 'sin registro'}`}
+            <Celda key={f} {...(Celda === 'button' ? { type: 'button' as const, onClick: () => onElegir!(f), 'aria-pressed': seleccionado === f } : {})} title={`${new Date(f + 'T00:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })}: ${v != null ? formato(v) : futuro ? '' : 'sin registro'}`}
               className={cn('relative flex h-8 items-center justify-center rounded-lg text-[0.6875rem] tabular-nums',
                 v != null ? (tono === '#b6d6a6' || tono === '#8cbd78' ? 'font-medium text-green-950' : 'font-semibold text-white') : futuro ? 'text-gray-300' : 'bg-gray-50 text-gray-400',
-                f === hoy && 'ring-2 ring-green-700 ring-offset-1')}
+                f === hoy && 'ring-2 ring-green-700 ring-offset-1',
+                seleccionado === f && f !== hoy && 'ring-2 ring-gray-900 ring-offset-1',
+                Celda === 'button' && 'cursor-pointer transition-transform hover:scale-110')}
               style={tono ? { background: tono } : undefined}>
               {i + 1}
               {marcados?.has(f) && <span className="absolute top-0.5 right-0.5 size-1.5 rounded-full bg-red-500" />}
-            </span>
+            </Celda>
           )
         })}
       </div>

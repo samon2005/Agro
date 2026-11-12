@@ -17,6 +17,8 @@ import { LINEAS_PONEDORAS as LINEAS, fechaDeSemanaDeVida, nacimientoDesdeEdad, s
 import { useReferencia } from '@/lib/useReferencia'
 import { PROPOSITOS, type Proposito } from '@/lib/lotesAves'
 import SelectorReferencia from './referencias/SelectorReferencia'
+import MetasSemanalesEditor from './MetasSemanalesEditor'
+import { huevosDeMeta, metasParaGuardar, semanasDelCiclo, type MetasSemanales } from '@/lib/metasPostura'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 type Instalacion = Database['public']['Tables']['instalaciones']['Row']
@@ -99,6 +101,8 @@ export default function CrearLoteModal({ open, onClose, fincaId, galpones, ocupa
   const [plantillas, setPlantillas] = useState<Plantilla[]>([])
   // Cambia al aplicar una plantilla: la referencia que trae no se reemplaza por la de la línea
   const [plantillaAplicada, setPlantillaAplicada] = useState(0)
+  // Meta de postura de cada semana (%); la meta en huevos sale de las aves
+  const [metas, setMetas] = useState<MetasSemanales>({})
 
   useEffect(() => {
     if (!open) return
@@ -106,6 +110,7 @@ export default function CrearLoteModal({ open, onClose, fincaId, galpones, ocupa
     setPosturaManual(false)
     setSalidaManual(false)
     setPlantillaAplicada(0)
+    setMetas({})
     let vigente = true
     supabase.from('plantillas_lote_aves').select('*').eq('finca_id', fincaId).order('nombre')
       .then(({ data }) => { if (vigente) setPlantillas(data ?? []) })
@@ -244,7 +249,8 @@ export default function CrearLoteModal({ open, onClose, fincaId, galpones, ocupa
         fecha_inicio_postura: enPostura ? form.fecha_inicio : (fechaInicioPostura || null),
         fecha_salida_programada: fechaSalida || null,
         meta_postura_pct: enPostura && form.meta_postura_pct ? Number(form.meta_postura_pct) : null,
-        meta_huevos_diaria: enPostura && form.meta_huevos_diaria ? Number(form.meta_huevos_diaria) : null,
+        // La meta en huevos ya no se escribe: sale de las aves × el % de la semana
+        metas_postura_semanal: enPostura ? metasParaGuardar(metas) : null,
         semanas_ciclo_postura: enPostura && form.semanas_ciclo_postura ? Number(form.semanas_ciclo_postura) : null,
       })
       .select()
@@ -516,12 +522,23 @@ export default function CrearLoteModal({ open, onClose, fincaId, galpones, ocupa
                     <Input type="number" min="1" value={form.semanas_ciclo_postura} onChange={e => set('semanas_ciclo_postura', e.target.value)} />
                   </div>
                   <div className="space-y-1">
-                    <Label>Meta de postura / pico (%) *</Label>
+                    <Label>Meta de postura en el pico (%) *</Label>
                     <Input type="number" min="0" max="100" step="0.1" value={form.meta_postura_pct} onChange={e => set('meta_postura_pct', e.target.value)} />
+                    {Number(form.meta_postura_pct) > 0 && Number(form.aves_iniciales) > 0 && (
+                      <p className="text-xs text-gray-500">
+                        = {huevosDeMeta(Number(form.aves_iniciales), Number(form.meta_postura_pct))?.toLocaleString('es-CO')} huevos al día con {Number(form.aves_iniciales).toLocaleString('es-CO')} aves
+                      </p>
+                    )}
                   </div>
-                  <div className="space-y-1">
-                    <Label>Meta de huevos puestos por día</Label>
-                    <Input type="number" min="0" placeholder="Ej: 4600" value={form.meta_huevos_diaria} onChange={e => set('meta_huevos_diaria', e.target.value)} />
+                  <div className="col-span-2">
+                    <MetasSemanalesEditor
+                      semanas={semanasDelCiclo(fechaNacimiento, form.fecha_inicio, form.semanas_ciclo_postura ? Number(form.semanas_ciclo_postura) : null)}
+                      metas={metas} onChange={setMetas}
+                      aves={Number(form.aves_iniciales) || null}
+                      pico={Number(form.meta_postura_pct) || null}
+                      semanaInicio={fechaNacimiento ? semanasDelCiclo(fechaNacimiento, form.fecha_inicio, 1)[0] ?? null : null}
+                      guia={referencia}
+                    />
                   </div>
                   {!seVende && (
                     <div className="space-y-1">

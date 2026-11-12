@@ -95,7 +95,8 @@ export default function IniciarPosturaModal({ open, onClose, nombreGalpon, avesA
       fecha_inicio_postura: form.fecha_inicio_postura,
       semanas_ciclo_postura: semanas,
       meta_postura_pct: pico,
-      meta_huevos_diaria: form.meta_huevos_diaria ? Number(form.meta_huevos_diaria) : metaSugerida,
+      // La meta en huevos ya no se escribe: sale de las aves × el % de cada semana
+      meta_huevos_diaria: null,
       fecha_salida_programada: form.fecha_salida_programada || null,
     })
     setGuardando(false)
@@ -121,19 +122,10 @@ export default function IniciarPosturaModal({ open, onClose, nombreGalpon, avesA
               <Input type="number" min="1" value={form.semanas_ciclo_postura} onChange={e => set('semanas_ciclo_postura', e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label>Meta de postura / pico (%) *</Label>
+              <Label>Meta de postura en el pico (%) *</Label>
               <Input type="number" min="1" max="100" step="0.1" value={form.meta_postura_pct} onChange={e => set('meta_postura_pct', e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>Meta de huevos puestos por día</Label>
-              <Input
-                type="number" min="0"
-                placeholder={metaSugerida ? String(metaSugerida) : 'Ej: 4600'}
-                value={form.meta_huevos_diaria}
-                onChange={e => set('meta_huevos_diaria', e.target.value)}
-              />
-              {metaSugerida && !form.meta_huevos_diaria && (
-                <p className="text-[0.6875rem] text-gray-400">Si la dejas vacía: {metaSugerida.toLocaleString('es-CO')} (aves × pico)</p>
+              {metaSugerida != null && (
+                <p className="text-[0.6875rem] text-gray-400">= {metaSugerida.toLocaleString('es-CO')} huevos al día. La meta de cada semana se ajusta en Configurar galpón.</p>
               )}
             </div>
             <div className="space-y-1">

@@ -72,7 +72,7 @@ export default function HuevosFinca({ fincaId, lotes }: Props) {
           <p className="text-xs text-gray-400">Puesto − vendido, en toda la finca</p>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-3 gap-3 md:grid-cols-5">
+          <div className="grid grid-cols-3 gap-3 md:grid-cols-6">
             {TAMANOS_HUEVO.map(t => (
               <div key={t.key} className="rounded-lg border border-gray-100 bg-gray-50 py-3 text-center">
                 <p className="text-[10px] font-semibold text-gray-500">{t.label}</p>

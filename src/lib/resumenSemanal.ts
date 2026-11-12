@@ -6,12 +6,13 @@ import { aFechaLocal } from '@/lib/fechas'
  * la clasificación colombiana (NTC 1240). Con él se estima el peso promedio del
  * huevo de cada semana a partir de cuántos salieron de cada gramaje.
  */
-export const PESO_HUEVO_G = { b: 49.5, a: 56.5, aa: 63.5, aaa: 72.5, jumbo: 80 } as const
+// C: menos de 46 g (NTC 1240); se toma 43 g como peso típico
+export const PESO_HUEVO_G = { c: 43, b: 49.5, a: 56.5, aa: 63.5, aaa: 72.5, jumbo: 80 } as const
 
 export interface DiaProduccion {
   fecha: string
   huevos_totales: number
-  huevos_b: number; huevos_a: number; huevos_aa: number; huevos_aaa: number; huevos_jumbo: number
+  huevos_c: number; huevos_b: number; huevos_a: number; huevos_aa: number; huevos_aaa: number; huevos_jumbo: number
   muertes: number
   alimento_kg: number
 }
@@ -44,7 +45,7 @@ export interface FilaSemana {
   mortalidadAcumPct: number
   conversion: number | null
   /** Huevos clasificados de la semana por tamaño */
-  porTamano: { b: number; a: number; aa: number; aaa: number; jumbo: number }
+  porTamano: { c: number; b: number; a: number; aa: number; aaa: number; jumbo: number }
   /** Aves-día de la semana (las que amanecieron cada día, haya registro o no) */
   avesDia: number
 }
@@ -118,7 +119,7 @@ export function resumenSemanal(
         huevos: 0, huevosAcumulados: 0, saldoAves: saldo, muertes: 0, consumoKg: 0,
         pesoAveG: null, pesoHuevoG: null, avesEncasetadas: lote.aves_iniciales,
         posturaPct: null, haa: 0, consumoAveGDia: null, mortalidadPct: null, mortalidadAcumPct: 0, conversion: null,
-        porTamano: { b: 0, a: 0, aa: 0, aaa: 0, jumbo: 0 }, avesDia: 0,
+        porTamano: { c: 0, b: 0, a: 0, aa: 0, aaa: 0, jumbo: 0 }, avesDia: 0,
       }
       avesDiaRegistrados = 0
       avesDiaConsumo = 0
@@ -137,10 +138,10 @@ export function resumenSemanal(
     if (r) {
       avesDiaRegistrados += Math.max(0, saldo)
       f.huevos += r.huevos_totales
-      kgHuevoSemana += (r.huevos_b * PESO_HUEVO_G.b + r.huevos_a * PESO_HUEVO_G.a + r.huevos_aa * PESO_HUEVO_G.aa
+      kgHuevoSemana += ((r.huevos_c ?? 0) * PESO_HUEVO_G.c + r.huevos_b * PESO_HUEVO_G.b + r.huevos_a * PESO_HUEVO_G.a + r.huevos_aa * PESO_HUEVO_G.aa
         + r.huevos_aaa * PESO_HUEVO_G.aaa + r.huevos_jumbo * PESO_HUEVO_G.jumbo) / 1000
-      clasificadosSemana += r.huevos_b + r.huevos_a + r.huevos_aa + r.huevos_aaa + r.huevos_jumbo
-      f.porTamano.b += r.huevos_b; f.porTamano.a += r.huevos_a; f.porTamano.aa += r.huevos_aa
+      clasificadosSemana += (r.huevos_c ?? 0) + r.huevos_b + r.huevos_a + r.huevos_aa + r.huevos_aaa + r.huevos_jumbo
+      f.porTamano.c += r.huevos_c ?? 0; f.porTamano.b += r.huevos_b; f.porTamano.a += r.huevos_a; f.porTamano.aa += r.huevos_aa
       f.porTamano.aaa += r.huevos_aaa; f.porTamano.jumbo += r.huevos_jumbo
     }
     const muertesDia = (r?.muertes ?? 0) + (extra.get(fecha) ?? 0)

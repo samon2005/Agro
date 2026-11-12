@@ -29,9 +29,11 @@ interface Props {
 const CAUSAS_MUERTE = [
   'Marek', 'Newcastle', 'Bronquitis', 'Gumboro', 'Laringotraqueitis',
   'Coccidiosis', 'Micoplasmosis', 'Accidente', 'Estrés calórico',
+  'Picaje', 'Descarte', 'Infarto', 'Ahogamiento',
 ]
 
-const CAUSAS_SIN_FARMACO = new Set(['Accidente', 'Estrés calórico'])
+// Causas que no son una enfermedad: no piden tratamiento
+const CAUSAS_SIN_FARMACO = new Set(['Accidente', 'Estrés calórico', 'Picaje', 'Descarte', 'Infarto', 'Ahogamiento'])
 
 const CAUSA_A_TIPO_EVENTO: Record<string, string> = {
   'Marek': 'nervioso',
@@ -43,6 +45,10 @@ const CAUSA_A_TIPO_EVENTO: Record<string, string> = {
   'Micoplasmosis': 'respiratorio',
   'Accidente': 'otro',
   'Estrés calórico': 'otro',
+  'Picaje': 'otro',
+  'Descarte': 'otro',
+  'Infarto': 'otro',
+  'Ahogamiento': 'otro',
 }
 
 const SIN_TIPO = '__ninguno__'
@@ -63,6 +69,7 @@ function defaultForm(avesActuales: number, r?: ProduccionDiaria | null) {
   return {
     fecha: r?.fecha ?? hoyLocal(),
     aves_en_dia: r ? String(r.aves_en_dia ?? '') : String(avesActuales),
+    huevos_c: r ? String(r.huevos_c ?? 0) : '',
     huevos_b: r ? String(r.huevos_b) : '',
     huevos_a: r ? String(r.huevos_a) : '',
     huevos_aa: r ? String(r.huevos_aa) : '',
@@ -127,7 +134,7 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
   // que la guarda con su nombre real en vez de dejarla como un genérico.
   const causasDisponibles = [...new Set([...CAUSAS_MUERTE, ...causasPropias])]
 
-  const totalHuevos = (Number(form.huevos_b) || 0) + (Number(form.huevos_a) || 0) + (Number(form.huevos_aa) || 0) + (Number(form.huevos_aaa) || 0) + (Number(form.huevos_jumbo) || 0)
+  const totalHuevos = (Number(form.huevos_c) || 0) + (Number(form.huevos_b) || 0) + (Number(form.huevos_a) || 0) + (Number(form.huevos_aa) || 0) + (Number(form.huevos_aaa) || 0) + (Number(form.huevos_jumbo) || 0)
 
   const postura = form.aves_en_dia && totalHuevos > 0 && Number(form.aves_en_dia) > 0
     ? ((totalHuevos / Number(form.aves_en_dia)) * 100).toFixed(1)
@@ -162,6 +169,7 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
       finca_id: fincaId,
       fecha: form.fecha,
       huevos_totales: enPreparacion ? 0 : totalHuevos,
+      huevos_c: enPreparacion ? 0 : Number(form.huevos_c) || 0,
       huevos_b: enPreparacion ? 0 : Number(form.huevos_b) || 0,
       huevos_a: enPreparacion ? 0 : Number(form.huevos_a) || 0,
       huevos_aa: enPreparacion ? 0 : Number(form.huevos_aa) || 0,
@@ -287,7 +295,11 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
                 </span>
               )}
             </div>
-            <div className="grid grid-cols-3 md:grid-cols-5 gap-3">
+            <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">C</Label>
+                <Input type="number" min="0" placeholder="0" value={form.huevos_c} onChange={e => set('huevos_c', e.target.value)} />
+              </div>
               <div className="space-y-1">
                 <Label className="text-xs">B</Label>
                 <Input type="number" min="0" placeholder="0" value={form.huevos_b} onChange={e => set('huevos_b', e.target.value)} />

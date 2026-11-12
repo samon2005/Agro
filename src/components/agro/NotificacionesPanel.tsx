@@ -159,10 +159,10 @@ export default function NotificacionesPanel() {
       const desdeStr = aFechaLocal(hace7dias)
       const [{ data: prodSemana }, { data: ventasSemana }] = await Promise.all([
         supabase.from('produccion_diaria_aves').select('huevos_totales').eq('finca_id', fincaActual.id).gte('fecha', desdeStr),
-        supabase.from('ventas_huevos_aves').select('cantidad_b, cantidad_a, cantidad_aa, cantidad_aaa, cantidad_jumbo').eq('finca_id', fincaActual.id).gte('fecha', desdeStr),
+        supabase.from('ventas_huevos_aves').select('cantidad_c, cantidad_b, cantidad_a, cantidad_aa, cantidad_aaa, cantidad_jumbo').eq('finca_id', fincaActual.id).gte('fecha', desdeStr),
       ])
       const totalProducido = (prodSemana ?? []).reduce((s, r) => s + r.huevos_totales, 0)
-      const totalVendido = (ventasSemana ?? []).reduce((s, v) => s + v.cantidad_b + v.cantidad_a + v.cantidad_aa + v.cantidad_aaa + v.cantidad_jumbo, 0)
+      const totalVendido = (ventasSemana ?? []).reduce((s, v) => s + v.cantidad_c + v.cantidad_b + v.cantidad_a + v.cantidad_aa + v.cantidad_aaa + v.cantidad_jumbo, 0)
       const sinVender = totalProducido - totalVendido
       if (totalProducido > 0 && sinVender > totalProducido * 0.3) {
         notifs.push({

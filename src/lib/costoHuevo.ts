@@ -174,6 +174,7 @@ export function costosSemanales(input: {
 /** Costo de cada tamaño de huevo: el costo por gramo por el peso de referencia del tamaño. */
 export function costoPorTamano(costoGramo: number): Record<TamanoHuevo, number> {
   return {
+    c: costoGramo * PESO_HUEVO_G.c,
     b: costoGramo * PESO_HUEVO_G.b,
     a: costoGramo * PESO_HUEVO_G.a,
     aa: costoGramo * PESO_HUEVO_G.aa,
