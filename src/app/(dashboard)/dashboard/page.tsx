@@ -6,6 +6,7 @@ import { useFinca } from '@/components/agro/FincaProvider'
 import CrearFincaModal from '@/components/agro/CrearFincaModal'
 import EditarFincaModal from '@/components/agro/EditarFincaModal'
 import TableroInicio from '@/components/agro/resumen/TableroInicio'
+import ResumenHistorico from '@/components/agro/resumen/ResumenHistorico'
 import ResumenFincasAdmin from '@/components/agro/admin/ResumenFincasAdmin'
 import { useEsAdmin } from '@/components/agro/RolProvider'
 import { Badge } from '@/components/ui/badge'
@@ -55,7 +56,9 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {fincaActual ? (
+        {fincaActual?.sin_registro_ventas ? (
+          <ResumenHistorico fincaId={fincaActual.id} />
+        ) : fincaActual ? (
           <TableroInicio
             finca={fincaActual}
             fincas={fincas}

@@ -4,7 +4,7 @@
  * datos viejos (fincas.sin_registro_ventas), donde solo hay producción.
  */
 import { TAMANOS_HUEVO, type TamanoHuevo } from '@/lib/huevos'
-import { semanaDeVida } from '@/lib/referencias'
+import { esperadoDeSemana, mortalidadEsperadaDesde, semanaDeVida, type FilaReferencia } from '@/lib/referencias'
 
 export interface DiaProduccion {
   lote_id: string
@@ -145,4 +145,194 @@ export function resumenLotes(dias: DiaProduccion[], lotes: LoteAnalisis[]) {
 /** "may 2024" */
 export function nombreMes(mes: string, corto = true) {
   return new Date(mes + '-01T00:00:00').toLocaleDateString('es-CO', { month: corto ? 'short' : 'long', year: 'numeric' })
+}
+
+// ─── Análisis profundo de lotes cerrados (Resumen de las fincas con datos viejos) ───
+
+
+export type Guia = Map<number, FilaReferencia>
+
+/** Lo que dejó cada lote en todo su ciclo de postura. */
+export interface FilaLote {
+  lote: LoteAnalisis
+  /** Las aves que empezaron la postura (las del primer día de postura) */
+  avesAlojadas: number | null
+  diasPostura: number
+  huevos: number
+  /** Huevos por ave alojada: la medida que más dice de un lote entero */
+  huevosAve: number | null
+  postura: number | null
+  pico: { pct: number; semana: number } | null
+  /** Semanas con la postura en 90 % o más */
+  semanasSobre90: number
+  /** Muertes desde el inicio de postura, en % de las aves alojadas */
+  mortalidadPostura: number | null
+  muertesPostura: number
+  /** Muertes antes de la postura (levante), si las hay */
+  muertesLevante: number
+  gramosAve: number | null
+  /** Kilos de alimento por cada docena de huevos */
+  kgDocena: number | null
+  parteC: number | null
+  rotosPct: number | null
+  /** Puntos por encima (+) o por debajo (−) de la guía, en promedio por semana */
+  contraGuia: number | null
+}
+
+function diasDelLote(dias: DiaProduccion[], lote: LoteAnalisis) {
+  return dias.filter(d => d.lote_id === lote.id).sort((a, b) => a.fecha.localeCompare(b.fecha))
+}
+
+/** El resumen de cada lote, en el orden de los lotes. */
+export function analisisPorLote(dias: DiaProduccion[], lotes: LoteAnalisis[], guiaDe: (l: LoteAnalisis) => Guia | undefined): FilaLote[] {
+  return lotes.map(lote => {
+    const propios = diasDelLote(dias, lote)
+    const inicio = lote.fecha_inicio_postura
+    const deLaPostura = propios.filter(d => !inicio || d.fecha >= inicio)
+    const avesAlojadas = deLaPostura.find(d => d.aves_en_dia && d.aves_en_dia > 0)?.aves_en_dia ?? null
+    const total = vacio()
+    for (const d of propios) if (enPostura(d, lote)) sumar(total, d)
+    const muertesPostura = deLaPostura.reduce((s, d) => s + d.muertes, 0)
+    const muertesLevante = propios.reduce((s, d) => s + d.muertes, 0) - muertesPostura
+    const semanas = porSemanaDeVida(dias, lote)
+    let pico: FilaLote['pico'] = null
+    let sobre90 = 0
+    const desvios: number[] = []
+    const guia = guiaDe(lote)
+    for (const { semana, a } of semanas) {
+      const p = posturaDe(a)
+      if (p == null || a.dias < 5) continue
+      if (!pico || p > pico.pct) pico = { pct: p, semana }
+      if (p >= 90) sobre90++
+      const g = guia ? esperadoDeSemana(guia, semana)?.postura : null
+      if (g != null) desvios.push(p - g)
+    }
+    return {
+      lote, avesAlojadas, diasPostura: total.dias, huevos: total.huevos,
+      huevosAve: avesAlojadas ? total.huevos / avesAlojadas : null,
+      postura: posturaDe(total), pico, semanasSobre90: sobre90,
+      mortalidadPostura: avesAlojadas ? (muertesPostura / avesAlojadas) * 100 : null,
+      muertesPostura, muertesLevante,
+      gramosAve: gramosAveDe(total),
+      kgDocena: total.huevosConAves > 0 ? total.alimentoConAvesKg / (total.huevosConAves / 12) : null,
+      parteC: parteDe(total, 'c'),
+      rotosPct: total.huevos > 0 && total.clasificados > 0 ? (total.rotos / total.huevos) * 100 : null,
+      contraGuia: desvios.length > 0 ? desvios.reduce((s, x) => s + x, 0) / desvios.length : null,
+    }
+  })
+}
+
+/** Un mes de la finca: su producción (días de postura) y sus muertes (todos los días). */
+export interface MesFinca {
+  mes: string
+  a: Acumulado
+  postura: number | null
+  muertes: number
+  /** Muertes en % de las aves promedio del mes (null si no hay aves contadas) */
+  mortalidad: number | null
+  /** El mes es el primero o el último de algún lote: arranque o cierre, no cuenta para mejor o peor */
+  parcial: boolean
+  lotes: string[]
+}
+
+export function mesesDeLaFinca(dias: DiaProduccion[], lotes: LoteAnalisis[]): MesFinca[] {
+  const lotePor = new Map(lotes.map(l => [l.id, l]))
+  const prod = new Map(porMes(dias, lotes).map(m => [m.mes, m.a]))
+  const muertes = new Map<string, number>()
+  const avesPorDia = new Map<string, Map<string, number>>()
+  const lotesMes = new Map<string, Set<string>>()
+  for (const d of dias) {
+    const l = lotePor.get(d.lote_id)
+    if (!l) continue
+    const mes = d.fecha.slice(0, 7)
+    muertes.set(mes, (muertes.get(mes) ?? 0) + d.muertes)
+    if (d.aves_en_dia && d.aves_en_dia > 0) {
+      const delMes = avesPorDia.get(mes) ?? new Map<string, number>()
+      delMes.set(d.fecha, (delMes.get(d.fecha) ?? 0) + d.aves_en_dia)
+      avesPorDia.set(mes, delMes)
+    }
+    if (!lotesMes.has(mes)) lotesMes.set(mes, new Set())
+    lotesMes.get(mes)!.add(l.nombre)
+  }
+  // Primer y último mes de postura de cada lote
+  const bordes = new Set<string>()
+  for (const l of lotes) {
+    const ms = [...new Set(dias.filter(d => d.lote_id === l.id && enPostura(d, l)).map(d => d.fecha.slice(0, 7)))].sort()
+    if (ms.length) { bordes.add(ms[0]); bordes.add(ms[ms.length - 1]) }
+  }
+  const meses = [...new Set([...prod.keys(), ...muertes.keys()])].sort()
+  return meses.map(mes => {
+    const a = prod.get(mes) ?? vacio()
+    const aves = [...(avesPorDia.get(mes)?.values() ?? [])]
+    const avesProm = aves.length ? aves.reduce((s, x) => s + x, 0) / aves.length : null
+    const m = muertes.get(mes) ?? 0
+    return {
+      mes, a, postura: posturaDe(a), muertes: m,
+      mortalidad: avesProm ? (m / avesProm) * 100 : null,
+      parcial: bordes.has(mes), lotes: [...(lotesMes.get(mes) ?? [])],
+    }
+  })
+}
+
+/** Mortalidad acumulada de un lote desde el inicio de postura, semana a semana, frente a la guía. */
+export function mortalidadAcumulada(dias: DiaProduccion[], lote: LoteAnalisis, guia?: Guia): { semana: number; real: number; guia: number | null }[] {
+  const inicio = lote.fecha_inicio_postura
+  const propios = diasDelLote(dias, lote).filter(d => !inicio || d.fecha >= inicio)
+  const alojadas = propios.find(d => d.aves_en_dia && d.aves_en_dia > 0)?.aves_en_dia
+  if (!alojadas) return []
+  const porSemana = new Map<number, number>()
+  for (const d of propios) {
+    const s = semanaDeVida(lote.fecha_nacimiento, d.fecha)
+    if (s != null) porSemana.set(s, (porSemana.get(s) ?? 0) + d.muertes)
+  }
+  const semanas = [...porSemana.keys()].sort((a, b) => a - b)
+  if (!semanas.length) return []
+  let acum = 0
+  return semanas.map(s => {
+    acum += porSemana.get(s)!
+    return {
+      semana: s,
+      real: (acum / alojadas) * 100,
+      guia: guia && guia.size > 0 ? mortalidadEsperadaDesde(guia, semanas[0], s) : null,
+    }
+  })
+}
+
+/** Lo más llamativo de los datos, en frases cortas para el productor. */
+export interface Hallazgo { tono: 'bien' | 'mal' | 'nota'; texto: string }
+
+export function hallazgos(lotesRes: FilaLote[], meses: MesFinca[]): Hallazgo[] {
+  const out: Hallazgo[] = []
+  const n1 = (v: number) => v.toLocaleString('es-CO', { maximumFractionDigits: 1 })
+  const completos = meses.filter(m => !m.parcial && m.postura != null && m.a.dias >= 20)
+  const mejor = completos.reduce<MesFinca | null>((x, m) => (!x || m.postura! > x.postura! ? m : x), null)
+  const peor = completos.reduce<MesFinca | null>((x, m) => (!x || m.postura! < x.postura! ? m : x), null)
+  if (mejor) out.push({ tono: 'bien', texto: `El mejor mes fue ${nombreMes(mejor.mes, false)}: ${n1(mejor.postura!)} % de postura y ${mejor.a.huevos.toLocaleString('es-CO')} huevos.` })
+  if (peor && peor !== mejor) out.push({ tono: 'mal', texto: `El peor mes fue ${nombreMes(peor.mes, false)}: ${n1(peor.postura!)} % de postura (sin contar el arranque ni el cierre de los lotes).` })
+  const masMuertes = meses.reduce<MesFinca | null>((x, m) => (!x || m.muertes > x.muertes ? m : x), null)
+  const totalMuertes = meses.reduce((s, m) => s + m.muertes, 0)
+  if (masMuertes && masMuertes.muertes > 0) {
+    const parte = totalMuertes > 0 ? (masMuertes.muertes / totalMuertes) * 100 : 0
+    out.push({ tono: parte >= 25 ? 'mal' : 'nota', texto: `El mes con más muertes fue ${nombreMes(masMuertes.mes, false)}: ${masMuertes.muertes.toLocaleString('es-CO')} aves${parte >= 15 ? `, el ${n1(parte)} % de todas las muertes` : ''}.` })
+  }
+  const conHA = lotesRes.filter(l => l.huevosAve != null)
+  if (conHA.length > 1) {
+    const top = conHA.reduce((x, l) => (l.huevosAve! > x.huevosAve! ? l : x))
+    out.push({ tono: 'bien', texto: `${top.lote.nombre} fue el lote más productivo: ${Math.round(top.huevosAve!)} huevos por ave alojada.` })
+  }
+  const persistente = lotesRes.filter(l => l.semanasSobre90 > 0).sort((a, b) => b.semanasSobre90 - a.semanasSobre90)[0]
+  if (persistente) out.push({ tono: 'bien', texto: `${persistente.lote.nombre} sostuvo 90 % o más de postura durante ${persistente.semanasSobre90} semanas.` })
+  for (const l of lotesRes) {
+    if (l.contraGuia == null || Math.abs(l.contraGuia) < 2) continue
+    out.push({ tono: l.contraGuia > 0 ? 'bien' : 'mal', texto: `${l.lote.nombre} estuvo en promedio ${n1(Math.abs(l.contraGuia))} puntos ${l.contraGuia > 0 ? 'por encima' : 'por debajo'} de la guía de la línea.` })
+  }
+  const conConv = lotesRes.filter(l => l.kgDocena != null)
+  if (conConv.length > 1) {
+    const mejorConv = conConv.reduce((x, l) => (l.kgDocena! < x.kgDocena! ? l : x))
+    out.push({ tono: 'nota', texto: `La mejor conversión fue la de ${mejorConv.lote.nombre}: ${n1(mejorConv.kgDocena!)} kg de alimento por docena de huevos.` })
+  }
+  const mesC = meses.filter(m => m.a.clasificados >= 1000)
+    .reduce<{ m: MesFinca; p: number } | null>((x, m) => { const p = parteDe(m.a, 'c') ?? 0; return !x || p > x.p ? { m, p } : x }, null)
+  if (mesC && mesC.p >= 1) out.push({ tono: 'nota', texto: `El huevo C se concentró en ${nombreMes(mesC.m.mes, false)} (${n1(mesC.p)} % de lo clasificado), cuando ${mesC.m.lotes.join(' y ')} ${mesC.m.lotes.length > 1 ? 'estaban' : 'estaba'} en postura.` })
+  return out
 }

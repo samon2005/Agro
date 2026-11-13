@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-import { createClient } from '@/lib/supabase/client'
+import { useProduccionFinca } from '@/lib/useProduccionFinca'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { TarjetaKPI } from '@/components/ui/graficos/TarjetaKPI'
@@ -10,10 +10,9 @@ import { PanelDatos, TablaDatos, Leyenda } from '@/components/ui/graficos/PanelD
 import { TooltipGrafico } from '@/components/ui/graficos/TooltipGrafico'
 import { BARRA, EJE, EJE_Y, REJILLA, C, CURSOR_BARRA, CURSOR_LINEA, TINTA, TONOS, colorDe, compacto } from '@/components/ui/graficos/paleta'
 import { TAMANOS_HUEVO } from '@/lib/huevos'
-import { cargarReferencia, esperadoDeSemana, type FilaReferencia } from '@/lib/referencias'
+import { esperadoDeSemana, type FilaReferencia } from '@/lib/referencias'
 import {
   gramosAveDe, nombreMes, parteDe, porMes, porSemanaDeVida, posturaDe, resumenLotes,
-  type DiaProduccion, type LoteAnalisis,
 } from '@/lib/analisisProduccion'
 
 const n1 = (v: number) => v.toLocaleString('es-CO', { maximumFractionDigits: 1 })
@@ -22,7 +21,6 @@ const ALTO = 'h-64'
 // Un tono por tamaño, de la C (la más clara) al jumbo (la más oscura)
 const COLOR_TAMANO: Record<string, string> = { c: TONOS[6], b: TONOS[5], a: TONOS[4], aa: TONOS[3], aaa: TONOS[1], jumbo: TONOS[0] }
 
-interface Lote extends LoteAnalisis { referencia_id: string | null; fecha_fin: string | null }
 
 /**
  * Análisis de producción de toda la historia de la finca, sin ventas: postura
@@ -30,34 +28,11 @@ interface Lote extends LoteAnalisis { referencia_id: string | null; fecha_fin: s
  * tabla mes a mes. Para las fincas con datos viejos cargados de Excel.
  */
 export default function AnalisisProduccion({ fincaId }: { fincaId: string }) {
-  const [lotes, setLotes] = useState<Lote[] | null>(null)
-  const [dias, setDias] = useState<DiaProduccion[]>([])
-  const [guias, setGuias] = useState<Map<string, Map<number, FilaReferencia>>>(new Map())
+  const datos = useProduccionFinca(fincaId)
+  const lotes = datos?.lotes ?? null
+  const dias = useMemo(() => datos?.dias ?? [], [datos])
+  const guias = useMemo(() => datos?.guias ?? new Map<string, Map<number, FilaReferencia>>(), [datos])
   const [elegido, setElegido] = useState<string>('todos')
-
-  useEffect(() => {
-    let vigente = true
-    const supabase = createClient()
-    ;(async () => {
-      const { data: ls } = await supabase.from('lotes_aves')
-        .select('id, nombre, fecha_nacimiento, fecha_inicio_postura, fecha_fin, aves_iniciales, referencia_id')
-        .eq('finca_id', fincaId).order('fecha_inicio')
-      // La base entrega de a 1.000 filas: se pide por páginas
-      const todos: DiaProduccion[] = []
-      for (let desde = 0; ; desde += 1000) {
-        const { data } = await supabase.from('produccion_diaria_aves')
-          .select('lote_id, fecha, huevos_totales, aves_en_dia, muertes, alimento_kg, huevos_c, huevos_b, huevos_a, huevos_aa, huevos_aaa, huevos_jumbo, huevos_rotos, huevos_sucios')
-          .eq('finca_id', fincaId).order('fecha').range(desde, desde + 999)
-        todos.push(...((data ?? []) as DiaProduccion[]))
-        if (!data || data.length < 1000) break
-      }
-      const refs = [...new Set((ls ?? []).map(l => l.referencia_id).filter((x): x is string => Boolean(x)))]
-      const g = new Map(await Promise.all(refs.map(async id => [id, await cargarReferencia(supabase, id)] as const)))
-      if (!vigente) return
-      setLotes((ls ?? []) as Lote[]); setDias(todos); setGuias(g)
-    })()
-    return () => { vigente = false }
-  }, [fincaId])
 
   const vista = useMemo(() => {
     if (!lotes) return null
