@@ -1,6 +1,7 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
+import FiltroPeriodo from '@/components/agro/reportes/FiltroPeriodo'
 import Link from 'next/link'
 import { BarChart, Bar, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -14,7 +15,7 @@ import { BARRA, EJE, EJE_Y, REJILLA, C, CURSOR_BARRA, CURSOR_LINEA, TINTA, TONOS
 import { useProduccionFinca } from '@/lib/useProduccionFinca'
 import {
   analisisPorLote, gramosAveDe, hallazgos, mesesDeLaFinca, mortalidadAcumulada, nombreMes,
-  type Hallazgo, type MesFinca,
+  filtrarPorPeriodo, TODO_EL_TIEMPO, type Hallazgo, type MesFinca, type Periodo,
 } from '@/lib/analisisProduccion'
 
 const n1 = (v: number) => v.toLocaleString('es-CO', { maximumFractionDigits: 1 })
@@ -32,12 +33,23 @@ const ICONO: Record<Hallazgo['tono'], { n: NombreIcono; color: string }> = {
  * que produjo. Qué dicen los datos, el mejor y el peor mes, la postura y las
  * muertes de cada mes, la mortalidad frente a la guía y la comparación de lotes.
  */
-export default function ResumenHistorico({ fincaId }: { fincaId: string }) {
+export default function ResumenHistorico({ fincaId, historico = true, periodo: periodoDado }: {
+  fincaId: string
+  /** El periodo lo puede elegir quien lo contiene (Reportes); si no, trae su propio filtro */
+  periodo?: Periodo
+  /** Finca de datos viejos: lleva el aviso de que no hay ventas y el enlace al análisis completo */
+  historico?: boolean
+}) {
   const datos = useProduccionFinca(fincaId)
+  const [periodoPropio, setPeriodoPropio] = useState<Periodo>(TODO_EL_TIEMPO)
+  const periodo = periodoDado ?? periodoPropio
 
   const a = useMemo(() => {
     if (!datos) return null
-    const { lotes, dias, guias } = datos
+    const { guias } = datos
+    const dias = filtrarPorPeriodo(datos.dias, periodo)
+    // Solo los lotes con días en el periodo
+    const lotes = datos.lotes.filter(l => dias.some(d => d.lote_id === l.id))
     const guiaDe = (l: { id: string }) => {
       const ref = lotes.find(x => x.id === l.id)?.referencia_id
       return ref ? guias.get(ref) : undefined
@@ -87,17 +99,23 @@ export default function ResumenHistorico({ fincaId }: { fincaId: string }) {
         desde: meses[0]?.mes, hasta: meses[meses.length - 1]?.mes,
       },
     }
-  }, [datos])
+  }, [datos, periodo])
 
   if (!a) return <Skeleton className="h-96 rounded-2xl" />
-  if (a.lotes.length === 0) return <p className="py-12 text-center text-sm text-gray-400">Esta finca no tiene lotes cargados.</p>
+  if (a.lotes.length === 0) return (
+    <div className="space-y-4">
+      {!periodoDado && datos && <FiltroPeriodo dias={datos.dias} valor={periodoPropio} onCambio={setPeriodoPropio} />}
+      <p className="py-12 text-center text-sm text-gray-400">{datos && datos.dias.length > 0 ? 'No hay días registrados en ese periodo.' : 'Esta finca todavía no tiene días registrados en los galpones.'}</p>
+    </div>
+  )
 
   const colorLote = (id: string) => colorDe(a.lotes.findIndex(l => l.id === id))
   const colorMes = (m: MesFinca) => m === a.mejor ? C.principal : m === a.peor ? C.falta : m.parcial ? TONOS[6] : C.claro
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+      {!periodoDado && datos && <FiltroPeriodo dias={datos.dias} valor={periodoPropio} onCambio={setPeriodoPropio} />}
+      {historico && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
         <p className="flex items-start gap-2">
           <Ic n="info" className="mt-0.5 size-4" />
           Datos viejos cargados de Excel, de {a.kpi.desde ? nombreMes(a.kpi.desde, false) : '…'} a {a.kpi.hasta ? nombreMes(a.kpi.hasta, false) : '…'}. No hay ventas: aquí se mira solo la producción.
@@ -105,12 +123,12 @@ export default function ResumenHistorico({ fincaId }: { fincaId: string }) {
         <Button size="sm" variant="outline" render={<Link href="/reportes" />}>
           Ver el análisis completo <Ic n="flecha" className="size-3.5" />
         </Button>
-      </div>
+      </div>}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
         <TarjetaKPI etiqueta="Huevos" valor={compacto(a.kpi.huevos)} nota={`${a.lotes.length} lotes`} />
         <TarjetaKPI etiqueta="Huevos por ave alojada" valor={a.kpi.huevosAve != null ? mil(Math.round(a.kpi.huevosAve)) : '—'} nota={`${mil(a.kpi.alojadas)} aves al empezar la postura`} />
-        <TarjetaKPI etiqueta="Postura promedio" valor={a.kpi.postura != null ? pct(a.kpi.postura) : '—'} nota="De todos los ciclos" />
+        <TarjetaKPI etiqueta="Postura promedio" valor={a.kpi.postura != null ? pct(a.kpi.postura) : '—'} nota={periodo.desde || periodo.hasta ? 'En el periodo elegido' : 'De todos los ciclos'} />
         <TarjetaKPI etiqueta="Mortalidad en postura" valor={a.kpi.mortalidad != null ? pct(a.kpi.mortalidad) : '—'} nota={`${mil(a.kpi.muertesPostura)} aves, con la selección`} />
         <TarjetaKPI etiqueta="Alimento por docena" valor={a.kpi.kgDocena != null ? `${n1(a.kpi.kgDocena)} kg` : '—'} nota="Kilos para 12 huevos" />
         <TarjetaKPI etiqueta="Mes con más muertes" valor={a.masMuertes ? nombreMes(a.masMuertes.mes) : '—'} nota={a.masMuertes ? `${mil(a.masMuertes.muertes)} aves` : undefined} />

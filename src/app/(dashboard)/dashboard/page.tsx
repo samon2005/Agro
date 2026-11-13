@@ -6,6 +6,7 @@ import { useFinca } from '@/components/agro/FincaProvider'
 import CrearFincaModal from '@/components/agro/CrearFincaModal'
 import EditarFincaModal from '@/components/agro/EditarFincaModal'
 import TableroInicio from '@/components/agro/resumen/TableroInicio'
+import AvisoImportados from '@/components/agro/comun/AvisoImportados'
 import ResumenHistorico from '@/components/agro/resumen/ResumenHistorico'
 import ResumenFincasAdmin from '@/components/agro/admin/ResumenFincasAdmin'
 import { useEsAdmin } from '@/components/agro/RolProvider'
@@ -58,13 +59,15 @@ export default function DashboardPage() {
 
         {fincaActual?.sin_registro_ventas ? (
           <ResumenHistorico fincaId={fincaActual.id} />
-        ) : fincaActual ? (
+        ) : fincaActual ? (<>
+          <div className="mb-4"><AvisoImportados fincaId={fincaActual.id} /></div>
           <TableroInicio
             finca={fincaActual}
             fincas={fincas}
             onEditarFinca={() => setFincaAEditar(fincaActual)}
             onEditarOtra={f => setFincaAEditar(f)}
           />
+        </>
         ) : (
           <EmptyState message="No hay fincas registradas" hint="Se abrirá el formulario de creación" />
         )}

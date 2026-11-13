@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import FiltroPeriodo from './FiltroPeriodo'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { useProduccionFinca } from '@/lib/useProduccionFinca'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -12,6 +13,7 @@ import { BARRA, EJE, EJE_Y, REJILLA, C, CURSOR_BARRA, CURSOR_LINEA, TINTA, TONOS
 import { TAMANOS_HUEVO } from '@/lib/huevos'
 import { esperadoDeSemana, type FilaReferencia } from '@/lib/referencias'
 import {
+  filtrarPorPeriodo, TODO_EL_TIEMPO, type Periodo,
   gramosAveDe, nombreMes, parteDe, porMes, porSemanaDeVida, posturaDe, resumenLotes,
 } from '@/lib/analisisProduccion'
 
@@ -27,16 +29,24 @@ const COLOR_TAMANO: Record<string, string> = { c: TONOS[6], b: TONOS[5], a: TONO
  * por semana de vida frente a la guía, huevos por mes, tamaños por mes y la
  * tabla mes a mes. Para las fincas con datos viejos cargados de Excel.
  */
-export default function AnalisisProduccion({ fincaId }: { fincaId: string }) {
+export default function AnalisisProduccion({ fincaId, periodo: periodoDado }: {
+  fincaId: string
+  /** El periodo lo puede elegir quien lo contiene (Reportes); si no, trae su propio filtro */
+  periodo?: Periodo
+}) {
   const datos = useProduccionFinca(fincaId)
   const lotes = datos?.lotes ?? null
-  const dias = useMemo(() => datos?.dias ?? [], [datos])
+  const [periodoPropio, setPeriodoPropio] = useState<Periodo>(TODO_EL_TIEMPO)
+  const periodo = periodoDado ?? periodoPropio
+  const dias = useMemo(() => filtrarPorPeriodo(datos?.dias ?? [], periodo), [datos, periodo])
   const guias = useMemo(() => datos?.guias ?? new Map<string, Map<number, FilaReferencia>>(), [datos])
   const [elegido, setElegido] = useState<string>('todos')
 
   const vista = useMemo(() => {
     if (!lotes) return null
-    const ls = elegido === 'todos' ? lotes : lotes.filter(l => l.id === elegido)
+    const conDias = lotes.filter(l => dias.some(d => d.lote_id === l.id))
+    // Si el lote elegido no tiene días en el periodo, se ven todos
+    const ls = elegido === 'todos' || !conDias.some(l => l.id === elegido) ? conDias : conDias.filter(l => l.id === elegido)
     const ids = new Set(ls.map(l => l.id))
     const ds = dias.filter(d => ids.has(d.lote_id))
     const meses = porMes(ds, ls)
@@ -55,11 +65,16 @@ export default function AnalisisProduccion({ fincaId }: { fincaId: string }) {
     const conTamanos = meses.filter(m => m.a.clasificados > 0)
     const mesMasC = conTamanos.filter(m => m.a.clasificados >= 1000)
       .reduce<{ mes: string; p: number } | null>((mx, m) => { const p = parteDe(m.a, 'c') ?? 0; return !mx || p > mx.p ? { mes: m.mes, p } : mx }, null)
-    return { ls, meses, curva, conTamanos, mesMasC, resumen: resumenLotes(ds, ls), hayGuia: guia != null }
+    return { conDias, ls, meses, curva, conTamanos, mesMasC, resumen: resumenLotes(ds, ls), hayGuia: guia != null }
   }, [lotes, dias, guias, elegido])
 
   if (!lotes || !vista) return <Skeleton className="h-96 rounded-2xl" />
-  if (lotes.length === 0) return <p className="py-12 text-center text-sm text-gray-400">Esta finca no tiene lotes cargados.</p>
+  if (vista.conDias.length === 0) return (
+    <div className="space-y-4">
+      {!periodoDado && datos && <FiltroPeriodo dias={datos.dias} valor={periodoPropio} onCambio={setPeriodoPropio} />}
+      <p className="py-12 text-center text-sm text-gray-400">{datos && datos.dias.length > 0 ? 'No hay días registrados en ese periodo.' : 'Esta finca todavía no tiene días registrados en los galpones.'}</p>
+    </div>
+  )
 
   const { resumen: r, meses, curva, conTamanos, mesMasC, ls } = vista
   const colorLote = (id: string) => colorDe(lotes.findIndex(l => l.id === id))
@@ -67,13 +82,14 @@ export default function AnalisisProduccion({ fincaId }: { fincaId: string }) {
 
   return (
     <div className="space-y-4">
+      {!periodoDado && datos && <FiltroPeriodo dias={datos.dias} valor={periodoPropio} onCambio={setPeriodoPropio} />}
       {/* Lotes: todos juntos o uno solo */}
       <div className="superficie inline-flex max-w-full gap-1 overflow-x-auto rounded-2xl p-1.5 [scrollbar-width:none]">
         {[{ id: 'todos', nombre: 'Todos los lotes', sub: `${lotes.length} lotes` },
-          ...lotes.map(l => ({ id: l.id, nombre: l.nombre, sub: `${fechaCorta(l.fecha_inicio_postura)} – ${fechaCorta(l.fecha_fin)}` }))].map(p => (
+          ...vista.conDias.map(l => ({ id: l.id, nombre: l.nombre, sub: `${fechaCorta(l.fecha_inicio_postura)} – ${fechaCorta(l.fecha_fin)}` }))].map(p => (
           <button key={p.id} onClick={() => setElegido(p.id)}
             className={cn('shrink-0 rounded-xl px-3.5 py-1.5 text-left transition-colors',
-              elegido === p.id ? 'bg-green-50 text-green-900' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800')}>
+              (vista.ls.length === vista.conDias.length ? 'todos' : elegido) === p.id ? 'bg-green-50 text-green-900' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800')}>
             <span className="block whitespace-nowrap text-[0.8125rem] font-medium">{p.nombre}</span>
             <span className="block whitespace-nowrap text-[0.6875rem] text-gray-400">{p.sub}</span>
           </button>

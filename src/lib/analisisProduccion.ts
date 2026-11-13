@@ -336,3 +336,37 @@ export function hallazgos(lotesRes: FilaLote[], meses: MesFinca[]): Hallazgo[] {
   if (mesC && mesC.p >= 1) out.push({ tono: 'nota', texto: `El huevo C se concentró en ${nombreMes(mesC.m.mes, false)} (${n1(mesC.p)} % de lo clasificado), cuando ${mesC.m.lotes.join(' y ')} ${mesC.m.lotes.length > 1 ? 'estaban' : 'estaba'} en postura.` })
   return out
 }
+
+// ─── Periodo: el análisis de un rango de fechas ───
+
+/** Un rango de fechas (AAAA-MM-DD); null en un extremo es "sin límite". */
+export interface Periodo { desde: string | null; hasta: string | null }
+export const TODO_EL_TIEMPO: Periodo = { desde: null, hasta: null }
+
+/** Los días dentro del periodo. */
+export function filtrarPorPeriodo<T extends { fecha: string }>(dias: T[], p: Periodo): T[] {
+  if (!p.desde && !p.hasta) return dias
+  return dias.filter(d => (!p.desde || d.fecha >= p.desde) && (!p.hasta || d.fecha <= p.hasta))
+}
+
+/** El último día de un mes ('2025-02' → '2025-02-28'). */
+export function finDeMes(mes: string): string {
+  const [a, m] = mes.split('-').map(Number)
+  return `${mes}-${String(new Date(a, m, 0).getDate()).padStart(2, '0')}`
+}
+
+/** Los periodos para elegir según los datos que hay: todo, los últimos 12 meses con datos y cada año. */
+export function periodosDisponibles(dias: { fecha: string }[]): { id: string; nombre: string; p: Periodo }[] {
+  if (dias.length === 0) return [{ id: 'todo', nombre: 'Todo el tiempo', p: TODO_EL_TIEMPO }]
+  let min = dias[0].fecha, max = dias[0].fecha
+  for (const d of dias) { if (d.fecha < min) min = d.fecha; if (d.fecha > max) max = d.fecha }
+  const hace12 = new Date(max + 'T00:00:00'); hace12.setMonth(hace12.getMonth() - 11)
+  const desde12 = `${hace12.getFullYear()}-${String(hace12.getMonth() + 1).padStart(2, '0')}-01`
+  const anios: number[] = []
+  for (let a = Number(max.slice(0, 4)); a >= Number(min.slice(0, 4)); a--) anios.push(a)
+  return [
+    { id: 'todo', nombre: 'Todo el tiempo', p: TODO_EL_TIEMPO },
+    { id: '12m', nombre: 'Últimos 12 meses con datos', p: { desde: desde12, hasta: null } },
+    ...anios.map(a => ({ id: String(a), nombre: `Año ${a}`, p: { desde: `${a}-01-01`, hasta: `${a}-12-31` } })),
+  ]
+}

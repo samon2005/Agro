@@ -17,6 +17,7 @@ import GraficasPostura from './GraficasPostura'
 import PrediccionPostura from './PrediccionPostura'
 import SugerenciasLote from './SugerenciasLote'
 import DiaDelGalpon from './DiaDelGalpon'
+import ImportarExcelModal from './ImportarExcelModal'
 import ConfigurarRecoleccionModal from './ConfigurarRecoleccionModal'
 import IniciarPosturaModal, { type ConfigPostura } from './IniciarPosturaModal'
 import { toast } from 'sonner'
@@ -84,6 +85,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
   const [diaVista, setDiaVista] = useState<string | null>(null)
   // La fecha con que se abre "Registrar día" cuando se mira un día pasado sin registro
   const [fechaNueva, setFechaNueva] = useState<string | null>(null)
+  const [importarOpen, setImportarOpen] = useState(false)
   const guia = useReferencia(loteActual.referencia_id)
   const [verTodoHistorial, setVerTodoHistorial] = useState(false)
 
@@ -605,6 +607,9 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
           <Button onClick={() => setConfigOpen(true)} variant="ghost">
             <Ic n="ajustes" /> Configurar galpón
           </Button>
+          <Button onClick={() => setImportarOpen(true)} variant="ghost" title="Cargar días viejos desde el Excel de registro">
+            <Ic n="diario" /> Importar Excel
+          </Button>
           {!enPostura && (
             <Button
               onClick={abrirInicioPostura}
@@ -1013,6 +1018,17 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
           setRegistroEditar(null)
           setModalOpen(true)
         }}
+      />
+
+      <ImportarExcelModal
+        open={importarOpen}
+        onClose={() => setImportarOpen(false)}
+        loteId={loteActual.id}
+        fincaId={loteActual.finca_id}
+        loteNombre={loteActual.nombre}
+        fechaEntrada={loteActual.fecha_inicio}
+        fechasRegistradas={new Set(registros.map(r => r.fecha))}
+        onImportado={() => { fetchRegistros(); onLoteUpdated() }}
       />
 
       <RegistrarProduccionModal

@@ -9,6 +9,8 @@ import { Ic } from '@/components/ui/icon'
 import { cn } from '@/lib/utils'
 import TableroReportes from '@/components/agro/reportes/TableroReportes'
 import AnalisisProduccion from '@/components/agro/reportes/AnalisisProduccion'
+import AnalisisFinca from '@/components/agro/reportes/AnalisisFinca'
+import AvisoImportados from '@/components/agro/comun/AvisoImportados'
 import { ESPECIES_FINCA, especiesDeFinca, nombreSeccion, type EspecieFinca } from '@/lib/especies'
 
 /**
@@ -18,7 +20,7 @@ import { ESPECIES_FINCA, especiesDeFinca, nombreSeccion, type EspecieFinca } fro
 export default function ReportesPage() {
   const { fincaActual, loading } = useFinca()
   const rol = useRol()
-  const [vista, setVista] = useState<EspecieFinca | 'finca'>('finca')
+  const [vista, setVista] = useState<EspecieFinca | 'finca' | 'historia'>('finca')
   if (loading || !fincaActual) return <div className="p-8"><Skeleton className="h-64 rounded-xl" /></div>
   // Tiene costos, ingresos y utilidad: no es para el operario
   if (rol === 'trabajador') return <div className="p-8"><AccesoRestringido /></div>
@@ -42,6 +44,8 @@ export default function ReportesPage() {
   const pestanas = [
     { id: 'finca' as const, label: 'Toda la finca', icon: 'casa' as const },
     ...especies.map(e => ({ id: e, label: nombreSeccion(e, fincaActual.tipo_produccion), icon: ESPECIES_FINCA.find(x => x.value === e)!.icon })),
+    // Toda la historia de los galpones: mejor y peor mes, mortalidad, lotes frente a la guía
+    ...(especies.includes('aves_ponedoras') ? [{ id: 'historia' as const, label: 'Análisis de producción', icon: 'tendencia' as const }] : []),
   ]
   const actual = pestanas.some(p => p.id === vista) ? vista : 'finca'
 
@@ -63,13 +67,19 @@ export default function ReportesPage() {
           ))}
         </div>
       )}
-      <TableroReportes
+      {!fincaActual.sin_registro_ventas && <AvisoImportados fincaId={fincaActual.id} />}
+      {actual === 'historia' ? (
+        <div className="space-y-4">
+          <p className="text-sm text-gray-500">Todo lo registrado en los galpones, desde el primer lote: cada mes, cada lote y frente a la guía de la línea.</p>
+          <AnalisisFinca key={fincaActual.id} fincaId={fincaActual.id} />
+        </div>
+      ) : <TableroReportes
         key={actual}
         fincaId={fincaActual.id}
         fincaNombre={fincaActual.nombre}
         especies={especies}
         especie={actual === 'finca' ? null : actual}
-      />
+      />}
     </div>
   )
 }

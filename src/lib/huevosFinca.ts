@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { todasLasFilas } from '@/lib/todasLasFilas'
 import type { Database } from '@/types/database'
 import { TAMANOS_HUEVO, type PreciosHuevo, type TamanoHuevo } from '@/lib/huevos'
 
@@ -40,7 +41,7 @@ export interface HuevosFinca {
  */
 export async function cargarHuevosFinca(supabase: SupabaseClient<Database>, fincaId: string): Promise<HuevosFinca> {
   const [prodRes, ventasRes, lotesRes, galponesRes] = await Promise.all([
-    supabase.from('produccion_diaria_aves').select('lote_id, huevos_c, huevos_b, huevos_a, huevos_aa, huevos_aaa, huevos_jumbo').eq('finca_id', fincaId),
+    todasLasFilas((a, b) => supabase.from('produccion_diaria_aves').select('lote_id, huevos_c, huevos_b, huevos_a, huevos_aa, huevos_aaa, huevos_jumbo, importado').eq('finca_id', fincaId).order('id').range(a, b)),
     supabase.from('ventas_huevos_aves').select('lote_id, cantidad_c, cantidad_b, cantidad_a, cantidad_aa, cantidad_aaa, cantidad_jumbo').eq('finca_id', fincaId),
     supabase.from('lotes_aves').select('id, nombre, instalacion_id').eq('finca_id', fincaId),
     supabase.from('instalaciones').select('id, nombre').eq('finca_id', fincaId),
@@ -63,6 +64,8 @@ export async function cargarHuevosFinca(supabase: SupabaseClient<Database>, finc
   const puestos = { ...CERO }
   const vendidos = { ...CERO }
   for (const p of prodRes.data ?? []) {
+    // Igual que la base (migración 080): los días importados ya salieron, no van a la bodega
+    if (p.importado) continue
     const fila = filaDeLote.get(p.lote_id)
     for (const t of TAMANOS_HUEVO) {
       const n = Number(p[`huevos_${t.key}` as keyof typeof p] ?? 0)

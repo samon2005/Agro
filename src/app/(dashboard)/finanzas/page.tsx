@@ -1,6 +1,7 @@
 'use client'
 
 import AvisoSinVentas from '@/components/agro/comun/AvisoSinVentas'
+import AvisoImportados from '@/components/agro/comun/AvisoImportados'
 
 import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts'
@@ -213,6 +214,7 @@ export default function FinanzasPage() {
       </div>
 
       {fincaActual?.sin_registro_ventas && <AvisoSinVentas donde="finanzas" />}
+      {fincaActual && !fincaActual.sin_registro_ventas && <AvisoImportados fincaId={fincaActual.id} donde="finanzas" />}
 
       {/* Pestañas */}
       <div className="flex gap-2 overflow-x-auto border-b border-gray-200 [scrollbar-width:none]">
