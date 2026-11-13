@@ -91,7 +91,9 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
       .select('*')
       .eq('lote_id', loteActual.id)
       .order('fecha', { ascending: false })
-      .limit(60)
+      // Todo el ciclo (no solo los últimos días): así el calendario y el historial
+      // muestran también los días anteriores que se carguen
+      .limit(1000)
     setRegistros(data ?? [])
     const [{ data: todos }, { data: eventos }] = await Promise.all([
       supabase.from('produccion_diaria_aves').select('huevos_totales, muertes').eq('lote_id', loteActual.id),
@@ -980,6 +982,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
         loteId={loteActual.id}
         fincaId={loteActual.finca_id}
         avesActuales={loteActual.aves_actuales}
+        fechaInicio={loteActual.fecha_inicio}
         estadoLote={loteActual.estado}
         registroExistente={registroEditar}
         onCreated={() => { fetchRegistros(); fetchEventosClinicos(); onLoteUpdated() }}

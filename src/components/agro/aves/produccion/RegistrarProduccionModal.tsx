@@ -15,12 +15,16 @@ import { Ic } from '@/components/ui/icon'
 
 type ProduccionDiaria = Database['public']['Tables']['produccion_diaria_aves']['Row']
 
+const fmtFecha = (f: string) => new Date(f + 'T00:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })
+
 interface Props {
   open: boolean
   onClose: () => void
   loteId: string
   fincaId: string
   avesActuales: number
+  /** Entrada del lote al galpón: no se registran días de antes */
+  fechaInicio?: string
   estadoLote?: string
   registroExistente?: ProduccionDiaria | null
   onCreated: () => void
@@ -89,7 +93,7 @@ function defaultForm(avesActuales: number, r?: ProduccionDiaria | null) {
   }
 }
 
-export default function RegistrarProduccionModal({ open, onClose, loteId, fincaId, avesActuales, estadoLote, registroExistente, onCreated }: Props) {
+export default function RegistrarProduccionModal({ open, onClose, loteId, fincaId, avesActuales, fechaInicio, estadoLote, registroExistente, onCreated }: Props) {
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState(() => defaultForm(avesActuales, registroExistente))
@@ -143,6 +147,14 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
 
+    // Días anteriores sí (para cargar la historia del lote), pero no futuros ni de antes de la entrada
+    if (!form.fecha) { toast.error('Indica la fecha del día'); return }
+    if (form.fecha > hoyLocal()) { toast.error('No se registran días futuros'); return }
+    if (fechaInicio && form.fecha < fechaInicio) {
+      toast.error(`El lote entró el ${fmtFecha(fechaInicio)}: para registrar días de antes, cambia la fecha de entrada en Configurar galpón`)
+      return
+    }
+
     const defectuosos = (Number(form.huevos_rotos) || 0) + (Number(form.huevos_sucios) || 0) + (Number(form.huevos_deformes) || 0)
     if (!enPreparacion && defectuosos > totalHuevos) {
       toast.error('Rotos + sucios + deformes no puede superar el total de huevos puestos')
@@ -156,6 +168,13 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
       .eq('lote_id', loteId)
       .eq('fecha', form.fecha)
       .maybeSingle()
+
+    // Un día nuevo nunca reemplaza a otro ya registrado: se edita desde el historial
+    if (existing && existing.id !== registroExistente?.id) {
+      setLoading(false)
+      toast.error(`El ${fmtFecha(form.fecha)} ya está registrado: búscalo en el historial y edítalo ahí`)
+      return
+    }
 
     // Lo que ya estaba registrado para ese día, para calcular las diferencias
     // contra el inventario de huevos y contra las aves vivas del galpón.
@@ -275,6 +294,9 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
             <div className="space-y-1">
               <Label>Fecha</Label>
               <Input type="date" value={form.fecha} onChange={e => set('fecha', e.target.value)} />
+              {form.fecha && form.fecha < hoyLocal() && !registroExistente && (
+                <p className="text-[0.6875rem] text-amber-700">Día anterior: pon las aves que había ese día.</p>
+              )}
             </div>
             {!enPreparacion && (
               <div className="space-y-1">
