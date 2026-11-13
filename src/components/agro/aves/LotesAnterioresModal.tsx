@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { todasLasFilas } from '@/lib/todasLasFilas'
 import { createClient } from '@/lib/supabase/client'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -46,7 +47,7 @@ export default function LotesAnterioresModal({ open, onClose, lotes }: Props) {
     const supabase = createClient()
     const ids = lotes.map(l => l.id)
     Promise.all([
-      supabase.from('produccion_diaria_aves').select('lote_id, huevos_totales, muertes').in('lote_id', ids),
+      todasLasFilas((a, b) => supabase.from('produccion_diaria_aves').select('lote_id, huevos_totales, muertes').in('lote_id', ids).order('id').range(a, b)),
       supabase.from('ventas_aves_lote').select('lote_id, total').in('lote_id', ids),
       supabase.from('costos_lote_aves').select('lote_id, monto').in('lote_id', ids),
       supabase.from('eventos_clinicos_aves').select('lote_id, aves_muertas, origen').in('lote_id', ids),

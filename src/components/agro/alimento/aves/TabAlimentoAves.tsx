@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { todasLasFilas } from '@/lib/todasLasFilas'
 import { createClient } from '@/lib/supabase/client'
 import { useRol } from '@/components/agro/RolProvider'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -152,12 +153,13 @@ export default function TabAlimentoAves({ lotes, loteInicialId, modo = 'finca', 
     setConsumoPorTipoFinca(porTipo)
     // El movimiento de bultos de la finca necesita el consumo de todos los galpones
     if (modo === 'finca') {
-      const { data: regs } = await supabase
+      const { data: regs } = await todasLasFilas((a, b) => supabase
         .from('produccion_diaria_aves')
         .select('lote_id, fecha, alimento_kg, tipo_alimento_id')
         .eq('finca_id', lote.finca_id)
         .gt('alimento_kg', 0)
-        .order('fecha')
+        .order('fecha').order('id')
+        .range(a, b))
       setRegistrosFinca((regs ?? []).map(r => ({ ...r, alimento_kg: Number(r.alimento_kg) })))
     }
     setHoy(prod.data ?? null)

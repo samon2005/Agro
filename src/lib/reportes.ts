@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { todasLasFilas } from '@/lib/todasLasFilas'
 import type { Database } from '@/types/database'
 import { aFechaLocal } from '@/lib/fechas'
 import { categoriaInfo } from '@/lib/costos'
@@ -85,9 +86,9 @@ export async function cargarReporte(
   const [lotesAves, prodAves, evAves, lotesCerdos, nutCerdos, mortCerdos, pesoCerdos, evCerdos, lotesPollo, prodPollo, pesoPollo, evPollo, fin,
     tiposAves, tiposCerdos, tiposPollo, reqAves, reqCerdos, reqPollo] = await Promise.all([
     tiene('aves_ponedoras') ? supabase.from('lotes_aves').select('id, nombre, estado, aves_actuales, fecha_inicio, alimento_activo_id').eq('finca_id', fincaId) : vacio,
-    tiene('aves_ponedoras') ? delLote(supabase.from('produccion_diaria_aves')
+    tiene('aves_ponedoras') ? todasLasFilas((a, b) => delLote(supabase.from('produccion_diaria_aves')
       .select('lote_id, fecha, huevos_totales, aves_en_dia, muertes, causa_muerte, alimento_kg, tipo_alimento_id, huevos_rotos, huevos_sucios, huevos_deformes')
-      .eq('finca_id', fincaId).gte('fecha', desde)) : vacio,
+      .eq('finca_id', fincaId).gte('fecha', desde)).order('id').range(a, b)) : vacio,
     tiene('aves_ponedoras') ? delLote(supabase.from('eventos_clinicos_aves').select('lote_id, fecha, tipo_evento, aves_muertas, origen').eq('finca_id', fincaId).gte('fecha', desde)) : vacio,
     tiene('cerdos') ? supabase.from('lotes_cerdos').select('id, nombre, estado, animales_actuales, fecha_ingreso, alimento_activo_id').eq('finca_id', fincaId) : vacio,
     tiene('cerdos') ? delLote(supabase.from('nutricion_diaria_cerdos').select('lote_id, fecha, alimento_kg, consumo_real_kg, tipo_alimento_id').eq('finca_id', fincaId).gte('fecha', desde)) : vacio,

@@ -28,7 +28,7 @@ export function useProduccionFinca(fincaId: string) {
       for (let desde = 0; ; desde += 1000) {
         const { data } = await supabase.from('produccion_diaria_aves')
           .select('lote_id, fecha, huevos_totales, aves_en_dia, muertes, alimento_kg, huevos_c, huevos_b, huevos_a, huevos_aa, huevos_aaa, huevos_jumbo, huevos_rotos, huevos_sucios')
-          .eq('finca_id', fincaId).order('fecha').range(desde, desde + 999)
+          .eq('finca_id', fincaId).order('fecha').order('id').range(desde, desde + 999)
         dias.push(...((data ?? []) as DiaProduccion[]))
         if (!data || data.length < 1000) break
       }
