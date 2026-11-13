@@ -8,6 +8,7 @@ import {
   Skull, LockOpen, Plug, Smartphone, Microscope, Snowflake, Hand, Fan, Droplets, House, Ban,
   Mountain, Cloud, CloudSun, CalendarDays, Link, DollarSign, Plus, Search, Sun, Mail, Circle,
   CircleDot, Heart, LayoutDashboard, Boxes, Users, LogOut, Drumstick, Info, CircleAlert, ChevronRight,
+  ShieldCheck,
   type LucideProps,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -154,6 +155,7 @@ export const ICONOS = {
   salir: LogOut,
   info: Info,
   aviso: CircleAlert,
+  admin: ShieldCheck,
 } as const
 
 export type NombreIcono = keyof typeof ICONOS

@@ -316,6 +316,9 @@ export default function InventarioPage() {
                         <TableCell>
                           <p className="font-medium">{item.nombre}</p>
                           {item.descripcion && <p className="text-xs text-gray-400">{item.descripcion}</p>}
+                          {fincaActual?.sin_registro_ventas && categoriaDe(item) === 'huevos' && (
+                            <p className="text-xs text-amber-700">Huevos viejos: no hay ventas registradas</p>
+                          )}
                         </TableCell>
                         {tab === 'general' && (
                           <TableCell><Badge variant="secondary">{CATEGORIA_LABEL[categoriaDe(item)]}</Badge></TableCell>

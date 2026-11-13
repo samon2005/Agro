@@ -5,6 +5,8 @@ import FincaProvider from '@/components/agro/FincaProvider'
 import RolProvider from '@/components/agro/RolProvider'
 import PaginaEntra from '@/components/agro/PaginaEntra'
 import ElegirEspecieFinca from '@/components/agro/ElegirEspecieFinca'
+import GuardiaAdmin from '@/components/agro/admin/GuardiaAdmin'
+import { dbGenerico } from '@/lib/especiesConfig'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -13,9 +15,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const { data: profile } = await supabase.from('profiles').select('rol').eq('id', user.id).single()
   const rol = (profile?.rol ?? 'propietario') as 'admin' | 'propietario' | 'trabajador'
+  // El administrador de fincas se marca en la base (tabla administradores), no en el perfil
+  const { data: esAdmin } = await dbGenerico(supabase).rpc('es_admin')
 
   return (
-    <RolProvider rol={rol}>
+    <RolProvider rol={rol} esAdmin={esAdmin === true}>
       <FincaProvider>
         <div className="flex h-screen bg-background">
           <DashboardSidebar user={user} />
@@ -25,6 +29,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </main>
           {/* La finca sin especie elige la suya antes de seguir */}
           <ElegirEspecieFinca />
+          <GuardiaAdmin />
         </div>
       </FincaProvider>
     </RolProvider>

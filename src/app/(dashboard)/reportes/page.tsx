@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Ic } from '@/components/ui/icon'
 import { cn } from '@/lib/utils'
 import TableroReportes from '@/components/agro/reportes/TableroReportes'
+import AnalisisProduccion from '@/components/agro/reportes/AnalisisProduccion'
 import { ESPECIES_FINCA, especiesDeFinca, nombreSeccion, type EspecieFinca } from '@/lib/especies'
 
 /**
@@ -21,6 +22,21 @@ export default function ReportesPage() {
   if (loading || !fincaActual) return <div className="p-8"><Skeleton className="h-64 rounded-xl" /></div>
   // Tiene costos, ingresos y utilidad: no es para el operario
   if (rol === 'trabajador') return <div className="p-8"><AccesoRestringido /></div>
+
+  // Finca con datos viejos y sin ventas: el análisis de toda su producción, no el de las últimas semanas
+  if (fincaActual.sin_registro_ventas) {
+    return (
+      <div className="space-y-5 p-4 md:p-8">
+        <div>
+          <h1 className="text-3xl font-medium text-gray-900">Análisis de producción</h1>
+          <p className="text-sm text-gray-500">
+            {fincaActual.nombre} · datos viejos cargados de Excel, sin ventas: postura, tamaños, mortalidad y alimento de cada lote
+          </p>
+        </div>
+        <AnalisisProduccion key={fincaActual.id} fincaId={fincaActual.id} />
+      </div>
+    )
+  }
 
   const especies = especiesDeFinca(fincaActual.tipo_produccion)
   const pestanas = [

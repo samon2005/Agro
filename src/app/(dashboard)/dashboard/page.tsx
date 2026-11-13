@@ -6,11 +6,14 @@ import { useFinca } from '@/components/agro/FincaProvider'
 import CrearFincaModal from '@/components/agro/CrearFincaModal'
 import EditarFincaModal from '@/components/agro/EditarFincaModal'
 import TableroInicio from '@/components/agro/resumen/TableroInicio'
+import ResumenFincasAdmin from '@/components/agro/admin/ResumenFincasAdmin'
+import { useEsAdmin } from '@/components/agro/RolProvider'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 
 export default function DashboardPage() {
   const { fincas, fincaActual, loading, refetch } = useFinca()
+  const esAdmin = useEsAdmin()
   const [userName, setUserName] = useState('')
   const [fincaAEditar, setFincaAEditar] = useState<typeof fincas[number] | null>(null)
 
@@ -23,6 +26,8 @@ export default function DashboardPage() {
   }, [])
 
   if (loading) return <DashboardSkeleton />
+  // El administrador no tiene finca propia: su Resumen son las fincas a su cargo
+  if (esAdmin && !fincaActual) return <ResumenFincasAdmin nombre={userName} />
 
   return (
     <>
@@ -36,7 +41,7 @@ export default function DashboardPage() {
         />
       )}
 
-      <CrearFincaModal open={!loading && fincas.length === 0} onCreated={refetch} />
+      <CrearFincaModal open={!loading && !esAdmin && fincas.length === 0} onCreated={refetch} />
 
       <div className="p-4 md:p-8">
         <div className="mb-5">

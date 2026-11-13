@@ -1,5 +1,7 @@
 'use client'
 
+import AvisoSinVentas from '@/components/agro/comun/AvisoSinVentas'
+
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useFinca } from '@/components/agro/FincaProvider'
@@ -56,6 +58,7 @@ export default function VistaFincaAves({ vista }: Props) {
           {fincaActual.nombre} · {vista === 'huevos' ? 'lo que ponen todos los galpones y lo que hay en bodega' : 'ventas, pagos y encargos de toda la finca'}
         </p>
       </div>
+      {fincaActual.sin_registro_ventas && <AvisoSinVentas donde={vista === 'huevos' ? 'huevos' : 'finanzas'} />}
       {vista === 'huevos'
         ? <HuevosFinca fincaId={fincaActual.id} lotes={lotes} />
         : <VentasFinca fincaId={fincaActual.id} lotes={lotes} />}

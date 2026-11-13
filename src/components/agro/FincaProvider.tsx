@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Json } from '@/types/database'
+import { useEsAdmin } from './RolProvider'
 
 type Finca = {
   id: string
@@ -32,17 +33,25 @@ type Finca = {
   precio_huevo_c?: number | null
   /** Días de limpieza y desinfección del galpón entre un lote y el siguiente */
   dias_vacio_sanitario?: number
+  propietario_id?: string | null
+  /** Finca con datos viejos: tiene producción pero no ventas registradas */
+  sin_registro_ventas?: boolean
 }
 
 type FincaContextType = {
   fincas: Finca[]
   fincaActual: Finca | null
   setFincaActual: (f: Finca) => void
+  /** El administrador vuelve a su Resumen de fincas, sin finca elegida */
+  salirDeFinca: () => void
   loading: boolean
   refetch: () => void
 }
 
 const FincaContext = createContext<FincaContextType | null>(null)
+
+/** La última finca elegida en este navegador, para quien maneja varias */
+const CLAVE_FINCA = 'agro:finca-actual'
 
 export function useFinca() {
   const ctx = useContext(FincaContext)
@@ -54,6 +63,9 @@ export default function FincaProvider({ children }: { children: React.ReactNode 
   const [fincas, setFincas] = useState<Finca[]>([])
   const [fincaActual, setFincaActual] = useState<Finca | null>(null)
   const [loading, setLoading] = useState(true)
+  // El administrador no tiene finca propia: empieza en su Resumen de fincas
+  // y solo queda dentro de una finca cuando entra a ella.
+  const esAdmin = useEsAdmin()
 
   async function fetchFincas() {
     setLoading(true)
@@ -66,7 +78,10 @@ export default function FincaProvider({ children }: { children: React.ReactNode 
     const list = data ?? []
     setFincas(list)
     setFincaActual(prev => {
-      if (!prev) return list[0] ?? null
+      if (!prev) {
+        const guardada = typeof window !== 'undefined' ? window.localStorage.getItem(CLAVE_FINCA) : null
+        return list.find(f => f.id === guardada) ?? (esAdmin ? null : list[0] ?? null)
+      }
       return list.find(f => f.id === prev.id) ?? prev
     })
     setLoading(false)
@@ -74,8 +89,18 @@ export default function FincaProvider({ children }: { children: React.ReactNode 
 
   useEffect(() => { fetchFincas() }, [])
 
+  function elegirFinca(f: Finca) {
+    setFincaActual(f)
+    window.localStorage.setItem(CLAVE_FINCA, f.id)
+  }
+
+  function salirDeFinca() {
+    setFincaActual(null)
+    window.localStorage.removeItem(CLAVE_FINCA)
+  }
+
   return (
-    <FincaContext.Provider value={{ fincas, fincaActual, setFincaActual, loading, refetch: fetchFincas }}>
+    <FincaContext.Provider value={{ fincas, fincaActual, setFincaActual: elegirFinca, salirDeFinca, loading, refetch: fetchFincas }}>
       {children}
     </FincaContext.Provider>
   )

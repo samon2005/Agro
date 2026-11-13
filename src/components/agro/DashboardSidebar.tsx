@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils'
 import { Ic, type NombreIcono } from '@/components/ui/icon'
 import type { User } from '@supabase/supabase-js'
 import { useFinca } from './FincaProvider'
-import { useRol } from './RolProvider'
+import { useRol, useEsAdmin } from './RolProvider'
 import NotificacionesPanel from './NotificacionesPanel'
 import { ESPECIES_FINCA, nombreSeccion, type EspecieFinca } from '@/lib/especies'
 
@@ -24,16 +24,20 @@ export default function DashboardSidebar({ user }: { user: User }) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
-  const { fincaActual } = useFinca()
+  const { fincas, fincaActual, setFincaActual, salirDeFinca } = useFinca()
   const rol = useRol()
+  const esAdmin = useEsAdmin()
+  // El administrador dentro de una finca ajena lo ve en el menú
+  const fincaAjena = esAdmin && fincaActual != null && fincaActual.propietario_id !== user.id
   // En celular el menú es un cajón que se abre con el botón de arriba; en computador siempre está visible
   const [abierto, setAbierto] = useState(false)
 
   const especiesFinca = (fincaActual?.tipo_produccion ?? []) as EspecieFinca[]
-  const navItems: Item[] = [
+  // El administrador fuera de una finca solo tiene su Resumen de fincas
+  const navItems: Item[] = esAdmin && !fincaActual ? [{ href: '/dashboard', label: 'Resumen de fincas', icon: 'admin' }] : [
     ...BASE_NAV_ITEMS,
     ...(rol !== 'trabajador' ? [{ href: '/finanzas', label: 'Finanzas', icon: 'dinero' as const }] : []),
-    ...(rol !== 'trabajador' && especiesFinca.length > 0 ? [{ href: '/reportes', label: 'Reportes', icon: 'grafica' as const }] : []),
+    ...(rol !== 'trabajador' && especiesFinca.length > 0 ? [{ href: '/reportes', label: fincaActual?.sin_registro_ventas ? 'Análisis de producción' : 'Reportes', icon: 'grafica' as const }] : []),
     ...(especiesFinca.length > 0 ? [{ href: '/alimento', label: 'Alimento', icon: 'alimento' as const }] : []),
     ...ESPECIES_FINCA
       .filter(esp => especiesFinca.includes(esp.value))
@@ -112,10 +116,46 @@ export default function DashboardSidebar({ user }: { user: User }) {
         <NotificacionesPanel />
       </div>
 
-      {fincaActual && (
+      {esAdmin && !fincaActual && (
         <div className="superficie mx-3 mb-4 rounded-xl px-3 py-2.5">
+          <p className="flex items-center gap-1 text-[0.6875rem] font-medium text-gray-500"><Ic n="admin" className="size-3" /> Administrador de fincas</p>
+          <p className="text-sm font-medium text-gray-800">{fincas.length} {fincas.length === 1 ? 'finca' : 'fincas'} a cargo</p>
+        </div>
+      )}
+
+      {esAdmin && fincaActual && (
+        <button
+          type="button"
+          onClick={() => { salirDeFinca(); setAbierto(false); router.push('/dashboard') }}
+          className="mx-3 mb-2 flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium text-green-800 hover:bg-white"
+        >
+          <Ic n="flecha" className="size-3.5 rotate-180" /> Todas mis fincas
+        </button>
+      )}
+
+      {fincaActual && (
+        <div className={cn('superficie mx-3 mb-4 rounded-xl px-3 py-2.5', fincaAjena && 'ring-1 ring-amber-300')}>
           <p className="text-[0.6875rem] font-medium text-gray-500">Finca</p>
-          <p className="truncate text-sm font-medium text-gray-800">{fincaActual.nombre}</p>
+          {fincas.length > 1 ? (
+            <select
+              value={fincaActual.id}
+              onChange={e => {
+                const f = fincas.find(x => x.id === e.target.value)
+                if (f) { setFincaActual(f); setAbierto(false) }
+              }}
+              aria-label="Cambiar de finca"
+              className="-ml-1 w-full truncate rounded-md bg-transparent py-0.5 text-sm font-medium text-gray-800 outline-none hover:bg-white"
+            >
+              {fincas.map(f => <option key={f.id} value={f.id}>{f.nombre}</option>)}
+            </select>
+          ) : (
+            <p className="truncate text-sm font-medium text-gray-800">{fincaActual.nombre}</p>
+          )}
+          {fincaAjena && (
+            <p className="mt-1 flex items-center gap-1 text-[0.6875rem] text-amber-700">
+              <Ic n="admin" className="size-3" /> Entraste como administrador
+            </p>
+          )}
         </div>
       )}
 
