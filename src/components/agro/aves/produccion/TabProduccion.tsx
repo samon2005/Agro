@@ -17,7 +17,6 @@ import GraficasPostura from './GraficasPostura'
 import PrediccionPostura from './PrediccionPostura'
 import SugerenciasLote from './SugerenciasLote'
 import DiaDelGalpon from './DiaDelGalpon'
-import ImportarExcelModal from './ImportarExcelModal'
 import ConfigurarRecoleccionModal from './ConfigurarRecoleccionModal'
 import IniciarPosturaModal, { type ConfigPostura } from './IniciarPosturaModal'
 import { toast } from 'sonner'
@@ -42,6 +41,8 @@ interface Props {
   onLoteDeleted: () => void
   /** Lleva a la pestaña Alimento del galpón, donde se registra su consumo */
   onIrAlimento?: () => void
+  /** Abre la importación de Excel con este lote ya elegido */
+  onImportarExcel?: () => void
 }
 
 const MS_DIA = 24 * 60 * 60 * 1000
@@ -63,7 +64,7 @@ const TIPO_EVENTO_LABEL: Record<string, string> = {
   otro: 'Otro',
 }
 
-export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted, onIrAlimento }: Props) {
+export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted, onIrAlimento, onImportarExcel }: Props) {
   const { fincaActual } = useFinca()
   const supabase = createClient()
   const [registros, setRegistros] = useState<ProduccionDiaria[]>([])
@@ -85,7 +86,6 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
   const [diaVista, setDiaVista] = useState<string | null>(null)
   // La fecha con que se abre "Registrar día" cuando se mira un día pasado sin registro
   const [fechaNueva, setFechaNueva] = useState<string | null>(null)
-  const [importarOpen, setImportarOpen] = useState(false)
   const guia = useReferencia(loteActual.referencia_id)
   const [verTodoHistorial, setVerTodoHistorial] = useState(false)
 
@@ -193,7 +193,10 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
   // El día que se mira: hoy, o el que se eligió en el calendario. Solo cuenta
   // como "hoy" el registro que sea realmente de la fecha de hoy: al pasar la
   // medianoche el contador arranca de nuevo en 0.
-  const fechaVista = diaVista && diaVista <= hoyStr ? diaVista : hoyStr
+  // Un lote que ya salió se mira desde su último día; uno activo, desde hoy
+  const cerrado = loteActual.estado === 'finalizado' || loteActual.estado === 'vendido'
+  const diaBase = cerrado && loteActual.fecha_fin && loteActual.fecha_fin < hoyStr ? loteActual.fecha_fin : hoyStr
+  const fechaVista = diaVista && diaVista <= diaBase ? diaVista : diaBase
   const esHoy = fechaVista === hoyStr
   const fechaCorta = new Date(fechaVista + 'T00:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })
   /** "hoy" o "del 10 nov", para los títulos */
@@ -224,7 +227,8 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
   const hayMetaPostura = metaDia != null
   const metaPostura = metaDia?.pct ?? 90
   const origenMeta = metaDia?.origen === 'propia' ? 'meta de la semana' : metaDia?.origen === 'guia' ? 'guía de la semana' : 'meta de pico'
-  const estadoPosturaHoy = estadoPostura(loteActual.fecha_inicio_postura, hoyStr)
+  // El ciclo se cuenta hasta el día que se mira (hoy, un día elegido o el último de un lote que salió)
+  const estadoPosturaHoy = estadoPostura(loteActual.fecha_inicio_postura, fechaVista)
   const semanaPostura = estadoPosturaHoy.iniciada ? estadoPosturaHoy.semana : null
   const inicioSemanaActual = estadoPosturaHoy.iniciada ? estadoPosturaHoy.inicioSemana : null
   const finSemanaActual = estadoPosturaHoy.iniciada ? estadoPosturaHoy.finSemana : null
@@ -323,7 +327,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
 
   // ── Estado del lote: preparación (levante) vs activo (en postura) ──
   const semanasEnGalpon = Math.max(0, Math.floor(
-    (hoyDate.getTime() - new Date(loteActual.fecha_inicio + 'T00:00:00').getTime()) / (7 * MS_DIA)
+    (new Date(fechaVista + 'T00:00:00').getTime() - new Date(loteActual.fecha_inicio + 'T00:00:00').getTime()) / (7 * MS_DIA)
   ))
 
   /** Registra el día con el consumo vigente y su costo, sin pedir nada más. */
@@ -593,12 +597,15 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
           <p className="flex flex-wrap items-center gap-1 text-xs text-gray-400">
             <button type="button" onClick={() => setDiaVista(moverDia(fechaVista, -1))} aria-label="Día anterior" title="Día anterior"
               className="flex size-6 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-800">‹</button>
-            {new Date(fechaVista + 'T00:00:00').toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' })}
-            <button type="button" disabled={esHoy} onClick={() => { const f = moverDia(fechaVista, 1); setDiaVista(f >= hoyStr ? null : f) }} aria-label="Día siguiente" title="Día siguiente"
+            {new Date(fechaVista + 'T00:00:00').toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            <button type="button" disabled={fechaVista >= diaBase} onClick={() => { const f = moverDia(fechaVista, 1); setDiaVista(f >= diaBase ? null : f) }} aria-label="Día siguiente" title="Día siguiente"
               className="flex size-6 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-800 disabled:opacity-30">›</button>
-            {!esHoy && (
+            <input type="date" value={fechaVista} max={diaBase} aria-label="Ir a un día" title="Ir a un día"
+              onChange={e => { const f = e.target.value; if (f) setDiaVista(f >= diaBase ? null : f) }}
+              className="ml-1 h-6 rounded-md border border-gray-200 bg-white px-1 text-[0.6875rem] text-gray-700" />
+            {fechaVista !== diaBase && (
               <button type="button" onClick={() => setDiaVista(null)} className="ml-2 font-medium text-green-800 hover:underline">
-                Volver a hoy
+                {cerrado ? 'Ir al último día del lote' : 'Volver a hoy'}
               </button>
             )}
           </p>
@@ -607,10 +614,10 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
           <Button onClick={() => setConfigOpen(true)} variant="ghost">
             <Ic n="ajustes" /> Configurar galpón
           </Button>
-          <Button onClick={() => setImportarOpen(true)} variant="ghost" title="Cargar días viejos desde el Excel de registro">
+          {onImportarExcel && <Button onClick={onImportarExcel} variant="ghost" title="Cargar días viejos desde el Excel de registro">
             <Ic n="diario" /> Importar Excel
-          </Button>
-          {!enPostura && (
+          </Button>}
+          {!enPostura && !cerrado && (
             <Button
               onClick={abrirInicioPostura}
               disabled={!listoParaRegistrar}
@@ -620,7 +627,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
               <Ic n="huevo" /> Marcar inicio de postura
             </Button>
           )}
-          {!enPostura && (
+          {!enPostura && !cerrado && (
             <Button
               onClick={registrarDiaSinNovedades}
               disabled={!listoParaRegistrar || guardandoSinNovedades}
@@ -630,21 +637,21 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
               {guardandoSinNovedades ? 'Guardando...' : 'Día sin novedades'}
             </Button>
           )}
-          <Button
+          {!cerrado && <Button
             onClick={() => hoy && !esHoy ? editarDiaVisto() : registrarDiaVisto()}
             disabled={!listoParaRegistrar}
             title={!listoParaRegistrar ? faltaParaRegistrar : undefined}
           >
             {hoy && !esHoy ? <><Ic n="editar" /> Editar el {fechaCorta}</> : <><Ic n="mas" /> {esHoy ? 'Registrar día' : `Registrar el ${fechaCorta}`}</>}
-          </Button>
+          </Button>}
         </div>
       </div>
 
       {/* Avisos: una franja cada uno, sin ocupar media pantalla */}
-      {!listoParaRegistrar && (
+      {!listoParaRegistrar && !cerrado && (
         <BandejaAlertas alertas={[{ id: 'alimento', nivel: 'revisar', texto: <><strong>Este galpón todavía no tiene alimento registrado.</strong> {faltaParaRegistrar}</>, accion: botonAlimento }]} />
       )}
-      <SugerenciasLote lote={loteActual} version={`${registros.length}-${registros[0]?.id ?? ''}-${huevosAcumulados}`} />
+      {!cerrado && <SugerenciasLote lote={loteActual} version={`${registros.length}-${registros[0]?.id ?? ''}-${huevosAcumulados}`} />}
 
       <Cuadricula>
         <DiaDelGalpon
@@ -652,6 +659,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
           consumoQueRegia={consumoQueRegia(fechaVista)} enPostura={enPostura}
           fechaNacimiento={loteActual.fecha_nacimiento} fechaEntrada={loteActual.fecha_inicio} avesActuales={loteActual.aves_actuales}
           onRegistrar={registrarDiaVisto} onEditar={editarDiaVisto} bloqueo={listoParaRegistrar ? null : faltaParaRegistrar}
+          soloConsulta={cerrado}
         />
         {enPostura ? (<>
           <Widget className={ANCHO.cuarto} titulo={`Huevos ${delDia}`} icono="huevo" info="Huevos puestos frente a la meta del día: aves del día × % de meta de esa semana">
@@ -711,7 +719,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
                 etiqueta={inicioSemanaActual && finSemanaActual ? `${inicioSemanaActual.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })} – ${finSemanaActual.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}` : 'Avance del ciclo'}
                 valor={semanaPostura != null && semanasCiclo ? `${Math.round((semanaPostura / semanasCiclo) * 100)} %` : ''}
                 pct={semanaPostura != null && semanasCiclo ? (semanaPostura / semanasCiclo) * 100 : null}
-                nota={fechaFinEstimada ? `Fin estimado: ${fechaFinEstimada.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}` : 'Sin semanas de ciclo definidas'}
+                nota={cerrado && loteActual.fecha_fin ? `Salió el ${new Date(loteActual.fecha_fin + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}` : fechaFinEstimada ? `Fin estimado: ${fechaFinEstimada.toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}` : 'Sin semanas de ciclo definidas'}
               />
             </div>
           </Widget>
@@ -835,7 +843,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
         )}
 
         <Widget className={ANCHO.tercio} titulo="Registros del mes" icono="calendario" info={enPostura ? 'Cada día pintado según los huevos de ese día; el punto rojo marca un evento clínico. Toca un día para verlo arriba' : 'Días con registro; el punto rojo marca un evento clínico'}>
-          <CalendarioMes valores={valoresCalendario} marcados={diasConEvento}
+          <CalendarioMes valores={valoresCalendario} marcados={diasConEvento} desde={loteActual.fecha_nacimiento ?? loteActual.fecha_inicio}
             seleccionado={fechaVista} onElegir={f => setDiaVista(f === hoyStr ? null : f)}
             formato={v => enPostura ? `${v.toLocaleString('es-CO')} huevos` : `${n1(v)} kg de alimento`} />
         </Widget>
@@ -1020,16 +1028,6 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
         }}
       />
 
-      <ImportarExcelModal
-        open={importarOpen}
-        onClose={() => setImportarOpen(false)}
-        loteId={loteActual.id}
-        fincaId={loteActual.finca_id}
-        loteNombre={loteActual.nombre}
-        fechaEntrada={loteActual.fecha_inicio}
-        fechasRegistradas={new Set(registros.map(r => r.fecha))}
-        onImportado={() => { fetchRegistros(); onLoteUpdated() }}
-      />
 
       <RegistrarProduccionModal
         open={modalOpen}

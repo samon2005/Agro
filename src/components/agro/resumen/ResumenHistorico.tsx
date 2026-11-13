@@ -33,10 +33,12 @@ const ICONO: Record<Hallazgo['tono'], { n: NombreIcono; color: string }> = {
  * que produjo. Qué dicen los datos, el mejor y el peor mes, la postura y las
  * muertes de cada mes, la mortalidad frente a la guía y la comparación de lotes.
  */
-export default function ResumenHistorico({ fincaId, historico = true, periodo: periodoDado }: {
+export default function ResumenHistorico({ fincaId, historico = true, periodo: periodoDado, loteId }: {
   fincaId: string
   /** El periodo lo puede elegir quien lo contiene (Reportes); si no, trae su propio filtro */
   periodo?: Periodo
+  /** Solo un lote (el análisis de un galpón) */
+  loteId?: string
   /** Finca de datos viejos: lleva el aviso de que no hay ventas y el enlace al análisis completo */
   historico?: boolean
 }) {
@@ -47,7 +49,7 @@ export default function ResumenHistorico({ fincaId, historico = true, periodo: p
   const a = useMemo(() => {
     if (!datos) return null
     const { guias } = datos
-    const dias = filtrarPorPeriodo(datos.dias, periodo)
+    const dias = filtrarPorPeriodo(loteId ? datos.dias.filter(d => d.lote_id === loteId) : datos.dias, periodo)
     // Solo los lotes con días en el periodo
     const lotes = datos.lotes.filter(l => dias.some(d => d.lote_id === l.id))
     const guiaDe = (l: { id: string }) => {
@@ -99,7 +101,7 @@ export default function ResumenHistorico({ fincaId, historico = true, periodo: p
         desde: meses[0]?.mes, hasta: meses[meses.length - 1]?.mes,
       },
     }
-  }, [datos, periodo])
+  }, [datos, periodo, loteId])
 
   if (!a) return <Skeleton className="h-96 rounded-2xl" />
   if (a.lotes.length === 0) return (
@@ -126,7 +128,7 @@ export default function ResumenHistorico({ fincaId, historico = true, periodo: p
       </div>}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
-        <TarjetaKPI etiqueta="Huevos" valor={compacto(a.kpi.huevos)} nota={`${a.lotes.length} lotes`} />
+        <TarjetaKPI etiqueta="Huevos" valor={compacto(a.kpi.huevos)} nota={`${a.lotes.length} ${a.lotes.length === 1 ? 'lote' : 'lotes'}`} />
         <TarjetaKPI etiqueta="Huevos por ave alojada" valor={a.kpi.huevosAve != null ? mil(Math.round(a.kpi.huevosAve)) : '—'} nota={`${mil(a.kpi.alojadas)} aves al empezar la postura`} />
         <TarjetaKPI etiqueta="Postura promedio" valor={a.kpi.postura != null ? pct(a.kpi.postura) : '—'} nota={periodo.desde || periodo.hasta ? 'En el periodo elegido' : 'De todos los ciclos'} />
         <TarjetaKPI etiqueta="Mortalidad en postura" valor={a.kpi.mortalidad != null ? pct(a.kpi.mortalidad) : '—'} nota={`${mil(a.kpi.muertesPostura)} aves, con la selección`} />

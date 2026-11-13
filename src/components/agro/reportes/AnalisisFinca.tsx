@@ -11,14 +11,19 @@ import FiltroPeriodo from './FiltroPeriodo'
  * La pestaña "Análisis de producción" de Reportes: un solo periodo para todo,
  * lo que dicen los datos y las gráficas por lote.
  */
-export default function AnalisisFinca({ fincaId }: { fincaId: string }) {
+export default function AnalisisFinca({ fincaId, loteId }: {
+  fincaId: string
+  /** Solo un lote (la pestaña Análisis de un galpón) */
+  loteId?: string
+}) {
   const datos = useProduccionFinca(fincaId)
   const [periodo, setPeriodo] = useState<Periodo>(TODO_EL_TIEMPO)
+  const diasDelFiltro = datos ? (loteId ? datos.dias.filter(d => d.lote_id === loteId) : datos.dias) : []
   return (
     <div className="space-y-4">
-      {datos && datos.dias.length > 0 && <FiltroPeriodo dias={datos.dias} valor={periodo} onCambio={setPeriodo} />}
-      <ResumenHistorico fincaId={fincaId} historico={false} periodo={periodo} />
-      <AnalisisProduccion fincaId={fincaId} periodo={periodo} />
+      {diasDelFiltro.length > 0 && <FiltroPeriodo dias={diasDelFiltro} valor={periodo} onCambio={setPeriodo} />}
+      <ResumenHistorico fincaId={fincaId} historico={false} periodo={periodo} loteId={loteId} />
+      <AnalisisProduccion fincaId={fincaId} periodo={periodo} loteId={loteId} />
     </div>
   )
 }

@@ -9,6 +9,8 @@ import { Pildora } from '@/components/ui/widgets/Widget'
 import { BandejaAlertas } from '@/components/ui/widgets/Alertas'
 import CrearLoteModal from '@/components/agro/aves/CrearLoteModal'
 import LotesAnterioresModal from '@/components/agro/aves/LotesAnterioresModal'
+import AnalisisFinca from '@/components/agro/reportes/AnalisisFinca'
+import ImportarExcelModal from '@/components/agro/aves/produccion/ImportarExcelModal'
 import TabRentabilidad from '@/components/agro/aves/rentabilidad/TabRentabilidad'
 import TableroReportes from '@/components/agro/reportes/TableroReportes'
 import { useRol } from '@/components/agro/RolProvider'
@@ -36,7 +38,7 @@ type Equipo = Database['public']['Tables']['equipos_aves']['Row']
 type Ambiental = Database['public']['Tables']['parametros_ambientales_aves']['Row']
 type Produccion = Database['public']['Tables']['produccion_diaria_aves']['Row']
 
-type Tab = 'produccion' | 'alimento' | 'ambiental' | 'sanitario' | 'equipos' | 'pesajes' | 'semanal' | 'rentabilidad' | 'estadisticas'
+type Tab = 'produccion' | 'alimento' | 'ambiental' | 'sanitario' | 'equipos' | 'pesajes' | 'semanal' | 'rentabilidad' | 'estadisticas' | 'analisis'
 
 const TABS: { id: Tab; label: string; icon: NombreIcono }[] = [
   { id: 'produccion', label: 'Producción', icon: 'tendencia' },
@@ -48,7 +50,12 @@ const TABS: { id: Tab; label: string; icon: NombreIcono }[] = [
   { id: 'semanal', label: 'Resumen semanal', icon: 'resumen' },
   { id: 'rentabilidad', label: 'Rentabilidad', icon: 'dinero' },
   { id: 'estadisticas', label: 'Estadísticas', icon: 'grafica' },
+  // Todo el lote: mejor y peor mes, mortalidad frente a la guía, gráficas, con filtro de tiempo
+  { id: 'analisis', label: 'Análisis', icon: 'idea' },
 ]
+
+const fechaLarga = (f: string) => new Date(f + 'T00:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' })
+const esCerrado = (l: { estado: string } | null) => l != null && (l.estado === 'finalizado' || l.estado === 'vendido')
 
 interface Alerta { tipo: 'danger' | 'warning'; mensaje: string }
 
@@ -62,6 +69,8 @@ export default function AvesPonedorasPage() {
   // Los que ya salieron: su historial y el vacío sanitario de su galpón
   const [cerrados, setCerrados] = useState<LoteAves[]>([])
   const [verAnteriores, setVerAnteriores] = useState(false)
+  // Importar un Excel: 'nuevo' desde la página, o el id del lote desde su pestaña Producción
+  const [importarPara, setImportarPara] = useState<string | null>(null)
   const [loteActual, setLoteActual] = useState<LoteAves | null>(null)
   const [loadingLotes, setLoadingLotes] = useState(true)
   const [activeTab, setActiveTab] = useState<Tab>('produccion')
@@ -116,11 +125,12 @@ export default function AvesPonedorasPage() {
         const pedido = new URLSearchParams(window.location.search).get('lote')
         setLoteActual(data.find(l => l.id === pedido) ?? data[0])
       } else {
-        const refrescado = data.find(l => l.id === loteActual.id)
+        const refrescado = data.find(l => l.id === loteActual.id) ?? (salieron ?? []).find(l => l.id === loteActual.id)
         setLoteActual(refrescado ?? data[0])
       }
     } else if (loteActual) {
-      setLoteActual(null)
+      // Sin galpones con aves: si se estaba mirando un lote pasado, sigue abierto
+      setLoteActual((salieron ?? []).find(l => l.id === loteActual.id) ?? null)
     }
     setLoadingLotes(false)
   }, [fincaActual, loteActual, supabase])
@@ -129,7 +139,8 @@ export default function AvesPonedorasPage() {
 
   // Evaluar alertas cuando cambia el lote
   useEffect(() => {
-    if (!loteActual) { setAlertas([]); return }
+    // Un lote que ya salió no tiene alertas de hoy
+    if (!loteActual || esCerrado(loteActual)) { setAlertas([]); return }
     async function evalAlertas() {
       if (!loteActual) return
       const nuevasAlertas: Alerta[] = []
@@ -231,6 +242,10 @@ export default function AvesPonedorasPage() {
               <Ic n="mas" className="size-4" /> Registrar aves
             </button>
           )}
+          <button onClick={() => setImportarPara('nuevo')}
+            className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm text-gray-500 transition-colors hover:bg-white hover:text-gray-800">
+            <Ic n="diario" className="size-4" /> Importar Excel
+          </button>
           {cerrados.length > 0 && (
             <button onClick={() => setVerAnteriores(true)}
               className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm text-gray-500 transition-colors hover:bg-white hover:text-gray-800">
@@ -274,16 +289,44 @@ export default function AvesPonedorasPage() {
         />
       )}
 
+      {/* Los lotes que ya salieron: se abren igual que uno activo, solo para consulta */}
+      {!loadingLotes && cerrados.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-xs font-medium text-gray-500">Lotes pasados</span>
+          {cerrados.map(l => (
+            <button key={l.id} type="button" onClick={() => { setLoteActual(l); setAlertas([]) }}
+              className={cn('rounded-full border px-3 py-1 text-xs transition-colors',
+                loteActual?.id === l.id ? 'border-green-700 bg-green-50 font-medium text-green-900' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:text-gray-900')}>
+              {l.nombre}
+              <span className="ml-1 text-gray-400">{l.fecha_inicio_postura ? fechaLarga(l.fecha_inicio_postura).replace(/^\d+ de /, '') : ''}{l.fecha_fin ? ` – ${fechaLarga(l.fecha_fin).replace(/^\d+ de /, '')}` : ''}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {esCerrado(loteActual) && loteActual && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-700">
+          <p><Ic n="agenda" className="mr-1 text-gray-400" />Estás viendo un lote que ya salió: {fechaLarga(loteActual.fecha_inicio)} – {loteActual.fecha_fin ? fechaLarga(loteActual.fecha_fin) : '…'}. Solo consulta.</p>
+          {lotes.length > 0 && (
+            <button type="button" onClick={() => setLoteActual(lotes[0])} className="text-xs font-medium text-green-800 hover:underline">Volver a los galpones con aves</button>
+          )}
+        </div>
+      )}
+
       {/* El galpón elegido: sus datos en píldoras */}
       {loteActual && (
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="mr-1 text-sm font-semibold text-gray-800">{loteActual.nombre}</span>
-          <Pildora tono={loteActual.estado === 'activo' ? 'verde' : 'gris'} icono={loteActual.estado === 'activo' ? 'huevo' : 'brote'}>
-            {loteActual.estado === 'activo' ? 'En postura' : 'Levante'}
-          </Pildora>
+          {esCerrado(loteActual) ? (
+            <Pildora tono="gris" icono="agenda">Salió el {loteActual.fecha_fin ? fechaLarga(loteActual.fecha_fin) : '—'}</Pildora>
+          ) : (
+            <Pildora tono={loteActual.estado === 'activo' ? 'verde' : 'gris'} icono={loteActual.estado === 'activo' ? 'huevo' : 'brote'}>
+              {loteActual.estado === 'activo' ? 'En postura' : 'Levante'}
+            </Pildora>
+          )}
           {loteActual.linea_genetica && <Pildora icono="gallina">{loteActual.linea_genetica}</Pildora>}
-          <Pildora>{loteActual.aves_actuales.toLocaleString('es-CO')} aves activas</Pildora>
-          {loteActual.fecha_nacimiento && <Pildora icono="calendario">Semana {semanaDeVida(loteActual.fecha_nacimiento, hoyLocal()) ?? '—'} de vida</Pildora>}
+          <Pildora>{esCerrado(loteActual) ? `${loteActual.aves_iniciales.toLocaleString('es-CO')} aves alojadas` : `${loteActual.aves_actuales.toLocaleString('es-CO')} aves activas`}</Pildora>
+          {loteActual.fecha_nacimiento && <Pildora icono="calendario">Semana {semanaDeVida(loteActual.fecha_nacimiento, esCerrado(loteActual) && loteActual.fecha_fin ? loteActual.fecha_fin : hoyLocal()) ?? '—'} de vida{esCerrado(loteActual) ? ' al salir' : ''}</Pildora>}
           {loteActual.proposito !== 'ciclo_completo' && <Pildora tono="ambar">{PROPOSITO_LABEL[loteActual.proposito]}</Pildora>}
           {loteActual.fecha_salida_programada && <Pildora>Salida {new Date(loteActual.fecha_salida_programada + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}</Pildora>}
           {loteActual.origen_aves && <Pildora>{loteActual.origen_aves}</Pildora>}
@@ -329,7 +372,7 @@ export default function AvesPonedorasPage() {
           {/* Tab bar */}
           <div className="space-y-5">
             <div className="flex gap-1 overflow-x-auto border-b border-gray-200 [scrollbar-width:none]">
-              {TABS.filter(tab => tab.id !== 'rentabilidad' || puedeVerCostos).map(tab => (
+              {TABS.filter(tab => (tab.id !== 'rentabilidad' || puedeVerCostos) && (tab.id !== 'estadisticas' || !esCerrado(loteActual))).map(tab => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
@@ -349,6 +392,7 @@ export default function AvesPonedorasPage() {
             <div>
               {activeTab === 'produccion' && (
                 <TabProduccion
+                  key={loteActual.id}
                   loteActual={loteActual}
                   onLoteUpdated={updated => {
                     fetchLotes()
@@ -359,6 +403,7 @@ export default function AvesPonedorasPage() {
                     fetchLotes()
                   }}
                   onIrAlimento={() => setActiveTab('alimento')}
+                  onImportarExcel={() => setImportarPara(loteActual.id)}
                 />
               )}
               {/* El alimento de este galpón: su consumo, horarios y balance, sin inventario */}
@@ -375,9 +420,12 @@ export default function AvesPonedorasPage() {
               {activeTab === 'sanitario' && <TabSanitario loteActual={loteActual} onChange={bumpAlertas} />}
               {activeTab === 'equipos' && <TabEquipos loteActual={loteActual} />}
               {activeTab === 'pesajes' && <TabPesajes key={loteActual.id} loteActual={loteActual} />}
-              {activeTab === 'semanal' && <TabResumenSemanal key={loteActual.id} loteActual={loteActual} />}
+              {activeTab === 'semanal' && <TabResumenSemanal key={loteActual.id} loteActual={loteActual} hasta={esCerrado(loteActual) ? loteActual.fecha_fin ?? undefined : undefined} />}
               {activeTab === 'rentabilidad' && puedeVerCostos && <TabRentabilidad key={loteActual.id} loteActual={loteActual} />}
-              {activeTab === 'estadisticas' && (
+              {(activeTab === 'analisis' || (activeTab === 'estadisticas' && esCerrado(loteActual))) && (
+                <AnalisisFinca key={loteActual.id} fincaId={fincaActual.id} loteId={loteActual.id} />
+              )}
+              {activeTab === 'estadisticas' && !esCerrado(loteActual) && (
                 <TableroReportes key={loteActual.id} fincaId={fincaActual.id} fincaNombre={fincaActual.nombre} especies={['aves_ponedoras']}
                   especie="aves_ponedoras" loteId={loteActual.id} verDinero={puedeVerCostos} />
               )}
@@ -385,6 +433,22 @@ export default function AvesPonedorasPage() {
           </div>
         </>
       )}
+
+      <ImportarExcelModal
+        key={importarPara ?? 'cerrado'}
+        open={importarPara != null}
+        onClose={() => setImportarPara(null)}
+        fincaId={fincaActual.id}
+        lotes={[...lotes, ...cerrados]}
+        galpones={galpones}
+        loteInicialId={importarPara && importarPara !== 'nuevo' ? importarPara : null}
+        onImportado={async id => {
+          await fetchLotes()
+          // Se abre el lote que se cargó, con sus datos ya en todas las pestañas
+          const { data } = await supabase.from('lotes_aves').select('*').eq('id', id).maybeSingle()
+          if (data) { setLoteActual(data); setActiveTab('produccion') }
+        }}
+      />
 
       <LotesAnterioresModal open={verAnteriores} onClose={() => setVerAnteriores(false)} lotes={cerrados} />
 

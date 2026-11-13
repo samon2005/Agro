@@ -29,16 +29,18 @@ const COLOR_TAMANO: Record<string, string> = { c: TONOS[6], b: TONOS[5], a: TONO
  * por semana de vida frente a la guía, huevos por mes, tamaños por mes y la
  * tabla mes a mes. Para las fincas con datos viejos cargados de Excel.
  */
-export default function AnalisisProduccion({ fincaId, periodo: periodoDado }: {
+export default function AnalisisProduccion({ fincaId, periodo: periodoDado, loteId }: {
   fincaId: string
   /** El periodo lo puede elegir quien lo contiene (Reportes); si no, trae su propio filtro */
   periodo?: Periodo
+  /** Solo un lote (el análisis de un galpón) */
+  loteId?: string
 }) {
   const datos = useProduccionFinca(fincaId)
   const lotes = datos?.lotes ?? null
   const [periodoPropio, setPeriodoPropio] = useState<Periodo>(TODO_EL_TIEMPO)
   const periodo = periodoDado ?? periodoPropio
-  const dias = useMemo(() => filtrarPorPeriodo(datos?.dias ?? [], periodo), [datos, periodo])
+  const dias = useMemo(() => filtrarPorPeriodo((datos?.dias ?? []).filter(d => !loteId || d.lote_id === loteId), periodo), [datos, periodo, loteId])
   const guias = useMemo(() => datos?.guias ?? new Map<string, Map<number, FilaReferencia>>(), [datos])
   const [elegido, setElegido] = useState<string>('todos')
 
@@ -84,7 +86,7 @@ export default function AnalisisProduccion({ fincaId, periodo: periodoDado }: {
     <div className="space-y-4">
       {!periodoDado && datos && <FiltroPeriodo dias={datos.dias} valor={periodoPropio} onCambio={setPeriodoPropio} />}
       {/* Lotes: todos juntos o uno solo */}
-      <div className="superficie inline-flex max-w-full gap-1 overflow-x-auto rounded-2xl p-1.5 [scrollbar-width:none]">
+      {!loteId && <div className="superficie inline-flex max-w-full gap-1 overflow-x-auto rounded-2xl p-1.5 [scrollbar-width:none]">
         {[{ id: 'todos', nombre: 'Todos los lotes', sub: `${lotes.length} lotes` },
           ...vista.conDias.map(l => ({ id: l.id, nombre: l.nombre, sub: `${fechaCorta(l.fecha_inicio_postura)} – ${fechaCorta(l.fecha_fin)}` }))].map(p => (
           <button key={p.id} onClick={() => setElegido(p.id)}
@@ -94,7 +96,7 @@ export default function AnalisisProduccion({ fincaId, periodo: periodoDado }: {
             <span className="block whitespace-nowrap text-[0.6875rem] text-gray-400">{p.sub}</span>
           </button>
         ))}
-      </div>
+      </div>}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
         <TarjetaKPI etiqueta="Huevos" valor={compacto(r.total.huevos)} nota={`${r.total.dias.toLocaleString('es-CO')} días de postura`} />

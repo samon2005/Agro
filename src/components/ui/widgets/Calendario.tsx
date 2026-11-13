@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
-import { aFechaLocal, hoyLocal } from '@/lib/fechas'
+import { hoyLocal } from '@/lib/fechas'
+import { SelectorMes } from './SelectorMes'
 
 const DIAS = ['L', 'M', 'M', 'J', 'V', 'S', 'D']
 
@@ -10,7 +11,7 @@ const DIAS = ['L', 'M', 'M', 'J', 'V', 'S', 'D']
  * El mes con los días pintados según cuánto pasó (registros del día, huevos…):
  * más oscuro es más. Hoy lleva un aro. Se puede ir a los meses anteriores.
  */
-export function CalendarioMes({ valores, formato = v => v.toLocaleString('es-CO'), leyenda = ['Sin registro', 'Con registro'], marcados, seleccionado, onElegir }: {
+export function CalendarioMes({ valores, formato = v => v.toLocaleString('es-CO'), leyenda = ['Sin registro', 'Con registro'], marcados, seleccionado, onElegir, desde }: {
   /** fecha (AAAA-MM-DD) → valor del día */
   valores: Map<string, number>
   formato?: (v: number) => string
@@ -21,6 +22,8 @@ export function CalendarioMes({ valores, formato = v => v.toLocaleString('es-CO'
   seleccionado?: string
   /** Si se da, cada día hasta hoy se puede tocar para verlo */
   onElegir?: (fecha: string) => void
+  /** La fecha más antigua que interesa (la entrada del lote): fija desde qué año se puede elegir */
+  desde?: string
 }) {
   const hoy = hoyLocal()
   const [mes, setMes] = useState((seleccionado ?? hoy).slice(0, 7))
@@ -39,16 +42,21 @@ export function CalendarioMes({ valores, formato = v => v.toLocaleString('es-CO'
   // Del verde claro (el día con menos) al oscuro (el día con más)
   const tonos = ['#b6d6a6', '#8cbd78', '#62a24c', '#418b30', '#2a5d22']
   const tonoDe = (v: number) => tonos[max > min ? Math.round(((v - min) / (max - min)) * (tonos.length - 1)) : 2]
-  const nombreMes = primero.toLocaleDateString('es-CO', { month: 'long', year: 'numeric' }).replace(' de ', ' ')
-  const mover = (n: number) => setMes(aFechaLocal(new Date(primero.getFullYear(), primero.getMonth() + n, 1)).slice(0, 7))
+  const masViejo = [desde, ...valores.keys()].filter((x): x is string => Boolean(x)).reduce((m, f) => (f < m ? f : m), hoy)
   const registrados = [...valores.keys()].filter(f => f.startsWith(mes)).length
 
   return (
     <div>
-      <div className="mb-3 flex items-center justify-between">
-        <button type="button" onClick={() => mover(-1)} className="flex size-7 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700" aria-label="Mes anterior">‹</button>
-        <p className="text-sm font-semibold text-gray-800">{nombreMes[0].toUpperCase() + nombreMes.slice(1)}</p>
-        <button type="button" onClick={() => mover(1)} disabled={mes >= hoy.slice(0, 7)} className="flex size-7 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-30" aria-label="Mes siguiente">›</button>
+      <div className="mb-3 space-y-2">
+        <SelectorMes mes={mes} onCambio={setMes} anioDesde={Number(masViejo.slice(0, 4))} maxMes={hoy.slice(0, 7)} />
+        {onElegir && (
+          <label className="flex items-center justify-center gap-1.5 text-[0.6875rem] text-gray-500">
+            Ir al día
+            <input type="date" value={seleccionado ?? ''} min={masViejo} max={hoy} aria-label="Ir a un día"
+              onChange={e => { const f = e.target.value; if (f && f <= hoy) { onElegir(f); setMes(f.slice(0, 7)) } }}
+              className="h-7 rounded-md border border-gray-200 bg-white px-1.5 text-xs text-gray-800" />
+          </label>
+        )}
       </div>
       <div className="mx-auto grid max-w-72 grid-cols-7 gap-1 text-center">
         {DIAS.map((d, i) => <span key={i} className="pb-1 text-[0.625rem] font-semibold text-gray-400">{d}</span>)}

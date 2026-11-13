@@ -30,7 +30,11 @@ export interface LibroLeido {
   /** Qué hojas se usaron, para mostrarlo antes de cargar */
   hojas: string[]
   /** Datos del encabezado del Excel (línea, fechas), si los trae */
-  lote: { linea: string | null; nacimiento: string | null; inicioProduccion: string | null; aves: number | null }
+  lote: { linea: string | null; nacimiento: string | null; inicioProduccion: string | null; aves: number | null; pollitas: number | null }
+  /** Las aves que quedaron el último día (saldo después de ventas y muertes) */
+  avesAlFinal: number | null
+  /** El primer día con producción (el inicio de postura según los datos) */
+  primeraProduccion: string | null
   diasClasificados: number
   avisos: string[]
 }
@@ -85,7 +89,7 @@ export function leerLibroAves(hojas: Hoja[]): LibroLeido {
   const dias = new Map<string, DiaImportado>()
 
   // Encabezado del lote (InformaciónLote): línea, nacimiento, inicio de producción y aves
-  const lote: LibroLeido['lote'] = { linea: null, nacimiento: null, inicioProduccion: null, aves: null }
+  const lote: LibroLeido['lote'] = { linea: null, nacimiento: null, inicioProduccion: null, aves: null, pollitas: null }
   const info = hojaPor(hojas, 'INFORMACIONLOTE')
   if (info) {
     for (const fila of info.data) {
@@ -96,6 +100,7 @@ export function leerLibroAves(hojas: Hoja[]): LibroLeido {
         if (k.startsWith('FECHADENACIMIENTO') && !lote.nacimiento) lote.nacimiento = fechaDe(v)
         if (k.startsWith('FECHADEINICIODEPRODUCCION') || k.startsWith('FECHADEINICIOPRODUCCION')) lote.inicioProduccion = fechaDe(v) ?? lote.inicioProduccion
         if ((k.startsWith('NUMERODEAVESENCASETADAS')) && esNum(v)) lote.aves = v as number
+        if (k.startsWith('NUMEROINICIALDEPOLLITAS') || k.startsWith('NUMEROINICIADEPOLLITAS')) { if (esNum(v) && !lote.pollitas) lote.pollitas = v as number }
       }
     }
   }
@@ -105,7 +110,7 @@ export function leerLibroAves(hojas: Hoja[]): LibroLeido {
   const tp = prod && titulos(prod.data, ['CONSUMO', 'MORT', 'HUEVOS'])
   if (!prod || !tp) {
     avisos.push('No encontré la hoja "DiarioProducción" con sus títulos (Fecha, Consumo, Mort, Producción huevos). ¿Es el formato de registro de ponedoras?')
-    return { dias: [], hojas: usadas, lote, diasClasificados: 0, avisos }
+    return { dias: [], hojas: usadas, lote, diasClasificados: 0, avisos, avesAlFinal: null, primeraProduccion: null }
   }
   usadas.push(prod.sheet)
   const c = {
@@ -118,12 +123,14 @@ export function leerLibroAves(hojas: Hoja[]): LibroLeido {
     saldo: tp.col(n => n.startsWith('SALDO')),
     obs: tp.col(n => n.startsWith('OBSERV')),
   }
+  let avesAlFinal: number | null = null
   for (const fila of prod.data.slice(tp.fila + 1)) {
     const fecha = fechaDe(fila[c.fecha])
     if (!fecha) continue
     if (!esNum(fila[c.huevos]) && !esNum(fila[c.consumo]) && !esNum(fila[c.mort])) continue
     const mort = num(fila[c.mort]), sel = c.sel >= 0 ? num(fila[c.sel]) : 0, vent = c.vent >= 0 ? num(fila[c.vent]) : 0
     const saldo = c.saldo >= 0 && esNum(fila[c.saldo]) ? (fila[c.saldo] as number) + vent : null
+    if (c.saldo >= 0 && esNum(fila[c.saldo])) avesAlFinal = Math.round(fila[c.saldo] as number)
     const muertes = Math.round(mort + sel)
     dias.set(fecha, {
       ...vacio(fecha),
@@ -191,7 +198,7 @@ export function leerLibroAves(hojas: Hoja[]): LibroLeido {
     if (fuera > 0) avisos.push(`${fuera.toLocaleString('es-CO')} huevos clasificados caen en fechas sin registro de producción: no se cargan.`)
   }
 
-  return { dias: [...dias.values()].sort((a, b) => a.fecha.localeCompare(b.fecha)), hojas: usadas, lote, diasClasificados, avisos }
+  return { dias: [...dias.values()].sort((a, b) => a.fecha.localeCompare(b.fecha)), hojas: usadas, lote, diasClasificados, avisos, avesAlFinal, primeraProduccion: primeraProduccion ?? null }
 }
 
 /** Qué se va a cargar en un lote: solo días nuevos, desde la entrada y hasta hoy. */

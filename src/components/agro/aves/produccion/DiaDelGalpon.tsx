@@ -20,7 +20,7 @@ const n1 = (v: number) => v.toLocaleString('es-CO', { maximumFractionDigits: 1 }
  * lo dice y deja registrarlo ahí mismo, para cargar días atrás.
  */
 export default function DiaDelGalpon({
-  fecha, esHoy, registro, eventos, consumoQueRegia, enPostura, fechaNacimiento, fechaEntrada, avesActuales, onRegistrar, onEditar, bloqueo,
+  fecha, esHoy, registro, eventos, consumoQueRegia, enPostura, fechaNacimiento, fechaEntrada, avesActuales, onRegistrar, onEditar, bloqueo, soloConsulta = false,
 }: {
   fecha: string
   esHoy: boolean
@@ -36,6 +36,8 @@ export default function DiaDelGalpon({
   onEditar: () => void
   /** Por qué todavía no se puede registrar (sin alimento del galpón), o null */
   bloqueo: string | null
+  /** Un lote que ya salió: se mira, no se registra */
+  soloConsulta?: boolean
 }) {
   const largo = new Date(fecha + 'T00:00:00').toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
   const semana = semanaDeVida(fechaNacimiento, fecha)
@@ -50,7 +52,7 @@ export default function DiaDelGalpon({
   return (
     <Widget className={ANCHO.todo} titulo={esHoy ? 'Lo de hoy' : 'Lo de ese día'} icono="calendario"
       info="Todo lo que se registró ese día en el galpón. Cambia de día con las flechas de arriba o tocando el calendario"
-      accion={registro
+      accion={soloConsulta ? undefined : registro
         ? <Button size="sm" variant="outline" onClick={onEditar}><Ic n="editar" /> Editar este día</Button>
         : <Button size="sm" onClick={onRegistrar} disabled={antesDeEntrar || bloqueo != null}
             title={antesDeEntrar ? 'Primero cambia la fecha de entrada en Configurar galpón' : bloqueo ?? undefined}><Ic n="mas" /> Registrar este día</Button>}>
@@ -89,7 +91,7 @@ export default function DiaDelGalpon({
           <p className="text-sm font-medium text-gray-700">{esHoy ? 'Todavía no se registra hoy' : 'Ese día no tiene registro'}</p>
           <p className="mt-1 text-xs text-gray-400">
             {consumoQueRegia ? `El consumo que regía era de ${n1(consumoQueRegia)} kg al día. ` : ''}
-            Al registrarlo, pon las aves que había ese día (hoy hay {mil(avesActuales)}).
+            {soloConsulta ? 'El lote ya salió: se puede mirar, no registrar.' : `Al registrarlo, pon las aves que había ese día (hoy hay ${mil(avesActuales)}).`}
           </p>
         </div>
       )}

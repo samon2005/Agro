@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { SelectorMes } from '@/components/ui/widgets/SelectorMes'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -53,10 +54,6 @@ export default function CalendarioSanitario({ fincaId }: { fincaId: string }) {
     ...Array.from({ length: diasMes }, (_, i) => aFechaLocal(new Date(anio, m - 1, i + 1))),
   ]
   while (celdas.length % 7) celdas.push(null)
-  const moverMes = (d: number) => {
-    const n = new Date(anio, m - 1 + d, 1)
-    setMes(aFechaLocal(n).slice(0, 7))
-  }
   const delDia = visibles.filter(e => ocurreEn(e, diaSel))
   const proximos = visibles.filter(e => (e.hasta ?? e.fecha) >= hoy).slice(0, 60)
 
@@ -127,10 +124,14 @@ export default function CalendarioSanitario({ fincaId }: { fincaId: string }) {
         <div className="grid gap-4 lg:grid-cols-[1fr_20rem]">
           <Card>
             <CardContent className="p-3">
-              <div className="mb-2 flex items-center justify-between">
-                <button onClick={() => moverMes(-1)} className="rounded-lg px-2 py-1 text-gray-500 hover:bg-gray-100" aria-label="Mes anterior">←</button>
-                <p className="font-semibold text-gray-800 first-letter:uppercase">{primero.toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })}</p>
-                <button onClick={() => moverMes(1)} className="rounded-lg px-2 py-1 text-gray-500 hover:bg-gray-100" aria-label="Mes siguiente">→</button>
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <div className="min-w-56 flex-1"><SelectorMes mes={mes} onCambio={setMes} anioDesde={Number(hoy.slice(0, 4)) - 5} /></div>
+                <label className="flex items-center gap-1.5 text-[0.6875rem] text-gray-500">
+                  Ir al día
+                  <input type="date" value={diaSel} aria-label="Ir a un día"
+                    onChange={e => { const f = e.target.value; if (f) { setDiaSel(f); setMes(f.slice(0, 7)) } }}
+                    className="h-7 rounded-md border border-gray-200 bg-white px-1.5 text-xs text-gray-800" />
+                </label>
               </div>
               <div className="grid grid-cols-7 gap-1 text-center text-[0.6875rem] font-medium text-gray-400">
                 {DIAS_SEMANA.map(d => <div key={d}>{d}</div>)}

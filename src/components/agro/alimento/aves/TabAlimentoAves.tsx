@@ -453,7 +453,8 @@ export default function TabAlimentoAves({ lotes, loteInicialId, modo = 'finca', 
       )}
 
       {/* Lo que le corresponde comer a su edad, según su referencia */}
-      {enGalpon && subTab === 'alimento' && lote && (
+      {/* Un lote que ya salió no tiene qué comer hoy: se ve su consumo, no el programa */}
+      {enGalpon && subTab === 'alimento' && lote && lote.estado !== 'finalizado' && lote.estado !== 'vendido' && (
         <ProgramaAlimentacion
           lote={lote}
           consumoKgDia={alimentoActivo?.consumo_activo_kg != null ? Number(alimentoActivo.consumo_activo_kg) : null}
