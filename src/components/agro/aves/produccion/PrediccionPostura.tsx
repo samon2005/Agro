@@ -34,11 +34,16 @@ const fechaLarga = (f: string) => new Date(f + 'T00:00:00').toLocaleDateString('
  * ciclo y, con el costo del huevo, la semana en que la postura dejaría de pagar
  * los costos. Todo es estimado: sirve para planear, no para decidir solo.
  */
-export default function PrediccionPostura({ lote, version }: { lote: LoteAves; version?: string | number }) {
+export default function PrediccionPostura({ lote, version, hasta: fechaHasta }: {
+  lote: LoteAves
+  version?: string | number
+  /** Predecir como si hoy fuera este día (al mirar un día pasado o un lote que salió) */
+  hasta?: string
+}) {
   const puedeVerCostos = useRol() !== 'trabajador'
   const { fincaActual } = useFinca()
   const ref = useReferencia(lote.referencia_id)
-  const { filas, cargando } = useResumenSemanal(lote, undefined, version)
+  const { filas, cargando } = useResumenSemanal(lote, fechaHasta, version)
   const [eventos, setEventos] = useState<{ loteId: string; lista: { fecha: string; resuelto: boolean; tipo_evento: string }[] } | null>(null)
   const [costos, setCostos] = useState<DatosCostosLote | null>(null)
 
@@ -65,7 +70,7 @@ export default function PrediccionPostura({ lote, version }: { lote: LoteAves; v
   const vidaDe = (desde: string, semanaPostura: number) =>
     lote.fecha_nacimiento ? semanaDeVida(lote.fecha_nacimiento, desde)! : (inicioGuia ?? INICIO_SUPUESTO) + semanaPostura - 1
 
-  const hoy = hoyLocal()
+  const hoy = fechaHasta ?? hoyLocal()
   const reales: (Punto & { semana: number; completa: boolean })[] = semanasPostura
     .filter(f => f.posturaPct != null)
     .map(f => {

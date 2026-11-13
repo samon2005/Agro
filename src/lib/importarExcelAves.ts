@@ -152,7 +152,7 @@ export function leerLibroAves(hojas: Hoja[]): LibroLeido {
       fecha: tl.col(n => n === 'FECHA' || n === 'FECHADIA'),
       consumo: tl.col(n => n.startsWith('CONSUMO') && !n.includes('GR')),
       mort: tl.col(n => n.startsWith('MORT')), sel: tl.col(n => n === 'SEL' || n.startsWith('SELEC')),
-      vent: tl.col(n => n.startsWith('VENT')), obs: tl.col(n => n.startsWith('OBSERV')),
+      vent: tl.col(n => n.startsWith('VENT')), obs: tl.col(n => n.startsWith('OBSERV')), saldo: tl.col(n => n.startsWith('SALDO')),
     }
     let antes = 0
     for (const fila of lev.data.slice(tl.fila + 1)) {
@@ -165,6 +165,8 @@ export function leerLibroAves(hojas: Hoja[]): LibroLeido {
         ...vacio(fecha),
         alimento_kg: Math.round(num(fila[cl.consumo]) * 100) / 100,
         muertes, causa_muerte: muertes > 0 && sel > 0 && mort === 0 ? 'Descarte' : null,
+        // Las aves del levante también (saldo + vendidas ese día), para los gramos por ave
+        aves_en_dia: cl.saldo >= 0 && esNum(fila[cl.saldo]) && (fila[cl.saldo] as number) + vent > 0 ? Math.round((fila[cl.saldo] as number) + vent) : null,
         observaciones: observacion(mort, sel, vent, cl.obs >= 0 ? fila[cl.obs] : null),
       })
       antes++

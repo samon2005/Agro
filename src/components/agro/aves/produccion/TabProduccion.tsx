@@ -43,6 +43,9 @@ interface Props {
   onIrAlimento?: () => void
   /** Abre la importación de Excel con este lote ya elegido */
   onImportarExcel?: () => void
+  /** El día que se mira, compartido con las otras pestañas del galpón (null = hoy o el último día) */
+  diaVista?: string | null
+  onDiaVista?: (dia: string | null) => void
 }
 
 const MS_DIA = 24 * 60 * 60 * 1000
@@ -64,7 +67,7 @@ const TIPO_EVENTO_LABEL: Record<string, string> = {
   otro: 'Otro',
 }
 
-export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted, onIrAlimento, onImportarExcel }: Props) {
+export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted, onIrAlimento, onImportarExcel, diaVista: diaVistaDado, onDiaVista }: Props) {
   const { fincaActual } = useFinca()
   const supabase = createClient()
   const [registros, setRegistros] = useState<ProduccionDiaria[]>([])
@@ -80,10 +83,12 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
   const [guardandoSinNovedades, setGuardandoSinNovedades] = useState(false)
   const [modalRecoleccionObligatoria, setModalRecoleccionObligatoria] = useState(false)
   // Huevos y muertes de toda la vida del lote (el historial solo trae los últimos 60 días)
-  const [huevosAcumulados, setHuevosAcumulados] = useState(0)
-  const [mortAcum, setMortAcum] = useState(0)
+  // Huevos y muertes de cada día del lote, para sumar hasta el día que se mira
+  const [acumulables, setAcumulables] = useState<{ dias: { fecha: string; huevos: number; muertes: number }[]; eventos: { fecha: string; aves: number }[] }>({ dias: [], eventos: [] })
   // El día que se está mirando: hoy, o uno anterior elegido en el calendario
-  const [diaVista, setDiaVista] = useState<string | null>(null)
+  const [diaPropio, setDiaPropio] = useState<string | null>(null)
+  const diaVista = diaVistaDado !== undefined ? diaVistaDado : diaPropio
+  const setDiaVista = onDiaVista ?? setDiaPropio
   // La fecha con que se abre "Registrar día" cuando se mira un día pasado sin registro
   const [fechaNueva, setFechaNueva] = useState<string | null>(null)
   const guia = useReferencia(loteActual.referencia_id)
@@ -101,15 +106,16 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
       .limit(1000)
     setRegistros(data ?? [])
     const [{ data: todos }, { data: eventos }] = await Promise.all([
-      supabase.from('produccion_diaria_aves').select('huevos_totales, muertes').eq('lote_id', loteActual.id),
-      supabase.from('eventos_clinicos_aves').select('aves_muertas, origen').eq('lote_id', loteActual.id),
+      supabase.from('produccion_diaria_aves').select('fecha, huevos_totales, muertes').eq('lote_id', loteActual.id),
+      supabase.from('eventos_clinicos_aves').select('fecha, aves_muertas, origen').eq('lote_id', loteActual.id),
     ])
-    setHuevosAcumulados((todos ?? []).reduce((s, r) => s + (r.huevos_totales ?? 0), 0))
     // La mortalidad acumulada cuenta las muertes del día y las de los eventos clínicos:
     // ambas descuentan aves del galpón. Los de origen "mortalidad" son el reflejo de
     // las del día, así que no se cuentan dos veces.
-    setMortAcum((todos ?? []).reduce((s, r) => s + (r.muertes ?? 0), 0)
-      + (eventos ?? []).filter(ev => ev.origen !== 'mortalidad').reduce((s, ev) => s + (ev.aves_muertas ?? 0), 0))
+    setAcumulables({
+      dias: (todos ?? []).map(r => ({ fecha: r.fecha, huevos: r.huevos_totales ?? 0, muertes: r.muertes ?? 0 })),
+      eventos: (eventos ?? []).filter(ev => ev.origen !== 'mortalidad').map(ev => ({ fecha: ev.fecha, aves: ev.aves_muertas ?? 0 })),
+    })
     setLoading(false)
   }, [loteActual.id, supabase])
 
@@ -187,7 +193,6 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
 
   /** Un día antes o después (AAAA-MM-DD) */
   const moverDia = (f: string, n: number) => aFechaLocal(new Date(new Date(f + 'T00:00:00').getTime() + n * 86_400_000))
-  const ultimos30 = registros.slice(0, 30)
   const hoyDate = new Date()
   const hoyStr = aFechaLocal(hoyDate)
   // El día que se mira: hoy, o el que se eligió en el calendario. Solo cuenta
@@ -203,6 +208,19 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
   const delDia = esHoy ? 'hoy' : `del ${fechaCorta}`
   const hoy = registros.find(r => r.fecha === fechaVista)
 
+  // ── Todo como si hoy fuera el día que se mira ──
+  // Los registros vienen del más nuevo al más viejo: estos son los de ese día hacia atrás
+  const hastaElDia = registros.filter(r => r.fecha <= fechaVista)
+  const ultimos30 = hastaElDia.slice(0, 30)
+  /** Todos los huevos del lote (para saber cuándo volver a cargar los cuadros que dependen de ellos) */
+  const huevosAcumulados = acumulables.dias.reduce((s, d) => s + d.huevos, 0)
+  const huevosHasta = acumulables.dias.reduce((s, d) => s + (d.fecha <= fechaVista ? d.huevos : 0), 0)
+  const mortAcum = acumulables.dias.reduce((s, d) => s + (d.fecha <= fechaVista ? d.muertes : 0), 0)
+    + acumulables.eventos.reduce((s, e) => s + (e.fecha <= fechaVista ? e.aves : 0), 0)
+  // Las aves de ese día: las del registro; si no hay, las del último día anotado antes; si no, las que entraron menos las muertas
+  const avesDelDia = esHoy && !cerrado ? loteActual.aves_actuales
+    : hoy?.aves_en_dia ?? hastaElDia.find(r => r.aves_en_dia)?.aves_en_dia ?? Math.max(0, loteActual.aves_iniciales - mortAcum)
+
   const posturaHoy = hoy && hoy.aves_en_dia && hoy.aves_en_dia > 0
     ? ((hoy.huevos_totales / hoy.aves_en_dia) * 100).toFixed(1)
     : null
@@ -210,8 +228,12 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
   const totalHuevos30 = ultimos30.reduce((s, r) => s + r.huevos_totales, 0)
   const totalAlimento30 = ultimos30.reduce((s, r) => s + Number(r.alimento_kg), 0)
   // HAA (huevos por ave alojada): todos los huevos del lote ÷ las aves que entraron al galpón
-  const haa = loteActual.aves_iniciales > 0 && huevosAcumulados > 0
-    ? (huevosAcumulados / loteActual.aves_iniciales).toFixed(1)
+  // Las aves alojadas en postura: las del primer día de postura (con levante, las pollitas vendidas no cuentan)
+  const avesAlojadasPostura = (loteActual.fecha_inicio_postura
+    ? [...registros].reverse().find(r => r.fecha >= loteActual.fecha_inicio_postura! && r.aves_en_dia)?.aves_en_dia
+    : null) ?? loteActual.aves_iniciales
+  const haa = avesAlojadasPostura > 0 && huevosHasta > 0
+    ? (huevosHasta / avesAlojadasPostura).toFixed(1)
     : null
   void totalAlimento30
 
@@ -303,19 +325,22 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
   // ── Alimento: costo y bultos del consumo activo (persiste hasta que se cambie) ──
   const precioGramo = loteActual.precio_gramo_alimento ?? 0
   const pesoBulto = tipoAlimentoActivo?.peso_bulto_kg ?? loteActual.peso_bulto_alimento_kg ?? 40
-  const consumoActivoKg = loteActual.consumo_activo_kg != null ? Number(loteActual.consumo_activo_kg) : 0
+  // Hoy rige el consumo activo; un día pasado, el que había ese día
+  const consumoActivoKg = esHoy && !cerrado
+    ? (loteActual.consumo_activo_kg != null ? Number(loteActual.consumo_activo_kg) : 0)
+    : (Number(hoy?.alimento_kg) || consumoQueRegia(fechaVista) || 0)
   const bultosHoy = consumoActivoKg > 0 ? consumoActivoKg / pesoBulto : 0
   const costoAlimentoHoy = tipoAlimentoActivo?.precio_bulto
     ? bultosHoy * tipoAlimentoActivo.precio_bulto
     : consumoActivoKg * 1000 * precioGramo
   const kgTotalHoy = consumoActivoKg > 0 ? consumoActivoKg : null
-  const gramosGallinaHoy = consumoActivoKg > 0 && loteActual.aves_actuales > 0
-    ? (consumoActivoKg * 1000) / loteActual.aves_actuales
+  const gramosGallinaHoy = consumoActivoKg > 0 && avesDelDia > 0
+    ? (consumoActivoKg * 1000) / avesDelDia
     : null
 
   // ── Densidad ──
   const densidad = loteActual.area_galpon_m2 && loteActual.area_galpon_m2 > 0
-    ? (loteActual.aves_actuales / loteActual.area_galpon_m2).toFixed(1)
+    ? (avesDelDia / loteActual.area_galpon_m2).toFixed(1)
     : null
 
   // ── Meta de huevos diaria ──
@@ -573,7 +598,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
     }
     return out
   })()
-  const ultimos14 = registros.filter(r => r.fecha <= hoyStr).slice(0, 14).reverse()
+  const ultimos14 = hastaElDia.slice(0, 14).reverse()
   const etiquetaDia = (f: string) => new Date(f + 'T00:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })
   const valoresCalendario = new Map(registros.map(r => [r.fecha, enPostura ? r.huevos_totales : (consumoEfectivoPorFecha.get(r.fecha) ?? 0)]))
   const diasConEvento = new Set(eventosVisibles.map(ev => ev.fecha))
@@ -761,7 +786,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
           <Widget className={ANCHO.cuarto} titulo="Galpón" icono="ubicacion">
             <div className="grid grid-cols-2 gap-3">
               <Cifra etiqueta="Densidad" valor={densidad ? `${densidad.replace('.', ',')}` : '—'} nota="aves / m²" grande />
-              <Cifra etiqueta="Aves" valor={loteActual.aves_actuales.toLocaleString('es-CO')} nota={`de ${loteActual.aves_iniciales.toLocaleString('es-CO')}`} grande />
+              <Cifra etiqueta="Aves" valor={avesDelDia.toLocaleString('es-CO')} nota={`de ${loteActual.aves_iniciales.toLocaleString('es-CO')}`} grande />
             </div>
           </Widget>
 
@@ -786,6 +811,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
               metaPosturaPct={loteActual.meta_postura_pct}
               metaDeDia={f => metaDeFecha(loteActual, f, guia)?.pct ?? null}
               version={`${registros.length}-${registros[0]?.id ?? ''}-${huevosAcumulados}`}
+              hasta={esHoy ? undefined : fechaVista}
             />
           </div>
         )}
@@ -811,7 +837,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
 
         <Widget className={ANCHO.tercio} titulo="Alimento" icono="alimento"
           accion={onIrAlimento ? <AccionWidget onClick={onIrAlimento}>Ver alimento</AccionWidget> : <AccionWidget href={`/alimento?lote=${loteActual.id}`}>Ver alimento</AccionWidget>}>
-          <p className="truncate text-sm font-semibold text-gray-900">{tipoAlimentoActivo?.nombre ?? 'Sin alimento registrado'}</p>
+          <p className="truncate text-sm font-semibold text-gray-900">{esHoy && !cerrado ? (tipoAlimentoActivo?.nombre ?? 'Sin alimento registrado') : `Consumo del ${fechaCorta}`}</p>
           <div className="mt-3 grid grid-cols-3 gap-3">
             <Cifra etiqueta="Kg al día" valor={kgTotalHoy != null ? n1(kgTotalHoy) : '—'} />
             <Cifra etiqueta={`Bultos (${pesoBulto} kg)`} valor={bultosHoy > 0 ? bultosHoy.toLocaleString('es-CO', { maximumFractionDigits: 2 }) : '—'} />
@@ -830,7 +856,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
               <Cifra etiqueta="Densidad" valor={densidad ? densidad.replace('.', ',') : '—'} nota="aves / m²" grande />
               <Cifra etiqueta={`Meta ${delDia}`} valor={hayMetaPostura ? `${String(metaPostura).replace('.', ',')} %` : '—'}
                 nota={metaHuevosDiaria ? `${metaHuevosDiaria.toLocaleString('es-CO')} huevos · ${origenMeta}` : definirMeta('Definir')} />
-              <Cifra etiqueta="Huevos del lote" valor={huevosAcumulados.toLocaleString('es-CO')} nota={`${loteActual.aves_iniciales.toLocaleString('es-CO')} aves alojadas`} />
+              <Cifra etiqueta={fechaVista === diaBase ? 'Huevos del lote' : `Huevos hasta el ${fechaCorta}`} valor={huevosHasta.toLocaleString('es-CO')} nota={`${avesAlojadasPostura.toLocaleString('es-CO')} aves al empezar la postura`} />
             </div>
           </Widget>
         ) : (
@@ -856,16 +882,17 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
               fechaInicioPostura={loteActual.fecha_inicio_postura}
               fechaInicioLote={loteActual.fecha_inicio}
               registros={registros}
+              hasta={esHoy ? undefined : fechaVista}
             />
           </div>
         )}
 
         {enPostura && (
           <div className={`${ANCHO.dosTercios} [&>*]:h-full`}>
-            <PrediccionPostura lote={loteActual} version={`${registros.length}-${registros[0]?.id ?? ''}-${huevosAcumulados}`} />
+            <PrediccionPostura key={fechaVista} lote={loteActual} version={`${registros.length}-${registros[0]?.id ?? ''}-${huevosAcumulados}`} hasta={esHoy ? undefined : fechaVista} />
           </div>
         )}
-        {enPostura && (
+        {enPostura && !cerrado && (
           <div className={`${ANCHO.tercio} [&>*]:h-full`}>
             <HorariosRecoleccion loteId={loteActual.id} fincaId={loteActual.finca_id} />
           </div>

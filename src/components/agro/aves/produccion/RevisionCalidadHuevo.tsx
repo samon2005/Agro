@@ -48,7 +48,10 @@ function defaultForm() {
   }
 }
 
-export default function RevisionCalidadHuevo({ loteId, fincaId, fechaInicioPostura, fechaInicioLote, registros }: Props) {
+export default function RevisionCalidadHuevo({ loteId, fincaId, fechaInicioPostura, fechaInicioLote, registros, hasta }: Props & {
+  /** Mirar las semanas como si hoy fuera este día (un día pasado o un lote que salió) */
+  hasta?: string
+}) {
   const supabase = createClient()
   const [revisiones, setRevisiones] = useState<Revision[]>([])
   const [loading, setLoading] = useState(true)
@@ -63,7 +66,7 @@ export default function RevisionCalidadHuevo({ loteId, fincaId, fechaInicioPostu
 
   const origen = fechaInicioPostura ?? fechaInicioLote
   const origenDate = new Date(origen + 'T00:00:00')
-  const hoyDate = new Date()
+  const hoyDate = hasta ? new Date(hasta + 'T00:00:00') : new Date()
   // Sin Math.max: si el origen quedó en el futuro (p.ej. postura aún no
   // inicia), esto igual encuentra la semana calendario que contiene a "hoy".
   const numSemanaActual = Math.floor((hoyDate.getTime() - origenDate.getTime()) / (7 * MS_DIA))

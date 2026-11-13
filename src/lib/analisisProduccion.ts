@@ -370,3 +370,59 @@ export function periodosDisponibles(dias: { fecha: string }[]): { id: string; no
     ...anios.map(a => ({ id: String(a), nombre: `Año ${a}`, p: { desde: `${a}-01-01`, hasta: `${a}-12-31` } })),
   ]
 }
+
+// ─── Alimento de un lote, hasta un día ───
+
+export interface AlimentoLote {
+  /** Por semana de vida: kilos y gramos por ave al día */
+  semanas: { semana: number; kg: number; gAve: number | null; dias: number }[]
+  meses: { mes: string; kg: number; gAve: number | null; huevos: number; kgDocena: number | null }[]
+  totalKg: number
+  gAve: number | null
+  kgDocena: number | null
+  dias: number
+}
+
+/**
+ * Lo que comió un lote hasta `hasta`. Las aves de cada día son las anotadas; si el
+ * día no las tiene (levante), las que entraron menos las muertas hasta ese día.
+ */
+export function alimentoDelLote(dias: DiaProduccion[], lote: LoteAnalisis, hasta: string): AlimentoLote {
+  const propios = dias.filter(d => d.lote_id === lote.id && d.fecha <= hasta).sort((a, b) => a.fecha.localeCompare(b.fecha))
+  let muertas = 0
+  const semanas = new Map<number, { kg: number; avesDias: number; kgConAves: number; dias: number }>()
+  const meses = new Map<string, { kg: number; avesDias: number; kgConAves: number; huevos: number; kgHuevo: number }>()
+  let totalKg = 0, totalAvesDias = 0, totalKgConAves = 0, huevosConAlimento = 0, kgConHuevos = 0
+  for (const d of propios) {
+    const kg = Number(d.alimento_kg) || 0
+    const aves = d.aves_en_dia && d.aves_en_dia > 0 ? d.aves_en_dia : Math.max(0, lote.aves_iniciales - muertas)
+    muertas += d.muertes
+    if (kg <= 0) continue
+    totalKg += kg
+    if (aves > 0) { totalAvesDias += aves; totalKgConAves += kg }
+    if (d.huevos_totales > 0) { huevosConAlimento += d.huevos_totales; kgConHuevos += kg }
+    const s = semanaDeVida(lote.fecha_nacimiento, d.fecha)
+    if (s != null) {
+      const w = semanas.get(s) ?? { kg: 0, avesDias: 0, kgConAves: 0, dias: 0 }
+      w.kg += kg; w.dias++
+      if (aves > 0) { w.avesDias += aves; w.kgConAves += kg }
+      semanas.set(s, w)
+    }
+    const mes = d.fecha.slice(0, 7)
+    const m = meses.get(mes) ?? { kg: 0, avesDias: 0, kgConAves: 0, huevos: 0, kgHuevo: 0 }
+    m.kg += kg
+    if (aves > 0) { m.avesDias += aves; m.kgConAves += kg }
+    if (d.huevos_totales > 0) { m.huevos += d.huevos_totales; m.kgHuevo += kg }
+    meses.set(mes, m)
+  }
+  const g = (kg: number, avesDias: number) => (avesDias > 0 ? (kg * 1000) / avesDias : null)
+  return {
+    semanas: [...semanas.entries()].sort(([a], [b]) => a - b).map(([semana, w]) => ({ semana, kg: w.kg, gAve: g(w.kgConAves, w.avesDias), dias: w.dias })),
+    meses: [...meses.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([mes, m]) => ({
+      mes, kg: m.kg, gAve: g(m.kgConAves, m.avesDias), huevos: m.huevos, kgDocena: m.huevos > 0 ? m.kgHuevo / (m.huevos / 12) : null,
+    })),
+    totalKg, gAve: g(totalKgConAves, totalAvesDias),
+    kgDocena: huevosConAlimento > 0 ? kgConHuevos / (huevosConAlimento / 12) : null,
+    dias: propios.length,
+  }
+}

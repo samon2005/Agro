@@ -11,6 +11,7 @@ import CrearLoteModal from '@/components/agro/aves/CrearLoteModal'
 import LotesAnterioresModal from '@/components/agro/aves/LotesAnterioresModal'
 import AnalisisFinca from '@/components/agro/reportes/AnalisisFinca'
 import ImportarExcelModal from '@/components/agro/aves/produccion/ImportarExcelModal'
+import AlimentoDelLote from '@/components/agro/alimento/aves/AlimentoDelLote'
 import TabRentabilidad from '@/components/agro/aves/rentabilidad/TabRentabilidad'
 import TableroReportes from '@/components/agro/reportes/TableroReportes'
 import { useRol } from '@/components/agro/RolProvider'
@@ -71,6 +72,8 @@ export default function AvesPonedorasPage() {
   const [verAnteriores, setVerAnteriores] = useState(false)
   // Importar un Excel: 'nuevo' desde la página, o el id del lote desde su pestaña Producción
   const [importarPara, setImportarPara] = useState<string | null>(null)
+  // El día que se mira en cada lote: lo comparten Producción y Alimento (null = hoy, o el último día si el lote salió)
+  const [diaPorLote, setDiaPorLote] = useState<Record<string, string | null>>({})
   const [loteActual, setLoteActual] = useState<LoteAves | null>(null)
   const [loadingLotes, setLoadingLotes] = useState(true)
   const [activeTab, setActiveTab] = useState<Tab>('produccion')
@@ -404,18 +407,39 @@ export default function AvesPonedorasPage() {
                   }}
                   onIrAlimento={() => setActiveTab('alimento')}
                   onImportarExcel={() => setImportarPara(loteActual.id)}
+                  diaVista={diaPorLote[loteActual.id] ?? null}
+                  onDiaVista={d => setDiaPorLote(prev => ({ ...prev, [loteActual.id]: d }))}
                 />
               )}
               {/* El alimento de este galpón: su consumo, horarios y balance, sin inventario */}
-              {activeTab === 'alimento' && (
-                <TabAlimentoAves
-                  key={loteActual.id}
-                  modo="galpon"
-                  lotes={[loteActual]}
-                  loteInicialId={loteActual.id}
-                  onLoteCambiado={fetchLotes}
-                />
-              )}
+              {activeTab === 'alimento' && (() => {
+                // El mismo día que se mira en Producción: lo de ese día y lo acumulado hasta él
+                const hoyStr = hoyLocal()
+                const dia = diaPorLote[loteActual.id] ?? null
+                const base = esCerrado(loteActual) && loteActual.fecha_fin && loteActual.fecha_fin < hoyStr ? loteActual.fecha_fin : hoyStr
+                const hasta = dia && dia <= base ? dia : base
+                return (
+                  <div className="space-y-5">
+                    {hasta !== hoyStr && (
+                      <p className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-700">
+                        <Ic n="calendario" className="mr-1 text-gray-400" />
+                        Mirando el {fechaLarga(hasta)}: lo de ese día y lo acumulado hasta él. Cambia el día en la pestaña Producción.
+                      </p>
+                    )}
+                    {/* Un lote que ya salió no se maneja: solo se analiza lo que comió */}
+                    {!esCerrado(loteActual) && (
+                      <TabAlimentoAves
+                        key={loteActual.id}
+                        modo="galpon"
+                        lotes={[loteActual]}
+                        loteInicialId={loteActual.id}
+                        onLoteCambiado={fetchLotes}
+                      />
+                    )}
+                    <AlimentoDelLote key={`${loteActual.id}-${hasta}`} fincaId={fincaActual.id} loteId={loteActual.id} hasta={hasta} />
+                  </div>
+                )
+              })()}
               {activeTab === 'ambiental' && <TabAmbiental loteActual={loteActual} finca={fincaActual} />}
               {activeTab === 'sanitario' && <TabSanitario loteActual={loteActual} onChange={bumpAlertas} />}
               {activeTab === 'equipos' && <TabEquipos loteActual={loteActual} />}

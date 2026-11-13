@@ -48,7 +48,10 @@ function fechaCorta(f: string) {
  * La postura de todo el ciclo: el % real de cada semana frente a la meta de pico,
  * y cuántos huevos de cada gramaje salieron. Se actualiza con cada día registrado.
  */
-export default function GraficasPostura({ loteId, fechaInicioPostura, fechaInicio, metaPosturaPct, metaDeDia, version = 0 }: Props) {
+export default function GraficasPostura({ loteId, fechaInicioPostura, fechaInicio, metaPosturaPct, metaDeDia, version = 0, hasta }: Props & {
+  /** Las curvas hasta este día, como si hoy fuera ese día */
+  hasta?: string
+}) {
   const [registros, setRegistros] = useState<Registro[]>([])
   const [cargando, setCargando] = useState(true)
   const [vistaGramaje, setVistaGramaje] = useState<'semana' | 'dia'>('semana')
@@ -70,7 +73,7 @@ export default function GraficasPostura({ loteId, fechaInicioPostura, fechaInici
 
   // Solo los días desde que empezó la postura
   const origen = fechaInicioPostura ?? fechaInicio
-  const enPostura = registros.filter(r => r.fecha >= origen)
+  const enPostura = registros.filter(r => r.fecha >= origen && (!hasta || r.fecha <= hasta))
   const meta = metaPosturaPct != null ? Number(metaPosturaPct) : null
 
   // ── Curva: % de postura promedio de cada semana de postura ──
