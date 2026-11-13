@@ -23,7 +23,13 @@ export function CalendarioMes({ valores, formato = v => v.toLocaleString('es-CO'
   onElegir?: (fecha: string) => void
 }) {
   const hoy = hoyLocal()
-  const [mes, setMes] = useState(hoy.slice(0, 7))
+  const [mes, setMes] = useState((seleccionado ?? hoy).slice(0, 7))
+  // Si el día elegido cambia a otro mes (con las flechas de día), el calendario lo sigue
+  const [elegidoAntes, setElegidoAntes] = useState(seleccionado)
+  if (seleccionado !== elegidoAntes) {
+    setElegidoAntes(seleccionado)
+    if (seleccionado && seleccionado.slice(0, 7) !== mes) setMes(seleccionado.slice(0, 7))
+  }
   const primero = new Date(mes + '-01T00:00:00')
   const diasMes = new Date(primero.getFullYear(), primero.getMonth() + 1, 0).getDate()
   const huecos = (primero.getDay() + 6) % 7

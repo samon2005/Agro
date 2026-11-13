@@ -27,6 +27,8 @@ interface Props {
   fechaInicio?: string
   estadoLote?: string
   registroExistente?: ProduccionDiaria | null
+  /** Fecha con que abre un día nuevo (un día pasado elegido en el calendario) */
+  fechaSugerida?: string | null
   onCreated: () => void
 }
 
@@ -69,9 +71,9 @@ const TIPOS_EVENTO_CLINICO = [
   { value: 'otro', label: 'Otro' },
 ]
 
-function defaultForm(avesActuales: number, r?: ProduccionDiaria | null) {
+function defaultForm(avesActuales: number, r?: ProduccionDiaria | null, fechaSugerida?: string | null) {
   return {
-    fecha: r?.fecha ?? hoyLocal(),
+    fecha: r?.fecha ?? fechaSugerida ?? hoyLocal(),
     aves_en_dia: r ? String(r.aves_en_dia ?? '') : String(avesActuales),
     huevos_c: r ? String(r.huevos_c ?? 0) : '',
     huevos_b: r ? String(r.huevos_b) : '',
@@ -93,7 +95,7 @@ function defaultForm(avesActuales: number, r?: ProduccionDiaria | null) {
   }
 }
 
-export default function RegistrarProduccionModal({ open, onClose, loteId, fincaId, avesActuales, fechaInicio, estadoLote, registroExistente, onCreated }: Props) {
+export default function RegistrarProduccionModal({ open, onClose, loteId, fincaId, avesActuales, fechaInicio, estadoLote, registroExistente, fechaSugerida, onCreated }: Props) {
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState(() => defaultForm(avesActuales, registroExistente))
@@ -104,8 +106,8 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
   const enPreparacion = estadoLote === 'preparacion'
 
   useEffect(() => {
-    if (open) { setForm(defaultForm(avesActuales, registroExistente)); setAgregandoCausa(false); setCausaNuevaTexto('') }
-  }, [open, avesActuales, registroExistente])
+    if (open) { setForm(defaultForm(avesActuales, registroExistente, fechaSugerida)); setAgregandoCausa(false); setCausaNuevaTexto('') }
+  }, [open, avesActuales, registroExistente, fechaSugerida])
 
   // Causas que la finca ha añadido antes, para reusarlas
   useEffect(() => {

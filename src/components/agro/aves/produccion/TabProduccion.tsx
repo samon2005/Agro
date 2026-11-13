@@ -16,6 +16,7 @@ import RevisionCalidadHuevo from './RevisionCalidadHuevo'
 import GraficasPostura from './GraficasPostura'
 import PrediccionPostura from './PrediccionPostura'
 import SugerenciasLote from './SugerenciasLote'
+import DiaDelGalpon from './DiaDelGalpon'
 import ConfigurarRecoleccionModal from './ConfigurarRecoleccionModal'
 import IniciarPosturaModal, { type ConfigPostura } from './IniciarPosturaModal'
 import { toast } from 'sonner'
@@ -81,6 +82,8 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
   const [mortAcum, setMortAcum] = useState(0)
   // El día que se está mirando: hoy, o uno anterior elegido en el calendario
   const [diaVista, setDiaVista] = useState<string | null>(null)
+  // La fecha con que se abre "Registrar día" cuando se mira un día pasado sin registro
+  const [fechaNueva, setFechaNueva] = useState<string | null>(null)
   const guia = useReferencia(loteActual.referencia_id)
   const [verTodoHistorial, setVerTodoHistorial] = useState(false)
 
@@ -180,6 +183,8 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
     onLoteUpdated()
   }
 
+  /** Un día antes o después (AAAA-MM-DD) */
+  const moverDia = (f: string, n: number) => aFechaLocal(new Date(new Date(f + 'T00:00:00').getTime() + n * 86_400_000))
   const ultimos30 = registros.slice(0, 30)
   const hoyDate = new Date()
   const hoyStr = aFechaLocal(hoyDate)
@@ -328,8 +333,14 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
       .from('produccion_diaria_aves')
       .select('id')
       .eq('lote_id', loteActual.id)
-      .eq('fecha', hoyStr)
+      .eq('fecha', fechaVista)
       .maybeSingle()
+    // Un día pasado que ya tiene registro se edita desde el historial, no se pisa
+    if (existente && !esHoy) {
+      setGuardandoSinNovedades(false)
+      toast.error(`El ${fechaCorta} ya está registrado: edítalo en "Lo de ese día"`)
+      return
+    }
 
     const payload = {
       alimento_kg: consumo,
@@ -339,7 +350,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
     const { error } = existente
       ? await supabase.from('produccion_diaria_aves').update(payload).eq('id', existente.id)
       : await supabase.from('produccion_diaria_aves').insert({
-          ...payload, lote_id: loteActual.id, finca_id: loteActual.finca_id, fecha: hoyStr,
+          ...payload, lote_id: loteActual.id, finca_id: loteActual.finca_id, fecha: fechaVista,
         })
 
     setGuardandoSinNovedades(false)
@@ -454,6 +465,24 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
     eventosPorFecha.set(ev.fecha, lista)
   }
 
+  /** El consumo que regía un día: el del último registro con alimento hasta esa fecha. */
+  function consumoQueRegia(fecha: string): number | null {
+    const previo = registros.filter(r => r.fecha <= fecha && Number(r.alimento_kg) > 0).sort((a, b) => b.fecha.localeCompare(a.fecha))[0]
+    return previo ? Number(previo.alimento_kg) : null
+  }
+  /** Registrar el día que se está mirando (hoy o uno pasado sin registro) */
+  function registrarDiaVisto() {
+    setRegistroEditar(null)
+    setFechaNueva(esHoy ? null : fechaVista)
+    setModalOpen(true)
+  }
+  function editarDiaVisto() {
+    if (!hoy) return
+    setFechaNueva(null)
+    setRegistroEditar(hoy)
+    setModalOpen(true)
+  }
+
   type FilaHistorial =
     | { tipo: 'separador'; key: string; inicio: Date; fin: Date; etiquetaSemana: string; totalAlimento: number; mortalidad: number }
     | { tipo: 'hito'; key: string; etiqueta: string; fecha: string; color: 'azul' | 'verde' }
@@ -559,8 +588,12 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold text-gray-900">{enPostura ? `Producción ${delDia}` : 'Preparación del lote'}</h2>
-          <p className="text-xs text-gray-400">
+          <p className="flex flex-wrap items-center gap-1 text-xs text-gray-400">
+            <button type="button" onClick={() => setDiaVista(moverDia(fechaVista, -1))} aria-label="Día anterior" title="Día anterior"
+              className="flex size-6 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-800">‹</button>
             {new Date(fechaVista + 'T00:00:00').toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' })}
+            <button type="button" disabled={esHoy} onClick={() => { const f = moverDia(fechaVista, 1); setDiaVista(f >= hoyStr ? null : f) }} aria-label="Día siguiente" title="Día siguiente"
+              className="flex size-6 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-800 disabled:opacity-30">›</button>
             {!esHoy && (
               <button type="button" onClick={() => setDiaVista(null)} className="ml-2 font-medium text-green-800 hover:underline">
                 Volver a hoy
@@ -593,11 +626,11 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
             </Button>
           )}
           <Button
-            onClick={() => { setRegistroEditar(null); setModalOpen(true) }}
+            onClick={() => hoy && !esHoy ? editarDiaVisto() : registrarDiaVisto()}
             disabled={!listoParaRegistrar}
             title={!listoParaRegistrar ? faltaParaRegistrar : undefined}
           >
-            <Ic n="mas" /> Registrar día
+            {hoy && !esHoy ? <><Ic n="editar" /> Editar el {fechaCorta}</> : <><Ic n="mas" /> {esHoy ? 'Registrar día' : `Registrar el ${fechaCorta}`}</>}
           </Button>
         </div>
       </div>
@@ -609,6 +642,12 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
       <SugerenciasLote lote={loteActual} version={`${registros.length}-${registros[0]?.id ?? ''}-${huevosAcumulados}`} />
 
       <Cuadricula>
+        <DiaDelGalpon
+          fecha={fechaVista} esHoy={esHoy} registro={hoy} eventos={eventosPorFecha.get(fechaVista) ?? []}
+          consumoQueRegia={consumoQueRegia(fechaVista)} enPostura={enPostura}
+          fechaNacimiento={loteActual.fecha_nacimiento} fechaEntrada={loteActual.fecha_inicio} avesActuales={loteActual.aves_actuales}
+          onRegistrar={registrarDiaVisto} onEditar={editarDiaVisto} bloqueo={listoParaRegistrar ? null : faltaParaRegistrar}
+        />
         {enPostura ? (<>
           <Widget className={ANCHO.cuarto} titulo={`Huevos ${delDia}`} icono="huevo" info="Huevos puestos frente a la meta del día: aves del día × % de meta de esa semana">
             <div className="flex items-center gap-4">
@@ -978,13 +1017,14 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
 
       <RegistrarProduccionModal
         open={modalOpen}
-        onClose={() => { setModalOpen(false); setRegistroEditar(null) }}
+        onClose={() => { setModalOpen(false); setRegistroEditar(null); setFechaNueva(null) }}
         loteId={loteActual.id}
         fincaId={loteActual.finca_id}
         avesActuales={loteActual.aves_actuales}
         fechaInicio={loteActual.fecha_inicio}
         estadoLote={loteActual.estado}
         registroExistente={registroEditar}
+        fechaSugerida={fechaNueva}
         onCreated={() => { fetchRegistros(); fetchEventosClinicos(); onLoteUpdated() }}
       />
 
