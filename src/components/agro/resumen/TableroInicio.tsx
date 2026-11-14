@@ -30,7 +30,7 @@ type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
 type LotePollo = Database['public']['Tables']['lotes_pollo']['Row']
 
-interface DiaFinca { fecha: string; lote: string; huevos: number; aves: number | null; muertes: number; alimentoKg: number; especie: EspecieFinca; rotos?: number; sucios?: number }
+interface DiaFinca { fecha: string; lote: string; huevos: number; aves: number | null; muertes: number; alimentoKg: number; especie: EspecieFinca; rotos?: number; podridos?: number; sucios?: number }
 
 export interface DatosInicio {
   instalaciones: Instalacion[]
@@ -86,7 +86,7 @@ export default function TableroInicio<F extends Finca>({ finca, fincas, onEditar
         especies.includes('aves_ponedoras') ? supabase.from('lotes_aves').select('*').eq('finca_id', finca.id).in('estado', ['activo', 'preparacion']) : Promise.resolve({ data: [] as LoteAves[] }),
         especies.includes('cerdos') ? supabase.from('lotes_cerdos').select('*').eq('finca_id', finca.id).eq('estado', 'activo') : Promise.resolve({ data: [] as LoteCerdos[] }),
         especies.includes('pollo_engorde') ? supabase.from('lotes_pollo').select('*').eq('finca_id', finca.id).eq('estado', 'activo') : Promise.resolve({ data: [] as LotePollo[] }),
-        especies.includes('aves_ponedoras') ? supabase.from('produccion_diaria_aves').select('lote_id, fecha, huevos_totales, aves_en_dia, muertes, alimento_kg, huevos_rotos, huevos_sucios').eq('finca_id', finca.id).gte('fecha', desde) : Promise.resolve({ data: [] }),
+        especies.includes('aves_ponedoras') ? supabase.from('produccion_diaria_aves').select('lote_id, fecha, huevos_totales, aves_en_dia, muertes, alimento_kg, huevos_rotos, huevos_sucios, huevos_podridos').eq('finca_id', finca.id).gte('fecha', desde) : Promise.resolve({ data: [] }),
         especies.includes('cerdos') ? supabase.from('nutricion_diaria_cerdos').select('lote_id, fecha, alimento_kg, consumo_real_kg').eq('finca_id', finca.id).gte('fecha', desde) : Promise.resolve({ data: [] }),
         especies.includes('cerdos') ? supabase.from('mortalidad_cerdos').select('lote_id, fecha, cantidad').eq('finca_id', finca.id).gte('fecha', desde) : Promise.resolve({ data: [] }),
         especies.includes('pollo_engorde') ? supabase.from('produccion_diaria_pollo').select('lote_id, fecha, alimento_kg, muertes').eq('finca_id', finca.id).gte('fecha', desde) : Promise.resolve({ data: [] }),
@@ -98,8 +98,8 @@ export default function TableroInicio<F extends Finca>({ finca, fincas, onEditar
       ])
       if (!vigente) return
       const dias: DiaFinca[] = [
-        ...((prodAves.data ?? []) as { lote_id: string; fecha: string; huevos_totales: number; aves_en_dia: number | null; muertes: number; alimento_kg: number; huevos_rotos: number | null; huevos_sucios: number | null }[])
-          .map(p => ({ fecha: p.fecha, lote: p.lote_id, huevos: p.huevos_totales, aves: p.aves_en_dia, muertes: p.muertes ?? 0, alimentoKg: Number(p.alimento_kg ?? 0), especie: 'aves_ponedoras' as const, rotos: p.huevos_rotos ?? 0, sucios: p.huevos_sucios ?? 0 })),
+        ...((prodAves.data ?? []) as { lote_id: string; fecha: string; huevos_totales: number; aves_en_dia: number | null; muertes: number; alimento_kg: number; huevos_rotos: number | null; huevos_sucios: number | null; huevos_podridos: number | null }[])
+          .map(p => ({ fecha: p.fecha, lote: p.lote_id, huevos: p.huevos_totales, aves: p.aves_en_dia, muertes: p.muertes ?? 0, alimentoKg: Number(p.alimento_kg ?? 0), especie: 'aves_ponedoras' as const, rotos: p.huevos_rotos ?? 0, sucios: p.huevos_sucios ?? 0, podridos: p.huevos_podridos ?? 0 })),
         ...((nutCerdos.data ?? []) as { lote_id: string; fecha: string; alimento_kg: number; consumo_real_kg: number | null }[]).map(n => ({ fecha: n.fecha, lote: n.lote_id, huevos: 0, aves: null, muertes: 0, alimentoKg: Number(n.consumo_real_kg ?? n.alimento_kg ?? 0), especie: 'cerdos' as const })),
         ...((mortCerdos.data ?? []) as { lote_id: string; fecha: string; cantidad: number }[]).map(m => ({ fecha: m.fecha, lote: m.lote_id, huevos: 0, aves: null, muertes: m.cantidad ?? 0, alimentoKg: 0, especie: 'cerdos' as const })),
         ...((prodPollo.data ?? []) as { lote_id: string; fecha: string; alimento_kg: number; muertes: number }[]).map(p => ({ fecha: p.fecha, lote: p.lote_id, huevos: 0, aves: null, muertes: p.muertes ?? 0, alimentoKg: Number(p.alimento_kg ?? 0), especie: 'pollo_engorde' as const })),

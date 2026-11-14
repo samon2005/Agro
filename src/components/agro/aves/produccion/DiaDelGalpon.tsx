@@ -46,7 +46,7 @@ export default function DiaDelGalpon({
   const postura = registro && registro.aves_en_dia && registro.aves_en_dia > 0 ? (registro.huevos_totales / registro.aves_en_dia) * 100 : null
   const tamanos = registro ? TAMANOS_HUEVO.map(t => ({ ...t, v: registro[`huevos_${t.key}` as const] ?? 0 })).filter(t => t.v > 0) : []
   const malos = registro ? [
-    { t: 'Rotos', v: registro.huevos_rotos }, { t: 'Sucios', v: registro.huevos_sucios }, { t: 'Deformes', v: registro.huevos_deformes },
+    { t: 'Rotos', v: registro.huevos_rotos }, { t: 'Sucios', v: registro.huevos_sucios }, { t: 'Deformes', v: registro.huevos_deformes }, { t: 'Podridos', v: registro.huevos_podridos ?? 0 },
   ].filter(x => x.v > 0) : []
 
   return (

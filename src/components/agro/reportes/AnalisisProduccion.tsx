@@ -166,9 +166,9 @@ export default function AnalisisProduccion({ fincaId, periodo: periodoDado, lote
           <p className="py-12 text-center text-sm text-gray-400">Sin clasificación por tamaño en estos lotes.</p>
         ) : v === 'tabla' ? (
           <TablaDatos
-            columnas={[{ titulo: 'Mes' }, { titulo: 'Clasificados', numero: true }, ...TAMANOS_HUEVO.map(t => ({ titulo: `${t.label} %`, numero: true })), { titulo: 'Rotos', numero: true }]}
-            filas={conTamanos.map(m => [nombreMes(m.mes), m.a.clasificados, ...TAMANOS_HUEVO.map(t => parteDe(m.a, t.key)), m.a.rotos])}
-            total={['Total', r.total.clasificados, ...TAMANOS_HUEVO.map(t => parteDe(r.total, t.key)), r.total.rotos]}
+            columnas={[{ titulo: 'Mes' }, { titulo: 'Clasificados', numero: true }, ...TAMANOS_HUEVO.map(t => ({ titulo: `${t.label} %`, numero: true })), { titulo: 'Rotos', numero: true }, { titulo: 'Podridos', numero: true }]}
+            filas={conTamanos.map(m => [nombreMes(m.mes), m.a.clasificados, ...TAMANOS_HUEVO.map(t => parteDe(m.a, t.key)), m.a.rotos, m.a.podridos])}
+            total={['Total', r.total.clasificados, ...TAMANOS_HUEVO.map(t => parteDe(r.total, t.key)), r.total.rotos, r.total.podridos]}
           />
         ) : (<>
           <div className={ALTO}>

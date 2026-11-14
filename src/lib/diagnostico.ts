@@ -35,6 +35,7 @@ export interface DiaCalidad {
   huevos_rotos: number
   huevos_sucios: number
   huevos_deformes: number
+  huevos_podridos?: number
 }
 
 export interface LecturaAmbiental {
@@ -117,6 +118,31 @@ export function diagnosticar(ctx: ContextoDiagnostico): Sugerencia[] {
           'Enfermedad que afecta la cáscara (bronquitis infecciosa, EDS-76)',
         ],
         acciones: ['Recolectar más veces al día', 'Revisar el piso de jaula y las bandas', 'Revisar el calcio del alimento'],
+        veterinario: false,
+        fuente: FUENTE_MANEJO,
+      })
+    }
+    // Un huevo podrido no debería salir de la finca: cualquier cantidad apreciable se revisa
+    const podridos = ctx.dias.reduce((a, d) => a + (d.huevos_podridos ?? 0), 0)
+    const pP = (podridos / totales) * 100
+    if (pP > 0.5) {
+      s.push({
+        id: 'podridos',
+        nivel: pP > 1 ? 'alerta' : 'atento',
+        titulo: 'Huevos podridos',
+        observado: `${pct(pP)} de huevos podridos en los últimos 7 días (${podridos.toLocaleString('es-CO')} huevos; se busca casi cero).`,
+        causas: [
+          'Huevos que se quedan mucho tiempo en el galpón: recolección poco frecuente o huevos de piso que no se encuentran',
+          'Almacenamiento caliente o húmedo antes de clasificar o vender',
+          'Huevos rotos, fisurados o sucios que se contaminan',
+          'Nidos sucios o cama húmeda',
+        ],
+        acciones: [
+          'Recolectar más veces al día y buscar huevos de piso',
+          'Guardar el huevo en un lugar fresco y seco, y venderlo por orden de fecha',
+          'Retirar a diario los huevos rotos y sucios',
+          'Limpiar nidos y cambiar la cama húmeda',
+        ],
         veterinario: false,
         fuente: FUENTE_MANEJO,
       })

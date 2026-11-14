@@ -87,7 +87,7 @@ export async function cargarReporte(
     tiposAves, tiposCerdos, tiposPollo, reqAves, reqCerdos, reqPollo] = await Promise.all([
     tiene('aves_ponedoras') ? supabase.from('lotes_aves').select('id, nombre, estado, aves_actuales, fecha_inicio, alimento_activo_id').eq('finca_id', fincaId) : vacio,
     tiene('aves_ponedoras') ? todasLasFilas((a, b) => delLote(supabase.from('produccion_diaria_aves')
-      .select('lote_id, fecha, huevos_totales, aves_en_dia, muertes, causa_muerte, alimento_kg, tipo_alimento_id, huevos_rotos, huevos_sucios, huevos_deformes')
+      .select('lote_id, fecha, huevos_totales, aves_en_dia, muertes, causa_muerte, alimento_kg, tipo_alimento_id, huevos_rotos, huevos_sucios, huevos_deformes, huevos_podridos')
       .eq('finca_id', fincaId).gte('fecha', desde)).order('id').range(a, b)) : vacio,
     tiene('aves_ponedoras') ? delLote(supabase.from('eventos_clinicos_aves').select('lote_id, fecha, tipo_evento, aves_muertas, origen').eq('finca_id', fincaId).gte('fecha', desde)) : vacio,
     tiene('cerdos') ? supabase.from('lotes_cerdos').select('id, nombre, estado, animales_actuales, fecha_ingreso, alimento_activo_id').eq('finca_id', fincaId) : vacio,
@@ -120,7 +120,7 @@ export async function cargarReporte(
   const dias: DiaReporte[] = [
     ...(prodAves.data ?? []).map(p => ({
       fecha: p.fecha, lote: p.lote_id, huevos: p.huevos_totales, aves: p.aves_en_dia, muertes: p.muertes ?? 0,
-      alimentoKg: Number(p.alimento_kg ?? 0), malos: (p.huevos_rotos ?? 0) + (p.huevos_sucios ?? 0) + (p.huevos_deformes ?? 0),
+      alimentoKg: Number(p.alimento_kg ?? 0), malos: (p.huevos_rotos ?? 0) + (p.huevos_sucios ?? 0) + (p.huevos_deformes ?? 0) + (p.huevos_podridos ?? 0),
       tipo: tipoDe(p.lote_id, p.tipo_alimento_id), causa: p.causa_muerte,
     })),
     ...(nutCerdos.data ?? []).map(n => ({ fecha: n.fecha, lote: n.lote_id, huevos: 0, aves: null, muertes: 0, alimentoKg: Number(n.consumo_real_kg ?? n.alimento_kg ?? 0), malos: 0, tipo: tipoDe(n.lote_id, n.tipo_alimento_id), causa: null })),

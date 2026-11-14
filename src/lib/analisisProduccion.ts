@@ -16,6 +16,7 @@ export interface DiaProduccion {
   huevos_c: number; huevos_b: number; huevos_a: number; huevos_aa: number; huevos_aaa: number; huevos_jumbo: number
   huevos_rotos: number
   huevos_sucios: number
+  huevos_podridos?: number
 }
 
 export interface LoteAnalisis {
@@ -39,12 +40,13 @@ export interface Acumulado {
   clasificados: number
   rotos: number
   sucios: number
+  podridos: number
 }
 
 const vacio = (): Acumulado => ({
   huevos: 0, avesDias: 0, huevosConAves: 0, alimentoConAvesKg: 0, muertes: 0, dias: 0,
   tamanos: Object.fromEntries(TAMANOS_HUEVO.map(t => [t.key, 0])) as Record<TamanoHuevo, number>,
-  clasificados: 0, rotos: 0, sucios: 0,
+  clasificados: 0, rotos: 0, sucios: 0, podridos: 0,
 })
 
 function sumar(a: Acumulado, d: DiaProduccion) {
@@ -63,6 +65,7 @@ function sumar(a: Acumulado, d: DiaProduccion) {
   }
   a.rotos += d.huevos_rotos
   a.sucios += d.huevos_sucios
+  a.podridos += d.huevos_podridos ?? 0
 }
 
 /** Postura (%) de lo acumulado: huevos sobre aves de los días con aves contadas. */

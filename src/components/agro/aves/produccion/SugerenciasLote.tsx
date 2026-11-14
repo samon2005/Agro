@@ -42,7 +42,7 @@ export default function SugerenciasLote({ lote, version }: { lote: LoteAves; ver
     const supabase = createClient()
     const hace7 = new Date(); hace7.setDate(hace7.getDate() - 6)
     Promise.all([
-      supabase.from('produccion_diaria_aves').select('fecha, huevos_totales, huevos_rotos, huevos_sucios, huevos_deformes')
+      supabase.from('produccion_diaria_aves').select('fecha, huevos_totales, huevos_rotos, huevos_sucios, huevos_deformes, huevos_podridos')
         .eq('lote_id', lote.id).gte('fecha', aFechaLocal(hace7)),
       supabase.from('pesos_lote_aves').select('fecha, peso_promedio_g').eq('lote_id', lote.id).order('fecha', { ascending: false }).limit(1).maybeSingle(),
       supabase.from('parametros_ambientales_aves').select('fecha, temperatura_interior, humedad_interior, nh3_ppm, co2_ppm')

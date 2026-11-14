@@ -12,7 +12,7 @@ import { metaDeFecha, type LoteConMeta } from '@/lib/metasPostura'
 /** Un día registrado de un galpón (lo que ya trae el Resumen). */
 export interface DiaCierre {
   fecha: string; lote: string; huevos: number; aves: number | null; muertes: number; alimentoKg: number
-  rotos?: number; sucios?: number
+  rotos?: number; sucios?: number; podridos?: number
 }
 export interface LoteCierre extends LoteConMeta { id: string; nombre: string; referencia_id: string | null }
 
@@ -60,7 +60,7 @@ export default function CierreSemanal({ lotes, dias, hoy }: { lotes: LoteCierre[
     const muertes = delLote.reduce((s, d) => s + d.muertes, 0)
     const avesInicio = delLote.length > 0 ? ([...delLote].sort((a, b) => a.fecha.localeCompare(b.fecha))[0].aves ?? null) : null
     const alimentoG = avesDias > 0 ? (delLote.reduce((s, d) => s + d.alimentoKg, 0) * 1000) / avesDias : null
-    const malos = delLote.reduce((s, d) => s + (d.rotos ?? 0) + (d.sucios ?? 0), 0)
+    const malos = delLote.reduce((s, d) => s + (d.rotos ?? 0) + (d.sucios ?? 0) + (d.podridos ?? 0), 0)
     return {
       lote: l, registrados: delLote.length, huevos, postura, meta,
       diferencia: postura != null && meta != null ? postura - meta : null,
@@ -101,7 +101,7 @@ export default function CierreSemanal({ lotes, dias, hoy }: { lotes: LoteCierre[
                 <TableHead className="text-right">Diferencia</TableHead>
                 <TableHead className="text-right">Muertes</TableHead>
                 <TableHead className="text-right">Alimento</TableHead>
-                <TableHead className="text-right">Rotos y sucios</TableHead>
+                <TableHead className="text-right">Rotos, sucios y podridos</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

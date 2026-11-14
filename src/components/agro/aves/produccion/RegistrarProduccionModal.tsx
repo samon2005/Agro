@@ -84,6 +84,7 @@ function defaultForm(avesActuales: number, r?: ProduccionDiaria | null, fechaSug
     huevos_rotos: r ? String(r.huevos_rotos) : '0',
     huevos_sucios: r ? String(r.huevos_sucios) : '0',
     huevos_deformes: r ? String(r.huevos_deformes) : '0',
+    huevos_podridos: r ? String(r.huevos_podridos ?? 0) : '0',
     muertes: r ? String(r.muertes) : '0',
     causa_muerte: r?.causa_muerte ?? '',
     observaciones: r?.observaciones ?? '',
@@ -157,9 +158,9 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
       return
     }
 
-    const defectuosos = (Number(form.huevos_rotos) || 0) + (Number(form.huevos_sucios) || 0) + (Number(form.huevos_deformes) || 0)
+    const defectuosos = (Number(form.huevos_rotos) || 0) + (Number(form.huevos_sucios) || 0) + (Number(form.huevos_deformes) || 0) + (Number(form.huevos_podridos) || 0)
     if (!enPreparacion && defectuosos > totalHuevos) {
-      toast.error('Rotos + sucios + deformes no puede superar el total de huevos puestos')
+      toast.error('Rotos, sucios, deformes y podridos juntos no pueden superar el total de huevos puestos')
       return
     }
 
@@ -199,6 +200,7 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
       huevos_rotos: enPreparacion ? 0 : Number(form.huevos_rotos) || 0,
       huevos_sucios: enPreparacion ? 0 : Number(form.huevos_sucios) || 0,
       huevos_deformes: enPreparacion ? 0 : Number(form.huevos_deformes) || 0,
+      huevos_podridos: enPreparacion ? 0 : Number(form.huevos_podridos) || 0,
       aves_en_dia: enPreparacion ? null : Number(form.aves_en_dia) || null,
       muertes: Number(form.muertes) || 0,
       causa_muerte: Number(form.muertes) > 0 ? (form.causa_muerte || null) : null,
@@ -350,7 +352,7 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
 
           <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
             <p className="text-xs font-semibold text-amber-700 mb-2">Calidad del huevo</p>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <div className="space-y-1">
                 <Label className="text-xs">Rotos</Label>
                 <Input type="number" min="0" value={form.huevos_rotos} onChange={e => set('huevos_rotos', e.target.value)} />
@@ -362,6 +364,10 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
               <div className="space-y-1">
                 <Label className="text-xs">Deformes</Label>
                 <Input type="number" min="0" value={form.huevos_deformes} onChange={e => set('huevos_deformes', e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Podridos</Label>
+                <Input type="number" min="0" value={form.huevos_podridos} onChange={e => set('huevos_podridos', e.target.value)} />
               </div>
             </div>
           </div>

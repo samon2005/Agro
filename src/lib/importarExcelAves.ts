@@ -7,7 +7,7 @@
  * - aves del día = saldo + vendidas ese día (las que había antes de la venta);
  * - las vendidas quedan en la observación (no hay precio para una venta);
  * - el tamaño va el día en que se clasificó: Yumbo→jumbo, Extra→AAA, AA, A, B, C,
- *   totiado→rotos, sucio→sucios, pipo y yema→deformes.
+ *   totiado→rotos, sucio→sucios, pipo y yema→deformes, podrido→podridos.
  */
 
 export type Celda = string | number | boolean | Date | null
@@ -22,7 +22,7 @@ export interface DiaImportado {
   aves_en_dia: number | null
   observaciones: string | null
   huevos_c: number; huevos_b: number; huevos_a: number; huevos_aa: number; huevos_aaa: number; huevos_jumbo: number
-  huevos_rotos: number; huevos_sucios: number; huevos_deformes: number
+  huevos_rotos: number; huevos_sucios: number; huevos_deformes: number; huevos_podridos: number
 }
 
 export interface LibroLeido {
@@ -49,7 +49,7 @@ const TAMANO: Record<string, keyof DiaImportado> = {
   YUMBO: 'huevos_jumbo', JUMBO: 'huevos_jumbo', EXTAR: 'huevos_aaa', EXTRA: 'huevos_aaa', AAA: 'huevos_aaa',
   AA: 'huevos_aa', A: 'huevos_a', B: 'huevos_b', C: 'huevos_c',
   SUCIO: 'huevos_sucios', SUCIOS: 'huevos_sucios', TOTIADO: 'huevos_rotos', ROTOS: 'huevos_rotos', ROTO: 'huevos_rotos',
-  PIPO: 'huevos_deformes', YEMA: 'huevos_deformes',
+  PIPO: 'huevos_deformes', YEMA: 'huevos_deformes', PODRIDO: 'huevos_podridos', PODRIDOS: 'huevos_podridos',
 }
 
 const hojaPor = (hojas: Hoja[], nombre: string) => hojas.find(h => norm(h.sheet) === nombre)
@@ -79,7 +79,7 @@ function observacion(mort: number, sel: number, vent: number, texto: Celda) {
 const vacio = (fecha: string): DiaImportado => ({
   fecha, huevos_totales: 0, alimento_kg: 0, muertes: 0, causa_muerte: null, aves_en_dia: null, observaciones: null,
   huevos_c: 0, huevos_b: 0, huevos_a: 0, huevos_aa: 0, huevos_aaa: 0, huevos_jumbo: 0,
-  huevos_rotos: 0, huevos_sucios: 0, huevos_deformes: 0,
+  huevos_rotos: 0, huevos_sucios: 0, huevos_deformes: 0, huevos_podridos: 0,
 })
 
 /** Lee el libro entero. Si no encuentra la hoja de producción, avisa y no devuelve días. */

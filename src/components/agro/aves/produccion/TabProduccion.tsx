@@ -701,7 +701,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
                     <TextoEstado estado={cumplimientoMeta ? (Number(cumplimientoMeta) >= 100 ? 'bien' : 'revisar') : 'normal'}>
                       {cumplimientoMeta ? `${cumplimientoMeta} % de la meta` : 'Sin meta diaria'}
                     </TextoEstado>
-                    <p className="text-gray-400">Comerciales: {(hoy.huevos_totales - hoy.huevos_rotos - hoy.huevos_deformes).toLocaleString('es-CO')}</p>
+                    <p className="text-gray-400">Comerciales: {(hoy.huevos_totales - hoy.huevos_rotos - hoy.huevos_deformes - (hoy.huevos_podridos ?? 0)).toLocaleString('es-CO')}</p>
                   </>
                 ) : <p className="text-gray-400">{esHoy ? 'Sin registro de hoy' : 'Sin registro ese día'}</p>}
                 {!metaHuevosDiaria && <p>{definirMeta('Definir meta')}</p>}
