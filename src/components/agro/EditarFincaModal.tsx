@@ -12,6 +12,9 @@ import { ESPECIES_FINCA, type EspecieFinca } from '@/lib/especies'
 import { LUGAR } from '@/lib/instalaciones'
 import { Ic } from '@/components/ui/icon'
 import GalponesFinca from './GalponesFinca'
+import SelectorReferencia from './aves/referencias/SelectorReferencia'
+import { configAvesParaGuardar, leerConfigAves } from '@/lib/configAves'
+import type { Json } from '@/types/database'
 import NavesFinca from './cerdos/NavesFinca'
 
 type Finca = {
@@ -27,6 +30,7 @@ type Finca = {
   longitud: number | null
   area_valor?: number | null
   area_unidad?: string | null
+  config_aves?: Json | null
 }
 
 const UNIDAD_OTRA = '__otra__'
@@ -76,6 +80,10 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated, onDe
   const [unidadesGuardadas, setUnidadesGuardadas] = useState<string[]>([])
   const [confirmarNombre, setConfirmarNombre] = useState('')
   const [eliminando, setEliminando] = useState(false)
+  // Parámetros de aves de la finca (lib/configAves): desde qué % de rotos avisar
+  const [umbralRotos, setUmbralRotos] = useState('')
+  // La tabla base de la finca, "lo que se quiere tener" (lib/configAves)
+  const [baseId, setBaseId] = useState('')
 
   useEffect(() => {
     if (!open) return
@@ -88,6 +96,8 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated, onDe
       longitud: finca.longitud != null ? String(finca.longitud) : '',
     })
     setEspecies((finca.tipo_produccion ?? []) as EspecieFinca[])
+    setUmbralRotos(String(leerConfigAves(finca.config_aves).umbralRotosPct))
+    setBaseId(leerConfigAves(finca.config_aves).baseReferenciaId ?? '')
     setAreaValor(finca.area_valor != null ? String(finca.area_valor) : '')
     const unidadActual = finca.area_unidad ?? 'ha'
     setAreaUnidad(unidadActual === 'ha' || unidadActual === 'm2' ? unidadActual : (unidadActual ? UNIDAD_OTRA : 'ha'))
@@ -160,6 +170,9 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated, onDe
         longitud: form.longitud ? Number(form.longitud) : null,
         area_valor: areaNum,
         area_unidad: areaNum && unidadFinal ? unidadFinal : null,
+        ...(especies.includes('aves_ponedoras')
+          ? { config_aves: configAvesParaGuardar({ ...leerConfigAves(finca.config_aves), umbralRotosPct: Number(umbralRotos) > 0 ? Number(umbralRotos) : 3, baseReferenciaId: baseId || null }) }
+          : {}),
       })
       .eq('id', finca.id)
 
@@ -283,6 +296,28 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated, onDe
               </>
             )}
           </div>
+          {especies.includes('aves_ponedoras') && (
+            <div className="rounded-lg border border-gray-200 p-3">
+              <SelectorReferencia
+                fincaId={finca.id} lineaGenetica="" seguirLinea={false}
+                value={baseId} onChange={setBaseId}
+                etiqueta="Tabla base de la finca (lo que se quiere tener)"
+                ayuda={baseId
+                  ? 'La meta de cada semana sale de esta tabla cuando el galpón no tiene meta propia, y todo se compara contra ella. Para ajustarla a la finca: Ver tabla y hacer una copia.'
+                  : 'Sin tabla base, cada galpón se compara con la guía de su línea. Elige la guía que más usan, o una copia ajustada a su clima y manejo.'}
+              />
+            </div>
+          )}
+          {especies.includes('aves_ponedoras') && (
+            <div className="space-y-1.5 rounded-lg border border-gray-200 p-3">
+              <Label>Alerta de huevos rotos desde</Label>
+              <div className="flex items-center gap-2">
+                <Input type="number" min="0.5" max="50" step="0.5" className="w-24" value={umbralRotos} onChange={e => setUmbralRotos(e.target.value)} />
+                <span className="text-sm text-gray-500">% de rotos en la semana</span>
+              </div>
+              <p className="text-xs text-gray-400">Las guías buscan menos de 3 %. Si se pasa, o si los rotos suben de golpe, el galpón sugiere revisar la clasificadora.</p>
+            </div>
+          )}
           {/* Los lugares fijos de la finca: galpones de aves o corrales de cerdos */}
           {(finca.tipo_produccion ?? []).filter((e): e is EspecieFinca => LUGAR[e as EspecieFinca] != null).map(especie => (
             <div key={especie} className="space-y-1.5">

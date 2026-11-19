@@ -12,6 +12,9 @@ import { useResumenSemanal } from '@/lib/useResumenSemanal'
 import { diagnosticar, type DiaCalidad, type LecturaAmbiental } from '@/lib/diagnostico'
 import { cargarVeterinarios, type VeterinarioConHistorial } from '@/lib/veterinarios'
 import type { Database } from '@/types/database'
+import { toast } from 'sonner'
+import { useFinca } from '@/components/agro/FincaProvider'
+import { leerConfigAves } from '@/lib/configAves'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 
@@ -36,6 +39,20 @@ export default function SugerenciasLote({ lote, version }: { lote: LoteAves; ver
   const [abierta, setAbierta] = useState<string | null>(null)
   // Cerrada es una franja de una línea; abierta muestra cada sugerencia con sus causas
   const [expandida, setExpandida] = useState(false)
+  const { fincaActual } = useFinca()
+  // Las tareas que ya se programaron desde aquí (para no crearlas dos veces)
+  const [programadas, setProgramadas] = useState<Set<string>>(new Set())
+
+  async function programarTarea(id: string, tarea: { descripcion: string; notas: string }) {
+    const manana = new Date(); manana.setDate(manana.getDate() + 1)
+    const { error } = await createClient().from('tareas_operarios').insert({
+      finca_id: lote.finca_id, instalacion_id: lote.instalacion_id, descripcion: tarea.descripcion,
+      notas: `${tarea.notas} (Sugerida por la app.)`, fecha: aFechaLocal(manana), prioridad: 'alta',
+    })
+    if (error) { toast.error('No se pudo programar la tarea'); return }
+    setProgramadas(prev => new Set(prev).add(id))
+    toast.success('Tarea programada para mañana: asígnala en Operarios')
+  }
 
   useEffect(() => {
     let vigente = true
@@ -72,6 +89,7 @@ export default function SugerenciasLote({ lote, version }: { lote: LoteAves; ver
     pesoUltimo: datos.peso,
     ambiental: datos.ambiental,
     hoy: hoyLocal(),
+    umbralRotosPct: leerConfigAves(fincaActual?.config_aves).umbralRotosPct,
   })
   if (sugerencias.length === 0) return null
 
@@ -124,6 +142,15 @@ export default function SugerenciasLote({ lote, version }: { lote: LoteAves; ver
                     <p className="font-medium text-gray-700">Qué revisar</p>
                     <ul className="mt-1 list-disc space-y-0.5 pl-4 text-gray-600">{s.acciones.map(a => <li key={a}>{a}</li>)}</ul>
                   </div>
+                  {s.tarea && (
+                    <div className="sm:col-span-2">
+                      <button type="button" disabled={programadas.has(s.id)} onClick={() => programarTarea(s.id, s.tarea!)}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-green-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-800 disabled:bg-gray-300">
+                        <Ic n="herramienta" className="size-3.5" />
+                        {programadas.has(s.id) ? 'Tarea programada' : `Programar: ${s.tarea.descripcion.toLowerCase()}`}
+                      </button>
+                    </div>
+                  )}
                   <p className="text-[0.6875rem] text-gray-400 sm:col-span-2">Fuente: {s.fuente}</p>
                 </div>
               )}

@@ -9,7 +9,8 @@ import { cn } from '@/lib/utils'
 import { Ic, type NombreIcono } from '@/components/ui/icon'
 import type { User } from '@supabase/supabase-js'
 import { useFinca } from './FincaProvider'
-import { useRol, useEsAdmin } from './RolProvider'
+import { useRolFinca, useRolListo, useEsAdmin } from './RolProvider'
+import { permisos, NOMBRE_ROL } from '@/lib/roles'
 import NotificacionesPanel from './NotificacionesPanel'
 import { ESPECIES_FINCA, nombreSeccion, type EspecieFinca } from '@/lib/especies'
 
@@ -25,7 +26,9 @@ export default function DashboardSidebar({ user }: { user: User }) {
   const router = useRouter()
   const supabase = createClient()
   const { fincas, fincaActual, setFincaActual, salirDeFinca } = useFinca()
-  const rol = useRol()
+  const rolFinca = useRolFinca()
+  const puede = permisos(rolFinca)
+  const rolListo = useRolListo()
   const esAdmin = useEsAdmin()
   // El administrador dentro de una finca ajena lo ve en el menú
   const fincaAjena = esAdmin && fincaActual != null && fincaActual.propietario_id !== user.id
@@ -34,27 +37,34 @@ export default function DashboardSidebar({ user }: { user: User }) {
 
   const especiesFinca = (fincaActual?.tipo_produccion ?? []) as EspecieFinca[]
   // El administrador fuera de una finca solo tiene su Resumen de fincas
+  // Cada rol ve solo las secciones de su trabajo (lib/roles). Mientras llega el
+  // rol de la finca, solo el Resumen, para no mostrar de más.
+  const ve = (sec: Parameters<typeof puede.ve>[0]) => rolListo && puede.ve(sec)
   const navItems: Item[] = esAdmin && !fincaActual ? [{ href: '/dashboard', label: 'Resumen de fincas', icon: 'admin' }] : [
-    ...BASE_NAV_ITEMS,
-    ...(rol !== 'trabajador' ? [{ href: '/finanzas', label: 'Finanzas', icon: 'dinero' as const }] : []),
-    ...(rol !== 'trabajador' && especiesFinca.length > 0 ? [{ href: '/reportes', label: fincaActual?.sin_registro_ventas ? 'Análisis de producción' : 'Reportes', icon: 'grafica' as const }] : []),
-    ...(especiesFinca.length > 0 ? [{ href: '/alimento', label: 'Alimento', icon: 'alimento' as const }] : []),
-    ...ESPECIES_FINCA
+    BASE_NAV_ITEMS[0],
+    ...(ve('inventario') ? [BASE_NAV_ITEMS[1]] : []),
+    ...(ve('finanzas') ? [{ href: '/finanzas', label: 'Finanzas', icon: 'dinero' as const }] : []),
+    ...(ve('reportes') && especiesFinca.length > 0 ? [{ href: '/reportes', label: fincaActual?.sin_registro_ventas ? 'Análisis de producción' : 'Reportes', icon: 'grafica' as const }] : []),
+    ...(ve('alimento') && especiesFinca.length > 0 ? [{ href: '/alimento', label: 'Alimento', icon: 'alimento' as const }] : []),
+    ...(ve('galpones') ? ESPECIES_FINCA
       .filter(esp => especiesFinca.includes(esp.value))
       // Con una sola especie el menú dice el lugar ("Galpones", "Naves"):
       // nombrar la especie sobra cuando la finca solo trabaja esa.
-      .map(esp => ({ href: esp.href, icon: esp.icon, label: nombreSeccion(esp.value, fincaActual?.tipo_produccion) })),
+      .map(esp => ({ href: esp.href, icon: esp.icon, label: nombreSeccion(esp.value, fincaActual?.tipo_produccion) })) : []),
     // Huevos y ventas son de la finca entera, no de un galpón: van debajo de Galpones
     ...(especiesFinca.includes('aves_ponedoras')
       ? [
-          { href: '/huevos', label: 'Huevos de la finca', icon: 'huevo' as const },
-          { href: '/calendario', label: 'Calendario sanitario', icon: 'calendario' as const },
-          ...(rol !== 'trabajador' ? [{ href: '/ventas', label: 'Ventas de la finca', icon: 'recibo' as const }] : []),
+          ...(ve('huevos') ? [{ href: '/huevos', label: 'Huevos de la finca', icon: 'huevo' as const }] : []),
+          ...(ve('sanidad') ? [{ href: '/calendario', label: 'Calendario sanitario', icon: 'calendario' as const }] : []),
+          ...(ve('ventas') ? [{ href: '/ventas', label: 'Ventas de la finca', icon: 'recibo' as const }] : []),
         ]
       : []),
     // La historia de la cría (servicios, partos, destetes y lechones) va debajo de Naves
-    ...(especiesFinca.includes('cerdos') ? [{ href: '/historial', label: 'Historial', icon: 'agenda' as const }] : []),
-    ...(rol !== 'trabajador' ? [{ href: '/operarios', label: 'Operarios', icon: 'operario' as const }] : []),
+    ...(ve('historial') && especiesFinca.includes('cerdos') ? [{ href: '/historial', label: 'Historial', icon: 'agenda' as const }] : []),
+    // Operarios: el equipo completo, la nómina o las tareas propias, según el rol
+    ...(ve('equipo') ? [{ href: '/operarios', label: 'Operarios', icon: 'operario' as const }]
+      : ve('nomina') ? [{ href: '/operarios', label: 'Nómina', icon: 'equipo' as const }]
+      : ve('misTareas') ? [{ href: '/operarios', label: 'Mis tareas', icon: 'operario' as const }] : []),
   ]
 
   async function handleLogout() {
@@ -155,6 +165,9 @@ export default function DashboardSidebar({ user }: { user: User }) {
             <p className="mt-1 flex items-center gap-1 text-[0.6875rem] text-amber-700">
               <Ic n="admin" className="size-3" /> Entraste como administrador
             </p>
+          )}
+          {!fincaAjena && rolFinca !== 'propietario' && (
+            <p className="mt-0.5 text-[0.6875rem] text-gray-500">Tu rol: {NOMBRE_ROL[rolFinca]}</p>
           )}
         </div>
       )}

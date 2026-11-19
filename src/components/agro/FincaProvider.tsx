@@ -3,7 +3,9 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Json } from '@/types/database'
-import { useEsAdmin } from './RolProvider'
+import { useEsAdmin, RolFincaContext } from './RolProvider'
+import { dbGenerico } from '@/lib/especiesConfig'
+import type { RolFinca } from '@/lib/roles'
 
 type Finca = {
   id: string
@@ -17,6 +19,8 @@ type Finca = {
   etapas_cerdos: string[] | null
   /** Parámetros de cerdos que la granja cambió (ver src/lib/configCerdos.ts) */
   config_cerdos?: Json | null
+  /** Parámetros de aves que la granja cambió (ver src/lib/configAves.ts) */
+  config_aves?: Json | null
   /** Rangos de peso con que la granja clasifica los lechones al destete */
   tallas_destete?: { nombre: string; desde: number }[] | null
   altitud_msnm: number | null
@@ -89,6 +93,20 @@ export default function FincaProvider({ children }: { children: React.ReactNode 
 
   useEffect(() => { fetchFincas() }, [])
 
+  // El rol de quien entra en la finca que está viendo (lo decide la base: rol_en_finca)
+  const [rolFinca, setRolFinca] = useState<{ finca: string; rol: RolFinca | null } | null>(null)
+  const idActual = fincaActual?.id ?? null
+  useEffect(() => {
+    if (!idActual) return
+    let vigente = true
+    dbGenerico(createClient()).rpc('rol_en_finca', { finca: idActual }).then(({ data }) => {
+      if (vigente) setRolFinca({ finca: idActual, rol: (data as RolFinca | null) ?? null })
+    })
+    return () => { vigente = false }
+  }, [idActual])
+  // undefined mientras llega el rol de la finca elegida; null sin finca
+  const rolVigente = !idActual ? null : rolFinca && rolFinca.finca === idActual ? rolFinca.rol : undefined
+
   function elegirFinca(f: Finca) {
     setFincaActual(f)
     window.localStorage.setItem(CLAVE_FINCA, f.id)
@@ -101,7 +119,9 @@ export default function FincaProvider({ children }: { children: React.ReactNode 
 
   return (
     <FincaContext.Provider value={{ fincas, fincaActual, setFincaActual: elegirFinca, salirDeFinca, loading, refetch: fetchFincas }}>
-      {children}
+      <RolFincaContext.Provider value={rolVigente}>
+        {children}
+      </RolFincaContext.Provider>
     </FincaContext.Provider>
   )
 }

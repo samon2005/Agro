@@ -6,6 +6,7 @@ import RolProvider from '@/components/agro/RolProvider'
 import PaginaEntra from '@/components/agro/PaginaEntra'
 import ElegirEspecieFinca from '@/components/agro/ElegirEspecieFinca'
 import GuardiaAdmin from '@/components/agro/admin/GuardiaAdmin'
+import GuardiaSeccion from '@/components/agro/GuardiaSeccion'
 import { dbGenerico } from '@/lib/especiesConfig'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -25,7 +26,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <DashboardSidebar user={user} />
           {/* En celular deja lugar para la barra superior del menú */}
           <main className="flex-1 overflow-auto pt-14 md:pt-0">
-            <PaginaEntra>{children}</PaginaEntra>
+            <PaginaEntra><GuardiaSeccion>{children}</GuardiaSeccion></PaginaEntra>
           </main>
           {/* La finca sin especie elige la suya antes de seguir */}
           <ElegirEspecieFinca />

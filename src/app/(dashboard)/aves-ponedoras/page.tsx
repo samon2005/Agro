@@ -11,10 +11,12 @@ import CrearLoteModal from '@/components/agro/aves/CrearLoteModal'
 import LotesAnterioresModal from '@/components/agro/aves/LotesAnterioresModal'
 import AnalisisFinca from '@/components/agro/reportes/AnalisisFinca'
 import ImportarExcelModal from '@/components/agro/aves/produccion/ImportarExcelModal'
+import CambiarSalidaModal from '@/components/agro/aves/CambiarSalidaModal'
 import AlimentoDelLote from '@/components/agro/alimento/aves/AlimentoDelLote'
 import TabRentabilidad from '@/components/agro/aves/rentabilidad/TabRentabilidad'
 import TableroReportes from '@/components/agro/reportes/TableroReportes'
-import { useRol } from '@/components/agro/RolProvider'
+import { useRol, useRolFinca } from '@/components/agro/RolProvider'
+import { permisos } from '@/lib/roles'
 import { PROPOSITO_LABEL } from '@/lib/lotesAves'
 import EditarFincaModal from '@/components/agro/EditarFincaModal'
 import TabProduccion from '@/components/agro/aves/produccion/TabProduccion'
@@ -63,6 +65,8 @@ interface Alerta { tipo: 'danger' | 'warning'; mensaje: string }
 export default function AvesPonedorasPage() {
   // Los costos y la utilidad no son para el operario
   const puedeVerCostos = useRol() !== 'trabajador'
+  // Registrar, importar y cambiar lotes es del administrador y del zootecnista; el recolector solo ve Producción (lib/roles)
+  const { manejarLotes, soloProduccion } = permisos(useRolFinca())
   const { fincaActual, loading: fincaLoading, refetch: refetchFinca } = useFinca()
   const supabase = createClient()
 
@@ -74,6 +78,7 @@ export default function AvesPonedorasPage() {
   const [importarPara, setImportarPara] = useState<string | null>(null)
   // El día que se mira en cada lote: lo comparten Producción y Alimento (null = hoy, o el último día si el lote salió)
   const [diaPorLote, setDiaPorLote] = useState<Record<string, string | null>>({})
+  const [cambiarSalida, setCambiarSalida] = useState(false)
   const [loteActual, setLoteActual] = useState<LoteAves | null>(null)
   const [loadingLotes, setLoadingLotes] = useState(true)
   const [activeTab, setActiveTab] = useState<Tab>('produccion')
@@ -239,26 +244,30 @@ export default function AvesPonedorasPage() {
           <p className="text-sm text-gray-500">{fincaActual.nombre} · {lotes.length} {lotes.length === 1 ? 'galpón' : 'galpones'} con aves de {galpones.length}</p>
         </div>
         <div className="flex flex-wrap items-center gap-1">
-          {galpones.some(g => !ocupados.has(g.id)) && (
+          {manejarLotes && galpones.some(g => !ocupados.has(g.id)) && (
             <button onClick={() => { setGalponParaRegistrar(null); setModalNuevoLote(true) }}
               className="inline-flex h-9 items-center gap-1.5 rounded-full bg-green-700 px-4 text-sm font-medium text-white transition-colors hover:bg-green-800">
               <Ic n="mas" className="size-4" /> Registrar aves
             </button>
           )}
-          <button onClick={() => setImportarPara('nuevo')}
-            className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm text-gray-500 transition-colors hover:bg-white hover:text-gray-800">
-            <Ic n="diario" className="size-4" /> Importar Excel
-          </button>
+          {manejarLotes && (
+            <button onClick={() => setImportarPara('nuevo')}
+              className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm text-gray-500 transition-colors hover:bg-white hover:text-gray-800">
+              <Ic n="diario" className="size-4" /> Importar Excel
+            </button>
+          )}
           {cerrados.length > 0 && (
             <button onClick={() => setVerAnteriores(true)}
               className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm text-gray-500 transition-colors hover:bg-white hover:text-gray-800">
               <Ic n="agenda" className="size-4" /> Lotes anteriores ({cerrados.length})
             </button>
           )}
-          <button onClick={() => setModalFinca(true)}
-            className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm text-gray-500 transition-colors hover:bg-white hover:text-gray-800">
-            <Ic n="ajustes" className="size-4" /> Galpones y finca
-          </button>
+          {manejarLotes && (
+            <button onClick={() => setModalFinca(true)}
+              className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm text-gray-500 transition-colors hover:bg-white hover:text-gray-800">
+              <Ic n="ajustes" className="size-4" /> Galpones y finca
+            </button>
+          )}
         </div>
       </div>
 
@@ -273,7 +282,7 @@ export default function AvesPonedorasPage() {
             const lote = lotes.find(l => l.id === id)
             if (lote) { setLoteActual(lote); setAlertas([]); return }
             // Un galpón vacío: registrar las aves que entran
-            setGalponParaRegistrar(id); setModalNuevoLote(true)
+            if (manejarLotes) { setGalponParaRegistrar(id); setModalNuevoLote(true) }
           }}
           unidades={[
             ...galpones.map((g): Unidad => {
@@ -331,7 +340,16 @@ export default function AvesPonedorasPage() {
           <Pildora>{esCerrado(loteActual) ? `${loteActual.aves_iniciales.toLocaleString('es-CO')} aves alojadas` : `${loteActual.aves_actuales.toLocaleString('es-CO')} aves activas`}</Pildora>
           {loteActual.fecha_nacimiento && <Pildora icono="calendario">Semana {semanaDeVida(loteActual.fecha_nacimiento, esCerrado(loteActual) && loteActual.fecha_fin ? loteActual.fecha_fin : hoyLocal()) ?? '—'} de vida{esCerrado(loteActual) ? ' al salir' : ''}</Pildora>}
           {loteActual.proposito !== 'ciclo_completo' && <Pildora tono="ambar">{PROPOSITO_LABEL[loteActual.proposito]}</Pildora>}
-          {loteActual.fecha_salida_programada && <Pildora>Salida {new Date(loteActual.fecha_salida_programada + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}</Pildora>}
+          {/* La salida se cambia con un clic: queda el historial con el motivo */}
+          {!esCerrado(loteActual) && manejarLotes && (
+            <button type="button" onClick={() => setCambiarSalida(true)} title="Cambiar la salida programada"
+              className="inline-flex items-center gap-1 rounded-full border border-dashed border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-600 hover:border-green-600 hover:text-green-800">
+              <Ic n="calendario" className="size-3" />
+              {loteActual.fecha_salida_programada
+                ? <>Salida {new Date(loteActual.fecha_salida_programada + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })} · cambiar</>
+                : 'Programar salida'}
+            </button>
+          )}
           {loteActual.origen_aves && <Pildora>{loteActual.origen_aves}</Pildora>}
         </div>
       )}
@@ -348,23 +366,27 @@ export default function AvesPonedorasPage() {
             <>
               <p className="mb-1 text-xl font-semibold text-gray-700">La finca no tiene galpones</p>
               <p className="mb-5 text-gray-400">Registra tus galpones con su medida y luego las aves que entran a cada uno</p>
+              {manejarLotes && (
               <button
                 onClick={() => setModalFinca(true)}
                 className="rounded-lg bg-green-700 px-6 py-2.5 font-medium text-white transition-colors hover:bg-green-800"
               >
                 Registrar galpones
               </button>
+              )}
             </>
           ) : (
             <>
               <p className="mb-1 text-xl font-semibold text-gray-700">Ningún galpón tiene aves</p>
               <p className="mb-5 text-gray-400">Registra las aves que entran a uno de tus galpones</p>
+              {manejarLotes && (
               <button
                 onClick={() => { setGalponParaRegistrar(null); setModalNuevoLote(true) }}
                 className="rounded-lg bg-green-700 px-6 py-2.5 font-medium text-white transition-colors hover:bg-green-800"
               >
                 Registrar aves
               </button>
+              )}
             </>
           )}
         </div>
@@ -375,7 +397,7 @@ export default function AvesPonedorasPage() {
           {/* Tab bar */}
           <div className="space-y-5">
             <div className="flex gap-1 overflow-x-auto border-b border-gray-200 [scrollbar-width:none]">
-              {TABS.filter(tab => (tab.id !== 'rentabilidad' || puedeVerCostos) && (tab.id !== 'estadisticas' || !esCerrado(loteActual))).map(tab => (
+              {TABS.filter(tab => (tab.id !== 'rentabilidad' || puedeVerCostos) && (tab.id !== 'estadisticas' || !esCerrado(loteActual)) && (!soloProduccion || tab.id === 'produccion')).map(tab => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
@@ -456,6 +478,11 @@ export default function AvesPonedorasPage() {
             </div>
           </div>
         </>
+      )}
+
+      {loteActual && !esCerrado(loteActual) && cambiarSalida && (
+        <CambiarSalidaModal key={loteActual.id} open={cambiarSalida} onClose={() => setCambiarSalida(false)} lote={loteActual}
+          onCambiada={l => { setLoteActual(l); fetchLotes() }} />
       )}
 
       <ImportarExcelModal

@@ -3,6 +3,8 @@
 import { createClient } from './server'
 import { createAdminClient } from './admin'
 import { revalidatePath } from 'next/cache'
+import { dbGenerico } from '@/lib/especiesConfig'
+import { ROLES_ASIGNABLES, type RolFinca } from '@/lib/roles'
 
 export async function registrarCuenta(formData: FormData) {
   const fullName = formData.get('full_name') as string
@@ -169,6 +171,9 @@ export async function invitarOperario(formData: FormData, fincaId: string) {
   const cargo = formData.get('cargo') as string
   const pagoMonto = formData.get('pago_monto') as string
   const pagoPeriodo = formData.get('pago_periodo') as string
+  const tipoContrato = (formData.get('tipo_contrato') as string) || null
+  const rolPedido = (formData.get('rol') as string) || 'operario'
+  if (!ROLES_ASIGNABLES.some(r => r.v === rolPedido)) throw new Error('Rol no válido')
 
   if (!fullName?.trim() || !email?.trim()) throw new Error('Nombre y correo son requeridos')
 
@@ -192,21 +197,22 @@ export async function invitarOperario(formData: FormData, fincaId: string) {
       cargo: cargo?.trim() || null,
       pago_monto: pagoMonto ? Number(pagoMonto) : null,
       pago_periodo: pagoPeriodo || null,
+      tipo_contrato: tipoContrato,
     })
     .eq('id', operarioId)
   if (profileError) throw new Error(profileError.message)
 
   const { error: miembroError } = await admin
     .from('finca_miembros')
-    .insert({ finca_id: fincaId, perfil_id: operarioId, rol: 'trabajador' })
+    .insert({ finca_id: fincaId, perfil_id: operarioId, rol: rolPedido })
   if (miembroError) throw new Error(miembroError.message)
 
   revalidatePath('/operarios')
   return { email: email.trim(), password }
 }
 
-export async function actualizarOperario(fincaId: string, operarioId: string, datos: { cargo: string; pagoMonto: string; pagoPeriodo: string }) {
-  await verificarPropietario(fincaId)
+export async function actualizarOperario(fincaId: string, operarioId: string, datos: { cargo: string; pagoMonto: string; pagoPeriodo: string; tipoContrato?: string }) {
+  await verificarNomina(fincaId)
   const admin = createAdminClient()
   await verificarOperarioDeFinca(admin, fincaId, operarioId)
   const { error } = await admin
@@ -215,27 +221,34 @@ export async function actualizarOperario(fincaId: string, operarioId: string, da
       cargo: datos.cargo.trim() || null,
       pago_monto: datos.pagoMonto ? Number(datos.pagoMonto) : null,
       pago_periodo: datos.pagoPeriodo || null,
+      ...(datos.tipoContrato !== undefined ? { tipo_contrato: datos.tipoContrato || null } : {}),
     })
     .eq('id', operarioId)
   if (error) throw new Error(error.message)
   revalidatePath('/operarios')
 }
 
+/** Contabilidad y nómina también ve el equipo y anota el contrato y el pago */
+async function verificarNomina(fincaId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('No autenticado')
+  const { data: rol } = await dbGenerico(supabase).rpc('rol_en_finca', { finca: fincaId })
+  if (!['propietario', 'administrador', 'contador'].includes(String(rol))) throw new Error('No autorizado')
+}
+
 async function verificarPropietario(fincaId: string) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('No autenticado')
-  const { data: membresia } = await supabase
-    .from('finca_miembros')
-    .select('rol')
-    .eq('finca_id', fincaId)
-    .eq('perfil_id', user.id)
-    .maybeSingle()
-  if (!membresia || membresia.rol !== 'propietario') throw new Error('No autorizado')
+  // Propietario o administrador de la finca (lo decide la base; migración 085)
+  const { data: esAdminFinca } = await dbGenerico(supabase).rpc('es_administrador_finca', { finca: fincaId })
+  if (esAdminFinca !== true) throw new Error('No autorizado')
 }
 
 /**
- * El operario que se va a cambiar tiene que ser trabajador de esa finca: si no,
+ * El operario que se va a cambiar tiene que ser del equipo de esa finca (no su
+ * propietario): si no,
  * el dueño de una finca podría tocar el perfil de cualquier usuario con su id
  * (la clave de administrador se salta las reglas de la base).
  */
@@ -246,30 +259,31 @@ async function verificarOperarioDeFinca(admin: ReturnType<typeof createAdminClie
     .eq('finca_id', fincaId)
     .eq('perfil_id', operarioId)
     .maybeSingle()
-  if (!data || data.rol !== 'trabajador') throw new Error('No autorizado')
+  if (!data || data.rol === 'propietario') throw new Error('No autorizado')
 }
 
 export async function getOperarios(fincaId: string) {
-  await verificarPropietario(fincaId)
+  await verificarNomina(fincaId)
   const admin = createAdminClient()
   const { data: miembros } = await admin
     .from('finca_miembros')
-    .select('perfil_id')
+    .select('perfil_id, rol')
     .eq('finca_id', fincaId)
-    .eq('rol', 'trabajador')
+    .neq('rol', 'propietario')
 
   const ids = (miembros ?? []).map(m => m.perfil_id)
+  const rolById = new Map((miembros ?? []).map(m => [m.perfil_id, m.rol as RolFinca]))
   if (ids.length === 0) return []
 
   const { data: perfiles } = await admin
     .from('profiles')
-    .select('id, full_name, cargo, activo, pago_monto, pago_periodo')
+    .select('id, full_name, cargo, activo, pago_monto, pago_periodo, tipo_contrato')
     .in('id', ids)
 
   const { data: authUsers } = await admin.auth.admin.listUsers({ perPage: 1000 })
   const emailById = new Map(authUsers.users.map(u => [u.id, u.email]))
 
-  return (perfiles ?? []).map(p => ({ ...p, email: emailById.get(p.id) ?? null }))
+  return (perfiles ?? []).map(p => ({ ...p, email: emailById.get(p.id) ?? null, rol: rolById.get(p.id) ?? 'operario' }))
 }
 
 export async function actualizarEstadoOperario(fincaId: string, operarioId: string, activo: boolean) {

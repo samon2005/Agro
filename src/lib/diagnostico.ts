@@ -24,6 +24,8 @@ export interface Sugerencia {
   /** Si conviene llamar al veterinario */
   veterinario: boolean
   fuente: string
+  /** Una tarea que se puede programar con un clic (por ejemplo, el mantenimiento de la clasificadora) */
+  tarea?: { descripcion: string; notas: string }
 }
 
 const FUENTE_SANIDAD = 'Manual Merck de Veterinaria (enfermedades de las aves de corral) y guías de manejo Hy-Line y Lohmann'
@@ -57,6 +59,8 @@ export interface ContextoDiagnostico {
   pesoUltimo: { fecha: string; g: number } | null
   ambiental: LecturaAmbiental | null
   hoy: string
+  /** Desde qué % de rotos avisar (lib/configAves); 3 % si no se da */
+  umbralRotosPct?: number
 }
 
 const pct = (v: number) => `${v.toLocaleString('es-CO', { maximumFractionDigits: 1 })} %`
@@ -105,21 +109,42 @@ export function diagnosticar(ctx: ContextoDiagnostico): Sugerencia[] {
       })
     }
     const pR = (rotos / totales) * 100
-    if (pR > 3) {
+    const umbral = ctx.umbralRotosPct ?? 3
+    // La subida de golpe: los últimos 3 días frente a los anteriores de la semana
+    const ordenados = [...ctx.dias].sort((a, b) => a.fecha.localeCompare(b.fecha))
+    const pctDe = (ds: DiaCalidad[]) => {
+      const t = ds.reduce((a, d) => a + d.huevos_totales, 0)
+      return t >= 50 ? (ds.reduce((a, d) => a + (d.huevos_rotos ?? 0), 0) / t) * 100 : null
+    }
+    const recientes = pctDe(ordenados.slice(-3))
+    const antes = pctDe(ordenados.slice(0, -3))
+    const subio = recientes != null && antes != null && recientes >= umbral * 0.75 && recientes >= antes * 1.5 && recientes - antes >= 1
+    if (pR > umbral || subio) {
       s.push({
         id: 'rotos',
-        nivel: pR > 6 ? 'alerta' : 'atento',
-        titulo: 'Muchos huevos rotos',
-        observado: `${pct(pR)} de huevos rotos en los últimos 7 días (se busca menos de 3 %).`,
+        nivel: pR > umbral * 2 || (subio && recientes! > umbral) ? 'alerta' : 'atento',
+        titulo: subio && pR <= umbral ? 'Los huevos rotos están subiendo' : 'Muchos huevos rotos',
+        observado: `${pct(pR)} de huevos rotos en los últimos 7 días (la finca avisa desde ${pct(umbral)})`
+          + (subio ? `; en los últimos 3 días ${pct(recientes!)}, antes ${pct(antes!)}` : '') + '.',
         causas: [
+          'La clasificadora: mal ajustada, rodillos o bandas gastadas, o sin mantenimiento',
           'Cáscara débil: calcio, vitamina D3, calor o edad del lote',
-          'Recolección poco frecuente',
-          'Jaulas, bandas o bandejas en mal estado; manejo brusco',
+          'Recolección poco frecuente o manejo brusco al pasar los huevos por la banda',
+          'Jaulas, bandas o bandejas en mal estado',
           'Enfermedad que afecta la cáscara (bronquitis infecciosa, EDS-76)',
         ],
-        acciones: ['Recolectar más veces al día', 'Revisar el piso de jaula y las bandas', 'Revisar el calcio del alimento'],
+        acciones: [
+          'Programar mantenimiento de la clasificadora y revisar dónde se quiebran (galpón, banda o bodega)',
+          'Recolectar más veces al día',
+          'Revisar el piso de jaula y las bandas',
+          'Revisar el calcio del alimento',
+        ],
         veterinario: false,
         fuente: FUENTE_MANEJO,
+        tarea: {
+          descripcion: 'Mantenimiento de la clasificadora de huevos',
+          notas: `Por huevos rotos: ${pct(pR)} en 7 días${subio ? ` (subió a ${pct(recientes!)} en los últimos 3 días)` : ''}. Revisar ajuste, rodillos y bandas.`,
+        },
       })
     }
     // Un huevo podrido no debería salir de la finca: cualquier cantidad apreciable se revisa

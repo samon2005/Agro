@@ -21,10 +21,17 @@ import { ESPECIES_FINCA, nombreSeccion, type EspecieFinca } from '@/lib/especies
 import { usoCorralLabel } from '@/lib/instalaciones'
 import NavesResumen, { resumenNaves } from '@/components/agro/resumen/NavesResumen'
 import CierreSemanal from '@/components/agro/resumen/CierreSemanal'
+import CierreSemanalCerdos from '@/components/agro/resumen/CierreSemanalCerdos'
+import MetasCerdosFrenteReal from '@/components/agro/resumen/MetasCerdosFrenteReal'
 import { metaDeFecha } from '@/lib/metasPostura'
+import { useGuias } from '@/lib/useGuias'
+import { useBaseFinca } from '@/lib/useBaseFinca'
+import { leerConfigAves } from '@/lib/configAves'
 import type { Database } from '@/types/database'
+import { useRolFinca } from '@/components/agro/RolProvider'
+import { permisos } from '@/lib/roles'
 
-type Finca = Pick<Database['public']['Tables']['fincas']['Row'], 'id' | 'nombre' | 'municipio' | 'departamento' | 'area_valor' | 'area_unidad' | 'tipo_produccion'>
+type Finca = Pick<Database['public']['Tables']['fincas']['Row'], 'id' | 'nombre' | 'municipio' | 'departamento' | 'area_valor' | 'area_unidad' | 'tipo_produccion'> & { config_aves?: Database['public']['Tables']['fincas']['Row']['config_aves'] }
 type Instalacion = Database['public']['Tables']['instalaciones']['Row']
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
@@ -73,6 +80,7 @@ export default function TableroInicio<F extends Finca>({ finca, fincas, onEditar
   const hoy = hoyLocal()
   // Con varias especies el resumen se ve por especie, no todo junto
   const [vistaElegida, setVista] = useState<EspecieFinca | null>(null)
+  const puedeConfigurar = permisos(useRolFinca()).configurarFinca
   const vista = vistaElegida && especies.includes(vistaElegida) ? vistaElegida : especies[0] ?? null
 
   useEffect(() => {
@@ -146,9 +154,11 @@ export default function TableroInicio<F extends Finca>({ finca, fincas, onEditar
             <Pildora key={e.value} tono="verde" icono={e.icon}>{e.labelNav ?? e.label}</Pildora>
           ))}
         </div>
-        <button onClick={onEditarFinca} className="inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs text-gray-500 transition-colors hover:bg-white hover:text-gray-800">
-          <Ic n="ajustes" /> Datos de la finca
-        </button>
+        {puedeConfigurar && (
+          <button onClick={onEditarFinca} className="inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs text-gray-500 transition-colors hover:bg-white hover:text-gray-800">
+            <Ic n="ajustes" /> Datos de la finca
+          </button>
+        )}
       </div>
 
       {/* Varias especies: un resumen para cada una */}
@@ -181,6 +191,11 @@ export function ContenidoInicio({ d, finca, fincas, especies, periodo, setPeriod
   const hoy = hoyLocal()
   const ayer = restar(hoy, 1)
   const hayAves = especies.includes('aves_ponedoras')
+  // Cada rol ve solo los recuadros de su trabajo (lib/roles)
+  const p = permisos(useRolFinca())
+  // La guía de cada línea: la meta de hoy de un galpón sin meta propia sale de ella
+  const guias = useGuias(d.aves)
+  const base = useBaseFinca()
   // En una granja de cerdos los lugares son las naves (con sus corrales y las cerdas del pie de cría)
   const naves = !hayAves && especies.includes('cerdos')
     ? resumenNaves(d.instalaciones, d.cerdos, d.cerdasPorUbicacion ?? {})
@@ -203,7 +218,7 @@ export function ContenidoInicio({ d, finca, fincas, especies, periodo, setPeriod
   const conAvesHoy = delDia(hoy).filter(x => x.aves)
   const posturaHoy = conAvesHoy.length ? (conAvesHoy.reduce((s, x) => s + x.huevos, 0) / conAvesHoy.reduce((s, x) => s + (x.aves ?? 0), 0)) * 100 : null
   // La meta de hoy de cada galpón en postura: la de su semana (lib/metasPostura)
-  const metas = d.aves.filter(l => l.estado === 'activo').map(l => metaDeFecha(l, hoy)?.pct).filter((x): x is number => x != null)
+  const metas = d.aves.filter(l => l.estado === 'activo').map(l => metaDeFecha(l, hoy, l.referencia_id ? guias.get(l.referencia_id) : undefined, base)?.pct).filter((x): x is number => x != null)
   const metaPostura = metas.length ? metas.reduce((a, b) => a + b, 0) / metas.length : null
   const activos = d.aves.filter(l => l.estado === 'activo').length
   // Hoy solo cuenta cuando todos los galpones en postura ya registraron: si no, parecería una caída
@@ -246,21 +261,22 @@ export function ContenidoInicio({ d, finca, fincas, especies, periodo, setPeriod
   })
 
   // ── Alertas de la finca ──
+  // Cada aviso sale solo a los roles que trabajan en esa sección
   const alertas: AlertaBandeja[] = [
-    ...bodega.filter(b => b.diasAlcanza != null && b.diasAlcanza <= 7).map(b => ({
+    ...(!p.ve('alimento') ? [] : bodega).filter(b => b.diasAlcanza != null && b.diasAlcanza <= 7).map(b => ({
       id: `bodega-${b.lote.id}`, nivel: (b.diasAlcanza! <= 3 ? 'urgente' : 'revisar') as AlertaBandeja['nivel'],
       texto: `${b.lote.nombre}: el alimento en bodega alcanza para ${b.diasAlcanza} día${b.diasAlcanza === 1 ? '' : 's'}`,
       accion: { texto: 'Ver alimento', href: '/alimento' },
     })),
-    ...bodega.filter(b => !b.s).map(b => ({
+    ...(!p.verProduccion ? [] : bodega).filter(b => !b.s).map(b => ({
       id: `sin-alim-${b.lote.id}`, nivel: 'revisar' as const, texto: `${b.lote.nombre}: sin alimento registrado`,
       accion: { texto: 'Registrar', href: `/aves-ponedoras?lote=${b.lote.id}` },
     })),
-    ...d.aves.filter(l => !d.dias.some(x => x.lote === l.id && x.fecha === hoy)).map(l => ({
+    ...(!p.verProduccion ? [] : d.aves).filter(l => !d.dias.some(x => x.lote === l.id && x.fecha === hoy)).map(l => ({
       id: `hoy-${l.id}`, nivel: 'info' as const, texto: `${l.nombre}: falta registrar el día de hoy`,
       accion: { texto: 'Registrar', href: `/aves-ponedoras?lote=${l.id}` },
     })),
-    ...(d.inventario.bajos > 0 ? [{
+    ...(p.ve('inventario') && d.inventario.bajos > 0 ? [{
       id: 'inventario', nivel: 'revisar' as const, texto: `${d.inventario.bajos} producto${d.inventario.bajos === 1 ? '' : 's'} del inventario bajo el mínimo`,
       accion: { texto: 'Ver inventario', href: '/inventario' },
     }] : []),
@@ -285,7 +301,8 @@ export function ContenidoInicio({ d, finca, fincas, especies, periodo, setPeriod
       <BandejaAlertas titulo="Pendientes de la finca" alertas={alertas} />
 
       <Cuadricula>
-        <Widget className={ANCHO.cuarto} titulo="Animales en la finca" icono="ganado">
+        <>{p.verProduccion && (
+<Widget className={ANCHO.cuarto} titulo="Animales en la finca" icono="ganado">
           <div className="flex items-center gap-4">
             <Anillo pct={lugares ? (ocupadas.size / lugares) * 100 : null} centro={animales.toLocaleString('es-CO')} sub={hayAves ? 'aves' : 'animales'} />
             <div className="min-w-0 space-y-1.5">
@@ -294,24 +311,30 @@ export function ContenidoInicio({ d, finca, fincas, especies, periodo, setPeriod
             </div>
           </div>
         </Widget>
+)}</>
 
         {hayAves ? (
-          <Widget className={ANCHO.cuarto} titulo="Huevos hoy" icono="huevo">
+          <>{p.verProduccion && (
+<Widget className={ANCHO.cuarto} titulo="Huevos hoy" icono="huevo">
             <Cifra etiqueta={`${conAvesHoy.length} de ${activos} galpones registrados`} grande
               valor={huevosHoy > 0 ? huevosHoy.toLocaleString('es-CO') : '—'}
               cambio={hoyCompleto && huevosHoy > 0 && huevosAyer > 0 ? { texto: `${huevosHoy >= huevosAyer ? '↑' : '↓'} ${n1(Math.abs((huevosHoy - huevosAyer) / huevosAyer) * 100)} %`, bueno: huevosHoy >= huevosAyer } : null}
               nota={!hoyCompleto ? `faltan ${activos - conAvesHoy.length} por registrar` : huevosAyer > 0 ? 'vs ayer' : undefined} />
             <div className="mt-3"><MiniBarras valores={ultimos14.map(f => { const xs = delDia(f); return xs.length ? xs.reduce((s, x) => s + x.huevos, 0) : null })} etiquetas={ultimos14.map(etiquetaDia)} alto={36} /></div>
           </Widget>
+)}</>
         ) : (
-          <Widget className={ANCHO.cuarto} titulo="Alimento hoy" icono="alimento">
+          <>{p.ve('alimento') && (
+<Widget className={ANCHO.cuarto} titulo="Alimento hoy" icono="alimento">
             <Cifra etiqueta="Kilos registrados hoy" valor={`${n1(delDia(hoy).reduce((s, x) => s + x.alimentoKg, 0))} kg`} grande />
             <div className="mt-3"><MiniBarras valores={ultimos14.map(f => { const xs = delDia(f); return xs.length ? xs.reduce((s, x) => s + x.alimentoKg, 0) : null })} etiquetas={ultimos14.map(etiquetaDia)} alto={36} formato={v => `${n1(v)} kg`} /></div>
           </Widget>
+)}</>
         )}
 
         {hayAves ? (
-          <Widget className={ANCHO.cuarto} titulo="Postura de hoy" icono="tendencia" info="Huevos ÷ aves de los galpones que ya registraron hoy. La rayita es la meta promedio">
+          <>{p.verProduccion && (
+<Widget className={ANCHO.cuarto} titulo="Postura de hoy" icono="tendencia" info="Huevos ÷ aves de los galpones que ya registraron hoy. La rayita es la meta promedio">
             <div className="flex items-center gap-4">
               <Anillo pct={posturaHoy} centro={posturaHoy != null ? `${n1(posturaHoy)} %` : '—'} sub={metaPostura != null ? `meta ${n1(metaPostura)} %` : 'postura'} marca={metaPostura}
                 estado={posturaHoy == null || metaPostura == null ? 'normal' : posturaHoy >= metaPostura ? 'bien' : posturaHoy >= metaPostura - 5 ? 'revisar' : 'mal'} />
@@ -323,28 +346,36 @@ export function ContenidoInicio({ d, finca, fincas, especies, periodo, setPeriod
               </div>
             </div>
           </Widget>
+)}</>
         ) : (
-          <Widget className={ANCHO.cuarto} titulo="Mortalidad" icono="muerte">
+          <>{p.verProduccion && (
+<Widget className={ANCHO.cuarto} titulo="Mortalidad" icono="muerte">
             <Cifra etiqueta="Últimos 7 días" valor={muertes7.toLocaleString('es-CO')} grande
               cambio={muertes7Ant > 0 ? { texto: `${muertes7 <= muertes7Ant ? '↓' : '↑'} ${n1(Math.abs((muertes7 - muertes7Ant) / muertes7Ant) * 100)} %`, bueno: muertes7 <= muertes7Ant } : null}
               nota={muertes7Ant > 0 ? 'vs semana anterior' : undefined} />
           </Widget>
+)}</>
         )}
 
-        <Widget className={ANCHO.cuarto} titulo="Utilidad del mes" icono="dinero" accion={<AccionWidget href="/finanzas">Finanzas</AccionWidget>}>
+        <>{p.verDinero && (
+<Widget className={ANCHO.cuarto} titulo="Utilidad del mes" icono="dinero" accion={<AccionWidget href="/finanzas">Finanzas</AccionWidget>}>
           <Cifra etiqueta={new Date(hoy + 'T00:00:00').toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })} grande
             valor={<span className={mesActual < 0 ? 'text-red-600' : undefined}>{pesosCompacto(mesActual)}</span>}
             cambio={utilidadMes[4] !== 0 ? { texto: `${mesActual >= utilidadMes[4] ? '↑' : '↓'} vs mes pasado`, bueno: mesActual >= utilidadMes[4] } : null} />
           <div className="mt-3"><MiniBarras valores={utilidadMes.map(v => Math.max(0, v))} etiquetas={meses.map(m => new Date(m + '-01T00:00:00').toLocaleDateString('es-CO', { month: 'short' }))} formato={pesosCompacto} alto={36} /></div>
         </Widget>
+)}</>
 
-        <Widget className={ANCHO.dosTercios} titulo={hayAves ? 'Huevos por día' : 'Alimento por día'} icono="grafica" accion={<AccionWidget href="/reportes">Reportes</AccionWidget>}>
+        <>{p.verProduccion && (
+<Widget className={ANCHO.dosTercios} titulo={hayAves ? 'Huevos por día' : 'Alimento por día'} icono="grafica" accion={<AccionWidget href="/reportes">Reportes</AccionWidget>}>
           <CurvaArea id="inicio-30" nombre={hayAves ? 'Huevos' : 'Alimento'} datos={hayAves ? serieHuevos : serieAlimento}
             formato={hayAves ? undefined : v => `${n1(v)} kg`} barras={!hayAves} alto={240} />
           <p className="mt-1 text-[0.6875rem] text-gray-400">Últimos 30 días, toda la finca</p>
         </Widget>
+)}</>
 
-        <Widget className={ANCHO.tercio} titulo="Dinero" icono="recibo">
+        <>{p.verDinero && (
+<Widget className={ANCHO.tercio} titulo="Dinero" icono="recibo">
           <div className="mb-4 inline-flex flex-wrap rounded-full bg-gray-100 p-0.5">
             {PERIODOS.map(p => (
               <button key={p.id} onClick={() => setPeriodo(p.id)}
@@ -372,8 +403,10 @@ export function ContenidoInicio({ d, finca, fincas, especies, periodo, setPeriod
             </div>
           )}
         </Widget>
+)}</>
 
-        <Widget className={hayAves ? ANCHO.dosTercios : ANCHO.todo} titulo={`Tus ${lugarPlural}`} icono={hayAves ? 'gallina' : 'cerdo'} accion={<AccionWidget onClick={onEditarFinca}>Configurar</AccionWidget>}>
+        <>{p.verProduccion && (
+<Widget className={hayAves ? ANCHO.dosTercios : ANCHO.todo} titulo={`Tus ${lugarPlural}`} icono={hayAves ? 'gallina' : 'cerdo'} accion={p.configurarFinca ? <AccionWidget onClick={onEditarFinca}>Configurar</AccionWidget> : undefined}>
           {lugares === 0 && d.aves.length + d.cerdos.length === 0 ? (
             <p className="py-6 text-center text-sm text-gray-500">La finca no tiene {lugarPlural}. <button onClick={onEditarFinca} className="font-medium text-green-700 hover:underline">Registrarlos</button></p>
           ) : naves ? (
@@ -439,9 +472,11 @@ export function ContenidoInicio({ d, finca, fincas, especies, periodo, setPeriod
             </div>
           )}
         </Widget>
+)}</>
 
         {hayAves && (
-          <Widget className={ANCHO.tercio} titulo="Alimento en bodega" icono="alimento" accion={<AccionWidget href="/alimento">Ver</AccionWidget>} info="Para cuántos días alcanza lo que queda del alimento que come cada galpón">
+          <>{p.ve('alimento') && (
+<Widget className={ANCHO.tercio} titulo="Alimento en bodega" icono="alimento" accion={<AccionWidget href="/alimento">Ver</AccionWidget>} info="Para cuántos días alcanza lo que queda del alimento que come cada galpón">
             {bodega.length === 0 ? <p className="py-6 text-center text-sm text-gray-400">Sin galpones con aves</p> : (
               <div className="space-y-4">
                 {bodega.map(b => (
@@ -455,20 +490,26 @@ export function ContenidoInicio({ d, finca, fincas, especies, periodo, setPeriod
               </div>
             )}
           </Widget>
+)}</>
         )}
 
-        {conRadar && (
+        {conRadar && p.verProduccion && (
           <div className={`${ANCHO.mitad} [&>*]:h-full`}><RadarGalpones fincaId={finca.id} /></div>
         )}
-        {hayAves && (
-          <CierreSemanal lotes={d.aves.filter(l => l.estado === 'activo')} dias={d.dias} hoy={hoy} />
+        {p.verProduccion && especies.includes('cerdos') && <CierreSemanalCerdos fincaId={finca.id} hoy={hoy} />}
+        {p.verProduccion && especies.includes('cerdos') && <MetasCerdosFrenteReal fincaId={finca.id} />}
+        {hayAves && p.verProduccion && (
+          <CierreSemanal fincaId={finca.id} lotes={d.aves.filter(l => l.estado === 'activo')} dias={d.dias} hoy={hoy} umbralRotos={leerConfigAves(finca.config_aves).umbralRotosPct} />
         )}
 
-        <Widget className={anchoPequeno} titulo="Registros del mes" icono="calendario" info={hayAves ? 'Días pintados según los huevos de la finca' : 'Días pintados según el alimento registrado'}>
+        <>{p.verProduccion && (
+<Widget className={anchoPequeno} titulo="Registros del mes" icono="calendario" info={hayAves ? 'Días pintados según los huevos de la finca' : 'Días pintados según el alimento registrado'}>
           <CalendarioMes valores={valoresCalendario} formato={v => hayAves ? `${v.toLocaleString('es-CO')} huevos` : `${n1(v)} kg`} />
         </Widget>
+)}</>
 
-        <Widget className={anchoPequeno} titulo="Inventario y fincas" icono="caja" accion={<AccionWidget href="/inventario">Inventario</AccionWidget>}>
+        <>{p.ve('inventario') && (
+<Widget className={anchoPequeno} titulo="Inventario y fincas" icono="caja" accion={<AccionWidget href="/inventario">Inventario</AccionWidget>}>
           <div className="grid grid-cols-2 gap-3">
             <Cifra etiqueta="Productos" valor={d.inventario.total.toLocaleString('es-CO')} grande />
             <Cifra etiqueta="Bajo el mínimo" valor={<span className={d.inventario.bajos > 0 ? 'text-red-600' : undefined}>{d.inventario.bajos}</span>} grande />
@@ -478,14 +519,16 @@ export function ContenidoInicio({ d, finca, fincas, especies, periodo, setPeriod
             {fincas.map(f => (
               <div key={f.id} className="flex items-center justify-between gap-2 text-xs">
                 <span className={cn('truncate', f.id === finca.id ? 'font-semibold text-green-800' : 'text-gray-600')}>{f.nombre}</span>
-                <button onClick={() => onEditarOtra(f)} className="shrink-0 text-gray-400 hover:text-gray-700"><Ic n="ajustes" /></button>
+                {p.configurarFinca && <button onClick={() => onEditarOtra(f)} className="shrink-0 text-gray-400 hover:text-gray-700"><Ic n="ajustes" /></button>}
               </div>
             ))}
           </div>
         </Widget>
+)}</>
 
         {pasosHechos < guia.length && (
-          <Widget className={hayAves ? ANCHO.todo : ANCHO.tercio} titulo="Guía de inicio" icono="diario">
+          <>{p.configurarFinca && (
+<Widget className={hayAves ? ANCHO.todo : ANCHO.tercio} titulo="Guía de inicio" icono="diario">
             <BarraMeta etiqueta={`${pasosHechos} de ${guia.length} pasos`} valor={`${Math.round((pasosHechos / guia.length) * 100)} %`} pct={(pasosHechos / guia.length) * 100} />
             <ol className="mt-3 flex flex-wrap gap-2">
               {guia.map((g, i) => (
@@ -496,6 +539,7 @@ export function ContenidoInicio({ d, finca, fincas, especies, periodo, setPeriod
               ))}
             </ol>
           </Widget>
+)}</>
         )}
       </Cuadricula>
     </>

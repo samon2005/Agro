@@ -37,6 +37,25 @@ export function nacimientoDesdeEdad(fechaEntrada: string, semanasCumplidas: numb
   return aFechaLocal(d)
 }
 
+/** Cómo se escribe la edad al llegar: hay pollitas que llegan de días y pollas de semanas. */
+export type UnidadEdad = 'dias' | 'semanas'
+
+/** La edad al llegar, en días o semanas, pasada a semanas (puede tener decimales). */
+export function edadASemanas(valor: number, unidad: UnidadEdad): number {
+  return unidad === 'dias' ? valor / 7 : valor
+}
+
+/**
+ * La edad con que llegaron, para mostrarla al editar: en semanas si son semanas
+ * cerradas, en días si no (pollitas de 3 días, por ejemplo).
+ */
+export function edadAlLlegar(fechaNacimiento: string | null, fechaEntrada: string): { valor: string; unidad: UnidadEdad } {
+  if (!fechaNacimiento) return { valor: '', unidad: 'semanas' }
+  const dias = Math.round((new Date(fechaEntrada + 'T00:00:00').getTime() - new Date(fechaNacimiento + 'T00:00:00').getTime()) / MS_DIA)
+  if (dias < 0) return { valor: '', unidad: 'semanas' }
+  return dias % 7 === 0 ? { valor: String(dias / 7), unidad: 'semanas' } : { valor: String(dias), unidad: 'dias' }
+}
+
 /** Fecha en que las aves cumplen `semana` de vida (el primer día de esa semana). */
 export function fechaDeSemanaDeVida(fechaNacimiento: string, semana: number): string {
   const d = new Date(fechaNacimiento + 'T00:00:00')

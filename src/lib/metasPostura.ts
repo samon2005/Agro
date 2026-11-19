@@ -4,15 +4,16 @@
  * de aquí. La meta en huevos nunca se escribe: sale de las aves del día.
  *
  * Orden para saber la meta de una semana de vida:
- *   1. la que la finca puso para esa semana (lotes_aves.metas_postura_semanal);
- *   2. la de la guía de la línea genética (si el lote tiene guía);
- *   3. la meta de pico del lote (meta_postura_pct).
+ *   1. la que se puso para esa semana en el lote (lotes_aves.metas_postura_semanal);
+ *   2. la de la tabla base de la finca, "lo que se quiere tener" (lib/configAves);
+ *   3. la de la guía de la línea genética (si el lote tiene guía);
+ *   4. la meta de pico del lote (meta_postura_pct).
  */
 import type { Json } from '@/types/database'
 import { esperadoDeSemana, semanaDeVida, type FilaReferencia } from '@/lib/referencias'
 
 export type MetasSemanales = Record<number, number>
-export type OrigenMeta = 'propia' | 'guia' | 'pico'
+export type OrigenMeta = 'propia' | 'base' | 'guia' | 'pico'
 
 export interface LoteConMeta {
   fecha_nacimiento: string | null
@@ -34,11 +35,13 @@ export function leerMetasSemanales(guardado: Json | null | undefined): MetasSema
 
 /** La meta (%) de una semana de vida y de dónde salió, o null si no hay ninguna. */
 export function metaDeSemana(
-  lote: LoteConMeta, semana: number | null, guia?: Map<number, FilaReferencia>,
+  lote: LoteConMeta, semana: number | null, guia?: Map<number, FilaReferencia>, base?: Map<number, FilaReferencia>,
 ): { pct: number; origen: OrigenMeta } | null {
   if (semana != null) {
     const propia = leerMetasSemanales(lote.metas_postura_semanal)[semana]
     if (propia != null) return { pct: propia, origen: 'propia' }
+    const deBase = base && base.size > 0 ? esperadoDeSemana(base, semana)?.postura : null
+    if (deBase != null) return { pct: Math.round(deBase * 10) / 10, origen: 'base' }
     const deGuia = guia && guia.size > 0 ? esperadoDeSemana(guia, semana)?.postura : null
     if (deGuia != null) return { pct: Math.round(deGuia * 10) / 10, origen: 'guia' }
   }
@@ -47,8 +50,16 @@ export function metaDeSemana(
 }
 
 /** La meta (%) del lote en una fecha: busca la semana de vida de ese día. */
-export function metaDeFecha(lote: LoteConMeta, fecha: string, guia?: Map<number, FilaReferencia>) {
-  return metaDeSemana(lote, semanaDeVida(lote.fecha_nacimiento, fecha), guia)
+export function metaDeFecha(lote: LoteConMeta, fecha: string, guia?: Map<number, FilaReferencia>, base?: Map<number, FilaReferencia>) {
+  return metaDeSemana(lote, semanaDeVida(lote.fecha_nacimiento, fecha), guia, base)
+}
+
+/** Cómo se nombra de dónde salió la meta, en lenguaje de finca. */
+export const NOMBRE_ORIGEN_META: Record<OrigenMeta, string> = {
+  propia: 'meta de la semana',
+  base: 'tabla base de la finca',
+  guia: 'guía de la semana',
+  pico: 'meta de pico',
 }
 
 /** Cuántos huevos son un % de postura con las aves de ese día. */

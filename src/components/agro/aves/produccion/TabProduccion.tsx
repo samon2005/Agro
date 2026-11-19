@@ -28,7 +28,10 @@ import { Ic } from '@/components/ui/icon'
 import { useFinca } from '@/components/agro/FincaProvider'
 import { preciosDeFinca, hayPrecios } from '@/lib/huevos'
 import { useReferencia } from '@/lib/useReferencia'
-import { huevosDeMeta, metaDeFecha } from '@/lib/metasPostura'
+import { huevosDeMeta, metaDeFecha, NOMBRE_ORIGEN_META } from '@/lib/metasPostura'
+import { useBaseFinca } from '@/lib/useBaseFinca'
+import { useRolFinca } from '@/components/agro/RolProvider'
+import { permisos } from '@/lib/roles'
 
 type LoteAves = Database['public']['Tables']['lotes_aves']['Row']
 type ProduccionDiaria = Database['public']['Tables']['produccion_diaria_aves']['Row']
@@ -92,6 +95,8 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
   // La fecha con que se abre "Registrar día" cuando se mira un día pasado sin registro
   const [fechaNueva, setFechaNueva] = useState<string | null>(null)
   const guia = useReferencia(loteActual.referencia_id)
+  // La tabla base de la finca: la meta de una semana sin meta propia sale de ella antes que de la guía
+  const base = useBaseFinca()
   const [verTodoHistorial, setVerTodoHistorial] = useState(false)
 
   const fetchRegistros = useCallback(async () => {
@@ -245,10 +250,10 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
   // La meta es la de la semana del día que se mira (lib/metasPostura): la propia,
   // la de la guía o la de pico. Sin meta no hay contra qué medir: las pérdidas
   // no se inventan con un 90 % supuesto.
-  const metaDia = metaDeFecha(loteActual, fechaVista, guia)
+  const metaDia = metaDeFecha(loteActual, fechaVista, guia, base)
   const hayMetaPostura = metaDia != null
   const metaPostura = metaDia?.pct ?? 90
-  const origenMeta = metaDia?.origen === 'propia' ? 'meta de la semana' : metaDia?.origen === 'guia' ? 'guía de la semana' : 'meta de pico'
+  const origenMeta = metaDia ? NOMBRE_ORIGEN_META[metaDia.origen] : NOMBRE_ORIGEN_META.pico
   // El ciclo se cuenta hasta el día que se mira (hoy, un día elegido o el último de un lote que salió)
   const estadoPosturaHoy = estadoPostura(loteActual.fecha_inicio_postura, fechaVista)
   const semanaPostura = estadoPosturaHoy.iniciada ? estadoPosturaHoy.semana : null
@@ -307,7 +312,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
   // ── Huevos perdidos por postura bajo la meta (últimos 30 días) ──
   let huevosPerdidos30 = 0
   for (const r of ultimos30) {
-    const metaR = metaDeFecha(loteActual, r.fecha, guia)
+    const metaR = metaDeFecha(loteActual, r.fecha, guia, base)
     if (!r.aves_en_dia || !metaR) continue
     const esperados = r.aves_en_dia * (metaR.pct / 100)
     huevosPerdidos30 += Math.max(0, esperados - r.huevos_totales)
@@ -609,9 +614,12 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
     ? { texto: 'Registrar alimento', onClick: onIrAlimento }
     : { texto: 'Registrar alimento', href: `/alimento?lote=${loteActual.id}` }
   const n1 = (v: number) => v.toLocaleString('es-CO', { maximumFractionDigits: 1 })
-  const definirMeta = (texto: string) => (
+  // Configurar el galpón y cargar Excel es del administrador y del zootecnista (lib/roles)
+  const puede = permisos(useRolFinca())
+  const { manejarLotes } = puede
+  const definirMeta = (texto: string) => manejarLotes ? (
     <button type="button" onClick={() => setConfigOpen(true)} className="font-medium text-green-700 hover:underline">{texto} →</button>
-  )
+  ) : <span className="font-medium text-gray-700">{texto} (pídeselo al administrador)</span>
 
   return (
     <div className="space-y-4">
@@ -636,10 +644,10 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button onClick={() => setConfigOpen(true)} variant="ghost">
+          {manejarLotes && <Button onClick={() => setConfigOpen(true)} variant="ghost">
             <Ic n="ajustes" /> Configurar galpón
-          </Button>
-          {onImportarExcel && <Button onClick={onImportarExcel} variant="ghost" title="Cargar días viejos desde el Excel de registro">
+          </Button>}
+          {manejarLotes && onImportarExcel && <Button onClick={onImportarExcel} variant="ghost" title="Cargar días viejos desde el Excel de registro">
             <Ic n="diario" /> Importar Excel
           </Button>}
           {!enPostura && !cerrado && (
@@ -674,7 +682,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
 
       {/* Avisos: una franja cada uno, sin ocupar media pantalla */}
       {!listoParaRegistrar && !cerrado && (
-        <BandejaAlertas alertas={[{ id: 'alimento', nivel: 'revisar', texto: <><strong>Este galpón todavía no tiene alimento registrado.</strong> {faltaParaRegistrar}</>, accion: botonAlimento }]} />
+        <BandejaAlertas alertas={[{ id: 'alimento', nivel: 'revisar', texto: <><strong>Este galpón todavía no tiene alimento registrado.</strong> {faltaParaRegistrar}</>, accion: puede.ve('alimento') ? botonAlimento : undefined }]} />
       )}
       {!cerrado && <SugerenciasLote lote={loteActual} version={`${registros.length}-${registros[0]?.id ?? ''}-${huevosAcumulados}`} />}
 
@@ -809,7 +817,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
               fechaInicioPostura={loteActual.fecha_inicio_postura}
               fechaInicio={loteActual.fecha_inicio}
               metaPosturaPct={loteActual.meta_postura_pct}
-              metaDeDia={f => metaDeFecha(loteActual, f, guia)?.pct ?? null}
+              metaDeDia={f => metaDeFecha(loteActual, f, guia, base)?.pct ?? null}
               version={`${registros.length}-${registros[0]?.id ?? ''}-${huevosAcumulados}`}
               hasta={esHoy ? undefined : fechaVista}
             />

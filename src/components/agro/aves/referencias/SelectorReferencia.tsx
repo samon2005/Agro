@@ -17,13 +17,16 @@ interface Props {
   onChange: (referenciaId: string) => void
   /** Si arranca siguiendo la línea (lote nuevo) o respetando lo guardado */
   seguirLinea: boolean
+  /** Otro título y otra ayuda (por ejemplo, para la tabla base de la finca) */
+  etiqueta?: string
+  ayuda?: string
 }
 
 /**
  * Con qué guía se compara el galpón. Se elige sola según la línea genética, se
  * puede cambiar, y desde aquí se ve la tabla o se hace una copia para ajustarla.
  */
-export default function SelectorReferencia({ fincaId, lineaGenetica, value, onChange, seguirLinea }: Props) {
+export default function SelectorReferencia({ fincaId, lineaGenetica, value, onChange, seguirLinea, etiqueta, ayuda }: Props) {
   const [lineas, setLineas] = useState<LineaReferencia[]>([])
   const [verTabla, setVerTabla] = useState(false)
   // Se eligió a mano en esta ventana: ya no se cambia sola
@@ -55,7 +58,7 @@ export default function SelectorReferencia({ fincaId, lineaGenetica, value, onCh
 
   return (
     <div className="space-y-1">
-      <Label>Referencia para comparar</Label>
+      <Label>{etiqueta ?? 'Referencia para comparar'}</Label>
       <div className="flex gap-2">
         <Select
           value={value || NINGUNA}
@@ -77,7 +80,7 @@ export default function SelectorReferencia({ fincaId, lineaGenetica, value, onCh
         </button>
       </div>
       <p className="text-xs text-gray-400">
-        {actual
+        {ayuda ? ayuda : actual
           ? actual.finca_id ? 'Copia ajustada por la finca.' : 'Guía oficial de la línea.'
           : lineaGenetica && lineaGenetica !== 'Otra'
             ? `No hay guía cargada para ${lineaGenetica}: elige una parecida o déjalo sin referencia.`

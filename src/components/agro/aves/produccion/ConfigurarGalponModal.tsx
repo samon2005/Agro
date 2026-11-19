@@ -10,12 +10,14 @@ import { Label } from '@/components/ui/label'
 import type { Database } from '@/types/database'
 import { Ic } from '@/components/ui/icon'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { LINEAS_PONEDORAS, nacimientoDesdeEdad, semanaDeVida } from '@/lib/referencias'
+import { LINEAS_PONEDORAS, edadAlLlegar as edadGuardada, edadASemanas, fechaDeSemanaDeVida, nacimientoDesdeEdad, semanaDeVida, type UnidadEdad } from '@/lib/referencias'
+import EdadAlLlegarInput from '../EdadAlLlegarInput'
 import { hoyLocal } from '@/lib/fechas'
 import SelectorReferencia from '../referencias/SelectorReferencia'
 import CerrarLoteModal from '../CerrarLoteModal'
 import MetasSemanalesEditor from '../MetasSemanalesEditor'
 import { useReferencia } from '@/lib/useReferencia'
+import { useBaseFinca } from '@/lib/useBaseFinca'
 import { huevosDeMeta, leerMetasSemanales, metasParaGuardar, semanasDelCiclo, type MetasSemanales } from '@/lib/metasPostura'
 import { PROPOSITOS, type Proposito } from '@/lib/lotesAves'
 
@@ -29,12 +31,8 @@ interface Props {
   onDeleted: () => void
 }
 
-/** Semanas cumplidas con que llegaron, a partir de la fecha de nacimiento guardada */
-function edadAlLlegar(lote: LoteAves): string {
-  if (!lote.fecha_nacimiento) return ''
-  const dias = (new Date(lote.fecha_inicio + 'T00:00:00').getTime() - new Date(lote.fecha_nacimiento + 'T00:00:00').getTime()) / 86_400_000
-  return String(Math.round((dias / 7) * 10) / 10)
-}
+/** La edad con que llegaron (en días o semanas), a partir de la fecha de nacimiento guardada */
+const edadAlLlegar = (lote: LoteAves) => edadGuardada(lote.fecha_nacimiento, lote.fecha_inicio)
 
 export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, onDeleted }: Props) {
   const supabase = createClient()
@@ -51,6 +49,7 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, 
     referencia_id: '',
     proposito: 'ciclo_completo' as Proposito,
     edad_llegada: '',
+    edad_unidad: 'semanas' as UnidadEdad,
     fecha_inicio_postura: '',
     fecha_salida_programada: '',
     semanas_ciclo_postura: '',
@@ -66,7 +65,8 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, 
       linea_genetica: lote.linea_genetica ?? '',
       referencia_id: lote.referencia_id ?? '',
       proposito: lote.proposito,
-      edad_llegada: edadAlLlegar(lote),
+      edad_llegada: edadAlLlegar(lote).valor,
+      edad_unidad: edadAlLlegar(lote).unidad,
       fecha_inicio_postura: lote.fecha_inicio_postura ?? '',
       fecha_salida_programada: lote.fecha_salida_programada ?? '',
       semanas_ciclo_postura: lote.semanas_ciclo_postura != null ? String(lote.semanas_ciclo_postura) : '60',
@@ -100,16 +100,21 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, 
   const lineas = form.linea_genetica && !LINEAS_PONEDORAS.includes(form.linea_genetica)
     ? [form.linea_genetica, ...LINEAS_PONEDORAS]
     : LINEAS_PONEDORAS
-  const edadHoy = form.edad_llegada.trim() !== '' && Number(form.edad_llegada) >= 0
-    ? semanaDeVida(nacimientoDesdeEdad(form.fecha_inicio || lote.fecha_inicio, Number(form.edad_llegada)), hoyLocal())
+  // La edad tal como se guardó: si no cambió (ni la entrada), se respeta la fecha de nacimiento guardada
+  const edadSinCambios = form.edad_llegada === edadAlLlegar(lote).valor && form.edad_unidad === edadAlLlegar(lote).unidad
+    && (form.fecha_inicio || lote.fecha_inicio) === lote.fecha_inicio
+  const edadSemanas = form.edad_llegada.trim() !== '' && Number(form.edad_llegada) >= 0 ? edadASemanas(Number(form.edad_llegada), form.edad_unidad) : null
+  const edadHoy = edadSemanas != null
+    ? semanaDeVida(edadSinCambios ? lote.fecha_nacimiento : nacimientoDesdeEdad(form.fecha_inicio || lote.fecha_inicio, edadSemanas), hoyLocal())
     : null
 
   const guia = useReferencia(form.referencia_id || null)
-  const nacimientoForm = form.edad_llegada.trim() !== '' && Number(form.edad_llegada) >= 0
-    ? (form.edad_llegada === edadAlLlegar(lote) && (form.fecha_inicio || lote.fecha_inicio) === lote.fecha_inicio
-        ? lote.fecha_nacimiento
-        : nacimientoDesdeEdad(form.fecha_inicio || lote.fecha_inicio, Number(form.edad_llegada)))
+  const base = useBaseFinca()
+  const nacimientoForm = edadSemanas != null
+    ? (edadSinCambios ? lote.fecha_nacimiento : nacimientoDesdeEdad(form.fecha_inicio || lote.fecha_inicio, edadSemanas))
     : null
+  // En levante, la postura se escribe como semana de vida (con nacimiento) y se guarda como fecha
+  const semanaPosturaActual = nacimientoForm && form.fecha_inicio_postura ? semanaDeVida(nacimientoForm, form.fecha_inicio_postura) : null
   const semanasCiclo = semanasDelCiclo(nacimientoForm, form.fecha_inicio_postura || null, form.semanas_ciclo_postura ? Number(form.semanas_ciclo_postura) : null)
   const pico = form.meta_postura_pct ? Number(form.meta_postura_pct) : null
 
@@ -120,16 +125,11 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const edad = form.edad_llegada.trim()
-    if (edad !== '' && (!Number.isFinite(Number(edad)) || Number(edad) < 0 || Number(edad) > 120)) {
-      toast.error('La edad al llegar debe estar entre 0 y 120 semanas'); return
+    if (edad !== '' && (!Number.isFinite(Number(edad)) || Number(edad) < 0 || edadASemanas(Number(edad), form.edad_unidad) > 120)) {
+      toast.error('La edad al llegar debe estar entre 0 y 120 semanas (840 días)'); return
     }
     // La fecha de nacimiento solo se recalcula si cambió la edad o la entrada: si no, se respeta la guardada
-    const fechaInicio = form.fecha_inicio || lote.fecha_inicio
-    const fecha_nacimiento = edad === ''
-      ? null
-      : edad === edadAlLlegar(lote) && fechaInicio === lote.fecha_inicio
-        ? lote.fecha_nacimiento
-        : nacimientoDesdeEdad(fechaInicio, Number(edad))
+    const fecha_nacimiento = edad === '' ? null : nacimientoForm
     setLoading(true)
     const payload = {
       linea_genetica: form.linea_genetica || null,
@@ -196,13 +196,12 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, 
                 De esta fecha salen la edad del lote y las semanas de preparación: corrígela si se digitó mal.
               </p>
             </div>
-            <div className="space-y-1">
-              <Label>Edad al llegar (semanas)</Label>
-              <Input type="number" min="0" max="120" step="0.1" placeholder="Ej: 0" value={form.edad_llegada} onChange={e => set('edad_llegada', e.target.value)} />
-              <p className="text-xs text-gray-400">
-                {edadHoy != null ? `Hoy van en la semana ${edadHoy} de vida.` : 'Sin la edad no se puede comparar con la guía de la línea.'}
-              </p>
-            </div>
+            <EdadAlLlegarInput
+              valor={form.edad_llegada} unidad={form.edad_unidad}
+              onChange={(valor, unidad) => setForm(p => ({ ...p, edad_llegada: valor, edad_unidad: unidad }))}
+              placeholder="Ej: 0"
+              ayuda={edadHoy != null ? `Hoy van en la semana ${edadHoy} de vida.` : 'Sin la edad no se puede comparar con la guía de la línea.'}
+            />
             <div className="space-y-1">
               <Label>Línea genética</Label>
               <Select value={form.linea_genetica} onValueChange={v => set('linea_genetica', v)} items={Object.fromEntries(lineas.map(l => [l, l]))}>
@@ -231,13 +230,27 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, 
               onChange={v => set('referencia_id', v)}
               seguirLinea={false}
             />
-            {enLevante ? (
+            {enLevante ? (form.proposito === 'venta_levante' ? null : nacimientoForm ? (
               <div className="space-y-1">
-                <Label>¿Cuándo se espera que pongan?</Label>
-                <Input type="date" value={form.fecha_inicio_postura} onChange={e => set('fecha_inicio_postura', e.target.value)} />
-                <p className="text-xs text-gray-400">Estimado: si pasa la fecha sin postura, avisa que va atrasada</p>
+                <Label>¿En qué semana de vida empiezan a poner?</Label>
+                <Input type="number" min="1" max="120" step="1" placeholder="Ej: 19"
+                  value={semanaPosturaActual != null ? String(semanaPosturaActual) : ''}
+                  onChange={e => {
+                    const n = Number(e.target.value)
+                    set('fecha_inicio_postura', e.target.value.trim() !== '' && Number.isInteger(n) && n >= 1 && n <= 120 ? fechaDeSemanaDeVida(nacimientoForm, n) : '')
+                  }} />
+                <p className="text-xs text-gray-400">
+                  {form.fecha_inicio_postura ? `Hacia el ${new Date(form.fecha_inicio_postura + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}. ` : ''}
+                  Si pasa sin postura, avisa que va atrasada.
+                </p>
               </div>
             ) : (
+              <div className="space-y-1">
+                <Label>¿Cuándo empiezan a poner?</Label>
+                <Input type="date" value={form.fecha_inicio_postura} onChange={e => set('fecha_inicio_postura', e.target.value)} />
+                <p className="text-xs text-gray-400">Con la edad al llegar se puede poner como semana de vida. Si pasa sin postura, avisa que va atrasada.</p>
+              </div>
+            )) : (
               <div className="space-y-1">
                 <Label>Fecha de inicio real de postura</Label>
                 <Input type="date" value={form.fecha_inicio_postura} onChange={e => set('fecha_inicio_postura', e.target.value)} />
@@ -274,7 +287,7 @@ export default function ConfigurarGalponModal({ open, onClose, lote, onUpdated, 
             <MetasSemanalesEditor
               semanas={semanasCiclo} metas={metas} onChange={setMetas}
               aves={lote.aves_actuales} pico={pico}
-              semanaInicio={semanasCiclo[0] ?? null} guia={guia}
+              semanaInicio={semanasCiclo[0] ?? null} guia={guia} base={base}
             />
           )}
 

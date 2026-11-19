@@ -3,7 +3,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useFinca } from '@/components/agro/FincaProvider'
-import { useRol } from '@/components/agro/RolProvider'
+import { useRolFinca } from '@/components/agro/RolProvider'
+import { permisos, ROLES_ASIGNABLES, NOMBRE_ROL, type RolFinca } from '@/lib/roles'
+import { dbGenerico } from '@/lib/especiesConfig'
+import { toast } from 'sonner'
+import CodigosFinca from '@/components/agro/operarios/CodigosFinca'
+import DesempenoEquipo from '@/components/agro/operarios/DesempenoEquipo'
 import { getOperarios, actualizarEstadoOperario } from '@/lib/supabase/actions'
 import InvitarOperarioModal from '@/components/agro/operarios/InvitarOperarioModal'
 import EditarOperarioModal from '@/components/agro/operarios/EditarOperarioModal'
@@ -21,10 +26,10 @@ import { cn } from '@/lib/utils'
 import { hoyLocal } from '@/lib/fechas'
 import { Ic } from '@/components/ui/icon'
 
-type Operario = { id: string; full_name: string | null; cargo: string | null; activo: boolean; email: string | null; pago_monto: number | null; pago_periodo: string | null }
+type Operario = { id: string; full_name: string | null; cargo: string | null; activo: boolean; email: string | null; pago_monto: number | null; pago_periodo: string | null; rol: RolFinca; tipo_contrato?: string | null }
 
 const PERIODO_LABEL: Record<string, string> = {
-  mensual: 'mensual', quincenal: 'quincenal', semanal: 'semanal', diario: 'diario', por_tarea: 'por tarea',
+  mensual: 'mensual', quincenal: 'quincenal', semanal: 'semanal', diario: 'diario', por_hora: 'hora', por_tarea: 'por tarea',
 }
 
 function cop(n: number) {
@@ -32,7 +37,7 @@ function cop(n: number) {
 }
 type Turno = { id: string; operario_id: string; fecha: string; hora_inicio: string; hora_fin: string | null; area: string | null }
 
-type Tab = 'turnos' | 'tareas'
+type Tab = 'turnos' | 'tareas' | 'desempeno'
 
 function fmt(d: string) {
   return new Date(d + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })
@@ -40,7 +45,7 @@ function fmt(d: string) {
 
 export default function OperariosPage() {
   const { fincaActual, loading: fincaLoading } = useFinca()
-  const rol = useRol()
+  const { manejarEquipo, verNomina } = permisos(useRolFinca())
   const supabase = createClient()
 
   const [operarios, setOperarios] = useState<Operario[]>([])
@@ -99,7 +104,45 @@ export default function OperariosPage() {
 
   if (fincaLoading) return <div className="p-8"><Skeleton className="h-8 w-64 mb-6" /><Skeleton className="h-64 rounded-xl" /></div>
 
-  if (rol === 'trabajador') {
+  async function cambiarRol(op: Operario, rol: string) {
+    if (!fincaActual) return
+    const { error } = await dbGenerico(supabase).rpc('cambiar_rol_miembro', { p_finca: fincaActual.id, p_perfil: op.id, p_rol: rol })
+    if (error) { toast.error(error.message); return }
+    setOperarios(prev => prev.map(o => o.id === op.id ? { ...o, rol: rol as RolFinca } : o))
+    toast.success(`${op.full_name ?? 'La persona'} ahora es ${NOMBRE_ROL[rol as RolFinca]}`)
+  }
+
+  // Contabilidad y nómina: solo el desempeño y el pago del equipo
+  if (!manejarEquipo && verNomina) {
+    if (!fincaActual) return null
+    return (
+      <div className="space-y-6 p-4 md:p-8">
+        <div>
+          <h2 className="font-heading text-3xl font-medium text-gray-900">Nómina</h2>
+          <p className="mt-1 text-gray-500">Lo que trabajó cada persona del equipo y lo que le toca por eso</p>
+        </div>
+        {loading ? <Skeleton className="h-64 rounded-xl" /> : (
+          <>
+            <DesempenoEquipo fincaId={fincaActual.id} fincaNombre={fincaActual.nombre} operarios={operarios} />
+            <div className="superficie rounded-2xl p-4">
+              <p className="mb-3 text-sm font-medium text-gray-800">Contrato y pago de cada persona</p>
+              <ul className="divide-y divide-gray-100">
+                {operarios.map(op => (
+                  <li key={op.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+                    <span><span className="font-medium text-gray-900">{op.full_name ?? '—'}</span> <span className="text-gray-500">· {NOMBRE_ROL[op.rol]}</span></span>
+                    <Button size="sm" variant="outline" className="text-xs" onClick={() => setOperarioEditar(op)}>Contrato y pago</Button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </>
+        )}
+        <EditarOperarioModal open={!!operarioEditar} onClose={() => setOperarioEditar(null)} fincaId={fincaActual.id} operario={operarioEditar} onUpdated={fetchAll} />
+      </div>
+    )
+  }
+
+  if (!manejarEquipo) {
     if (!fincaActual) return null
     return <MiPerfilOperario fincaId={fincaActual.id} />
   }
@@ -127,12 +170,19 @@ export default function OperariosPage() {
           ) : (
             <Table>
               <TableHeader>
-                <TableRow><TableHead>Nombre</TableHead><TableHead>Cargo</TableHead><TableHead>Correo</TableHead><TableHead>Pago</TableHead><TableHead>Estado</TableHead><TableHead></TableHead></TableRow>
+                <TableRow><TableHead>Nombre</TableHead><TableHead>Rol</TableHead><TableHead>Cargo</TableHead><TableHead>Correo</TableHead><TableHead>Pago</TableHead><TableHead>Estado</TableHead><TableHead></TableHead></TableRow>
               </TableHeader>
               <TableBody>
                 {operarios.map(op => (
                   <TableRow key={op.id}>
                     <TableCell className="font-medium text-sm">{op.full_name ?? '—'}</TableCell>
+                    <TableCell>
+                      <select value={op.rol === 'trabajador' ? 'operario' : op.rol} onChange={e => cambiarRol(op, e.target.value)}
+                        aria-label={`Rol de ${op.full_name ?? 'la persona'}`}
+                        className="h-8 rounded-md border border-gray-200 bg-white px-1.5 text-sm">
+                        {ROLES_ASIGNABLES.map(r => <option key={r.v} value={r.v}>{r.t}</option>)}
+                      </select>
+                    </TableCell>
                     <TableCell className="text-sm text-gray-500">{op.cargo ?? '—'}</TableCell>
                     <TableCell className="text-sm text-gray-500 font-mono">{op.email ?? '—'}</TableCell>
                     <TableCell className="text-sm text-gray-500">
@@ -159,8 +209,10 @@ export default function OperariosPage() {
         </CardContent>
       </Card>
 
+      {fincaActual && <CodigosFinca fincaId={fincaActual.id} />}
+
       <div className="flex gap-2 border-b border-gray-200">
-        {([{ id: 'turnos' as const, label: 'Turnos' }, { id: 'tareas' as const, label: 'Tareas' }]).map(t => (
+        {([{ id: 'turnos' as const, label: 'Turnos' }, { id: 'tareas' as const, label: 'Tareas' }, { id: 'desempeno' as const, label: 'Desempeño y pago' }]).map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
             className={cn('px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors', tab === t.id ? 'border-green-600 text-green-700' : 'border-transparent text-gray-500 hover:text-gray-700')}>
             {t.label}
@@ -168,7 +220,9 @@ export default function OperariosPage() {
         ))}
       </div>
 
-      {tab === 'turnos' ? (
+      {tab === 'desempeno' ? (
+        fincaActual && <DesempenoEquipo fincaId={fincaActual.id} fincaNombre={fincaActual.nombre} operarios={operarios} />
+      ) : tab === 'turnos' ? (
         <div className="space-y-3">
           <div className="flex justify-end">
             <Button variant="outline" className="text-sm" onClick={() => setShowFormTurno(v => !v)}>+ Registrar turno</Button>

@@ -12,7 +12,7 @@ import { huevosDeMeta, proponerMetas, type MetasSemanales } from '@/lib/metasPos
  * La meta de postura de cada semana, en %. Debajo de cada semana se ve cuántos
  * huevos son con las aves del galpón: la meta en huevos nunca se escribe.
  */
-export default function MetasSemanalesEditor({ semanas, metas, onChange, aves, pico, semanaInicio, guia }: {
+export default function MetasSemanalesEditor({ semanas, metas, onChange, aves, pico, semanaInicio, guia: guiaLote, base }: {
   /** Semanas de vida del ciclo de postura */
   semanas: number[]
   metas: MetasSemanales
@@ -23,12 +23,17 @@ export default function MetasSemanalesEditor({ semanas, metas, onChange, aves, p
   pico: number | null
   semanaInicio: number | null
   guia?: Map<number, FilaReferencia>
+  /** La tabla base de la finca: si la hay, propone desde ella y no desde la guía */
+  base?: Map<number, FilaReferencia>
 }) {
+  const conBase = base != null && base.size > 0
+  const guia = conBase ? base : guiaLote
   const [abierto, setAbierto] = useState(false)
   const conMeta = semanas.filter(s => metas[s] != null).length
   // Lo que rige en cada semana sin meta propia: la guía o la subida hasta el pico
   const propuesta = proponerMetas(semanas, pico, semanaInicio, guia)
   const hayGuia = guia != null && guia.size > 0
+  const nombreGuia = conBase ? 'la tabla base de la finca' : 'la guía de la línea'
 
   if (semanas.length === 0) {
     return (
@@ -59,8 +64,8 @@ export default function MetasSemanalesEditor({ semanas, metas, onChange, aves, p
           <Label>Meta de postura por semana (%)</Label>
           <p className="text-xs text-gray-500">
             {conMeta > 0
-              ? `${conMeta} de ${semanas.length} semanas con meta propia. Las demás usan ${hayGuia ? 'la guía de la línea' : 'la meta de pico'}.`
-              : `Sin metas propias: se usa ${hayGuia ? 'la guía de la línea' : 'la meta de pico'} de cada semana.`}
+              ? `${conMeta} de ${semanas.length} semanas con meta propia. Las demás usan ${hayGuia ? nombreGuia : 'la meta de pico'}.`
+              : `Sin metas propias: se usa ${hayGuia ? nombreGuia : 'la meta de pico'} de cada semana.`}
           </p>
         </div>
         <Button type="button" size="sm" variant="outline" onClick={() => setAbierto(v => !v)}>
@@ -72,7 +77,7 @@ export default function MetasSemanalesEditor({ semanas, metas, onChange, aves, p
         <>
           <div className="flex flex-wrap gap-2">
             <Button type="button" size="sm" variant="ghost" onClick={conMeta > 0 ? proponer : reemplazar}>
-              {conMeta > 0 ? 'Llenar las que faltan' : 'Llenar todas'} con {hayGuia ? 'la guía' : 'una subida hasta el pico'}
+              {conMeta > 0 ? 'Llenar las que faltan' : 'Llenar todas'} con {hayGuia ? (conBase ? 'la tabla base' : 'la guía') : 'una subida hasta el pico'}
             </Button>
             {conMeta > 0 && (
               <Button type="button" size="sm" variant="ghost" className="text-red-600" onClick={() => onChange({})}>

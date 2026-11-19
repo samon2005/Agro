@@ -10,12 +10,14 @@ import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
 import { Ic } from '@/components/ui/icon'
 import MediaFinca from '@/components/agro/MediaFinca'
+import { usarCodigoFinca } from '@/lib/codigoFinca'
 
 export default function RegisterPage() {
   const router = useRouter()
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [codigo, setCodigo] = useState('')
   const [loading, setLoading] = useState(false)
 
   async function handleRegister(e: React.FormEvent) {
@@ -32,6 +34,16 @@ export default function RegisterPage() {
       const supabase = createClient()
       const { error: loginError } = await supabase.auth.signInWithPassword({ email, password })
       if (loginError) throw loginError
+
+      // Con código entra de una vez a la finca que lo invitó, con su rol
+      if (codigo.trim()) {
+        try {
+          const r = await usarCodigoFinca(supabase, codigo)
+          toast.success(`Entraste a ${r.fincaNombre}`)
+        } catch (err) {
+          toast.error(`La cuenta quedó creada, pero el código no sirvió: ${err instanceof Error ? err.message : ''} Puedes escribirlo de nuevo adentro.`)
+        }
+      }
 
       toast.success('¡Cuenta creada!')
       router.push('/dashboard')
@@ -88,6 +100,11 @@ export default function RegisterPage() {
             <div className="space-y-1.5">
               <label htmlFor="password" className="text-sm font-medium text-gray-700">Contraseña</label>
               <Input id="password" type="password" placeholder="Mínimo 8 caracteres" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} autoComplete="new-password" className="h-10" />
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="codigo" className="text-sm font-medium text-gray-700">Código de la finca <span className="font-normal text-gray-400">(si te invitaron)</span></label>
+              <Input id="codigo" type="text" placeholder="Ej: AVI-7K3P" value={codigo} onChange={(e) => setCodigo(e.target.value.toUpperCase())} autoComplete="off" className="h-10 font-mono tracking-wider" />
+              <p className="text-xs text-gray-500">Te lo da el administrador de la finca. Si vas a crear tu propia finca, déjalo vacío.</p>
             </div>
             <Button type="submit" size="lg" className="w-full" disabled={loading}>
               {loading ? 'Creando cuenta…' : 'Crear cuenta'}

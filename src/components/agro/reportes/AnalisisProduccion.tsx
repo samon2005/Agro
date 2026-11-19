@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import FiltroPeriodo from './FiltroPeriodo'
+import { useBaseFinca } from '@/lib/useBaseFinca'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { useProduccionFinca } from '@/lib/useProduccionFinca'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -43,6 +44,8 @@ export default function AnalisisProduccion({ fincaId, periodo: periodoDado, lote
   const dias = useMemo(() => filtrarPorPeriodo((datos?.dias ?? []).filter(d => !loteId || d.lote_id === loteId), periodo), [datos, periodo, loteId])
   const guias = useMemo(() => datos?.guias ?? new Map<string, Map<number, FilaReferencia>>(), [datos])
   const [elegido, setElegido] = useState<string>('todos')
+  // La tabla base de la finca (lib/configAves), dibujada al lado de la guía
+  const base = useBaseFinca()
 
   const vista = useMemo(() => {
     if (!lotes) return null
@@ -63,12 +66,12 @@ export default function AnalisisProduccion({ fincaId, periodo: periodoDado, lote
     }
     const guia = ls.map(l => l.referencia_id && guias.get(l.referencia_id)).find(Boolean) || null
     const curva: Record<string, number | null>[] = [...filasSemana.values()].sort((a, b) => (a.semana ?? 0) - (b.semana ?? 0))
-      .map(f => ({ ...f, guia: guia ? esperadoDeSemana(guia, f.semana)?.postura ?? null : null }))
+      .map(f => ({ ...f, guia: guia ? esperadoDeSemana(guia, f.semana)?.postura ?? null : null, base: base.size > 0 ? esperadoDeSemana(base, f.semana)?.postura ?? null : null }))
     const conTamanos = meses.filter(m => m.a.clasificados > 0)
     const mesMasC = conTamanos.filter(m => m.a.clasificados >= 1000)
       .reduce<{ mes: string; p: number } | null>((mx, m) => { const p = parteDe(m.a, 'c') ?? 0; return !mx || p > mx.p ? { mes: m.mes, p } : mx }, null)
-    return { conDias, ls, meses, curva, conTamanos, mesMasC, resumen: resumenLotes(ds, ls), hayGuia: guia != null }
-  }, [lotes, dias, guias, elegido])
+    return { conDias, ls, meses, curva, conTamanos, mesMasC, resumen: resumenLotes(ds, ls), hayGuia: guia != null, hayBase: base.size > 0 }
+  }, [lotes, dias, guias, elegido, base])
 
   if (!lotes || !vista) return <Skeleton className="h-96 rounded-2xl" />
   if (vista.conDias.length === 0) return (
@@ -127,13 +130,14 @@ export default function AnalisisProduccion({ fincaId, periodo: periodoDado, lote
                   <YAxis {...EJE_Y} domain={[0, 100]} tickFormatter={v => `${v} %`} />
                   <Tooltip cursor={CURSOR_LINEA} content={<TooltipGrafico formato={pct} titulo={s => `Semana ${s}`} />} />
                   {vista.hayGuia && <Line dataKey="guia" name="Guía" stroke={TINTA.tenue} strokeWidth={1.5} strokeDasharray="5 4" dot={false} connectNulls isAnimationActive={false} />}
+                  {vista.hayBase && <Line dataKey="base" name="Tabla base" stroke={C.sobra} strokeWidth={1.5} strokeDasharray="2 3" dot={false} connectNulls isAnimationActive={false} />}
                   {ls.map(l => (
                     <Line key={l.id} dataKey={l.id} name={l.nombre} stroke={colorLote(l.id)} strokeWidth={2.25} dot={false} connectNulls isAnimationActive={false} />
                   ))}
                 </LineChart>
               </ResponsiveContainer>
             </div>
-            <Leyenda items={[...ls.map(l => ({ nombre: l.nombre, color: colorLote(l.id) })), ...(vista.hayGuia ? [{ nombre: 'Guía', color: TINTA.tenue }] : [])]} />
+            <Leyenda items={[...ls.map(l => ({ nombre: l.nombre, color: colorLote(l.id) })), ...(vista.hayGuia ? [{ nombre: 'Guía', color: TINTA.tenue }] : []), ...(vista.hayBase ? [{ nombre: 'Tabla base de la finca', color: C.sobra }] : [])]} />
           </>)}
         </PanelDatos>
 

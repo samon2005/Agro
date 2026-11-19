@@ -12,7 +12,8 @@ import TabDiarioCerdos from '@/components/agro/cerdos/diario/TabDiarioCerdos'
 import TabReproduccion from '@/components/agro/cerdos/reproduccion/TabReproduccion'
 import AlimentoCorral from '@/components/agro/cerdos/corral/AlimentoCorral'
 import TableroReportes from '@/components/agro/reportes/TableroReportes'
-import { useRol } from '@/components/agro/RolProvider'
+import { useRol, useRolFinca } from '@/components/agro/RolProvider'
+import { permisos } from '@/lib/roles'
 import { edadTexto } from '@/lib/cerdos'
 import { usoCorralLabel, esNaveDeCria, arbolNaves, nombrePuestos } from '@/lib/instalaciones'
 import type { Database } from '@/types/database'
@@ -47,6 +48,7 @@ const SUELTOS = 'sueltos'
 export default function CerdosPage() {
   const { fincaActual, loading: fincaLoading, refetch: refetchFinca } = useFinca()
   const rol = useRol()
+  const { manejarLotes } = permisos(useRolFinca())
   const supabase = createClient()
   const [lugares, setLugares] = useState<Instalacion[]>([])
   const [lotes, setLotes] = useState<LoteCerdos[]>([])
@@ -194,16 +196,16 @@ export default function CerdosPage() {
           </p>
         </div>
         <div className="flex items-center gap-1">
-          {rol !== 'trabajador' && (
+          {manejarLotes && (
             <button onClick={() => setModalParametros(true)}
               className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm text-gray-500 transition-colors hover:bg-white hover:text-gray-800">
               <Ic n="grafica" className="size-4" /> Parámetros
             </button>
           )}
-          <button onClick={() => setModalFinca(true)}
+          {manejarLotes && <button onClick={() => setModalFinca(true)}
             className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm text-gray-500 transition-colors hover:bg-white hover:text-gray-800">
             <Ic n="ajustes" className="size-4" /> Naves y finca
-          </button>
+          </button>}
         </div>
       </div>
 

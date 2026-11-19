@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/button'
 import { Ic } from '@/components/ui/icon'
 import { cn } from '@/lib/utils'
 import { useFinca } from './FincaProvider'
-import { useRol } from './RolProvider'
+import { useRolFinca } from './RolProvider'
+import { permisos } from '@/lib/roles'
 import { ESPECIES_FINCA, type EspecieFinca } from '@/lib/especies'
 
 const NOMBRE_ESPECIE: Record<EspecieFinca, string> = {
@@ -24,7 +25,7 @@ const NOMBRE_ESPECIE: Record<EspecieFinca, string> = {
  */
 export default function ElegirEspecieFinca() {
   const { fincaActual, refetch } = useFinca()
-  const rol = useRol()
+  const puedeElegir = permisos(useRolFinca()).configurarFinca
   const [especie, setEspecie] = useState<EspecieFinca | null>(null)
   const [guardando, setGuardando] = useState(false)
 
@@ -57,7 +58,7 @@ export default function ElegirEspecieFinca() {
             Esta finca todavía no tiene una elegida.
           </p>
         </DialogHeader>
-        {rol === 'trabajador' ? (
+        {!puedeElegir ? (
           <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
             Pídele al dueño de la finca que entre y elija qué produce.
           </p>

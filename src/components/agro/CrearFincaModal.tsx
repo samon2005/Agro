@@ -13,6 +13,7 @@ import { geocodeMunicipio } from '@/lib/clima'
 import { Ic } from '@/components/ui/icon'
 import { cn } from '@/lib/utils'
 import { LUGAR, USOS_CORRAL, llevaLugares } from '@/lib/instalaciones'
+import { usarCodigoFinca } from '@/lib/codigoFinca'
 
 const UNIDAD_OTRA = '__otra__'
 
@@ -236,6 +237,8 @@ export default function CrearFincaModal({ open, onCreated }: Props) {
           )}
         </DialogHeader>
 
+        {paso === 0 && <TengoCodigo onEntro={onCreated} />}
+
         {paso === 0 ? (
           <form onSubmit={siguiente} className="mt-2 space-y-4">
             <div className="space-y-1.5">
@@ -372,5 +375,49 @@ export default function CrearFincaModal({ open, onCreated }: Props) {
         )}
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** Para quien trabaja en una finca ajena: entra con el código que le dio el administrador. */
+function TengoCodigo({ onEntro }: { onEntro: () => void }) {
+  const [abierto, setAbierto] = useState(false)
+  const [codigo, setCodigo] = useState('')
+  const [entrando, setEntrando] = useState(false)
+
+  async function entrar(e: React.FormEvent) {
+    e.preventDefault()
+    if (!codigo.trim()) return
+    setEntrando(true)
+    try {
+      const r = await usarCodigoFinca(createClient(), codigo)
+      toast.success(`Entraste a ${r.fincaNombre}`)
+      onEntro()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'El código no sirvió')
+    }
+    setEntrando(false)
+  }
+
+  if (!abierto) {
+    return (
+      <button type="button" onClick={() => setAbierto(true)}
+        className="mt-1 w-full rounded-xl border border-dashed border-green-300 bg-green-50/60 px-3 py-2.5 text-left text-sm text-green-900 hover:bg-green-50">
+        <span className="font-medium">¿Trabajas en una finca que ya está en la app?</span>{' '}
+        <span className="text-green-700 underline underline-offset-2">Tengo un código</span>
+      </button>
+    )
+  }
+  return (
+    <form onSubmit={entrar} className="mt-1 space-y-2 rounded-xl border border-green-200 bg-green-50/60 p-3">
+      <Label htmlFor="codigo-finca">Código de la finca</Label>
+      <div className="flex gap-2">
+        <Input id="codigo-finca" autoFocus placeholder="Ej: AVI-7K3P" value={codigo}
+          onChange={e => setCodigo(e.target.value.toUpperCase())} className="font-mono tracking-wider" />
+        <Button type="submit" disabled={entrando || !codigo.trim()} className="bg-green-700 text-white hover:bg-green-800">
+          {entrando ? 'Entrando…' : 'Entrar'}
+        </Button>
+      </div>
+      <p className="text-xs text-gray-500">Te lo da el administrador de la finca. Entras con el rol que él eligió.</p>
+    </form>
   )
 }
