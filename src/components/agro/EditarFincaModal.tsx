@@ -82,6 +82,8 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated, onDe
   const [eliminando, setEliminando] = useState(false)
   // Parámetros de aves de la finca (lib/configAves): desde qué % de rotos avisar
   const [umbralRotos, setUmbralRotos] = useState('')
+  // La "encuesta inicial" de cómo trabaja la finca con sus aves (José, 19 nov 2026)
+  const [encuesta, setEncuesta] = useState({ semanaVentaPollas: '', semanaFinProduccion: '', avisoPosturaSemanas: '', avisoVentaDias: '', densidadMaxAvesM2: '', checklist: '' })
   // La tabla base de la finca, "lo que se quiere tener" (lib/configAves)
   const [baseId, setBaseId] = useState('')
 
@@ -98,6 +100,14 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated, onDe
     setEspecies((finca.tipo_produccion ?? []) as EspecieFinca[])
     setUmbralRotos(String(leerConfigAves(finca.config_aves).umbralRotosPct))
     setBaseId(leerConfigAves(finca.config_aves).baseReferenciaId ?? '')
+    {
+      const c = leerConfigAves(finca.config_aves)
+      setEncuesta({
+        semanaVentaPollas: String(c.semanaVentaPollas), semanaFinProduccion: String(c.semanaFinProduccion),
+        avisoPosturaSemanas: String(c.avisoPosturaSemanas), avisoVentaDias: String(c.avisoVentaDias),
+        densidadMaxAvesM2: String(c.densidadMaxAvesM2), checklist: c.checklistVentaPropio.join('\n'),
+      })
+    }
     setAreaValor(finca.area_valor != null ? String(finca.area_valor) : '')
     const unidadActual = finca.area_unidad ?? 'ha'
     setAreaUnidad(unidadActual === 'ha' || unidadActual === 'm2' ? unidadActual : (unidadActual ? UNIDAD_OTRA : 'ha'))
@@ -171,7 +181,14 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated, onDe
         area_valor: areaNum,
         area_unidad: areaNum && unidadFinal ? unidadFinal : null,
         ...(especies.includes('aves_ponedoras')
-          ? { config_aves: configAvesParaGuardar({ ...leerConfigAves(finca.config_aves), umbralRotosPct: Number(umbralRotos) > 0 ? Number(umbralRotos) : 3, baseReferenciaId: baseId || null }) }
+          ? { config_aves: configAvesParaGuardar(leerConfigAves({
+            ...(leerConfigAves(finca.config_aves) as unknown as Record<string, Json>),
+            umbralRotosPct: Number(umbralRotos) > 0 ? Number(umbralRotos) : 3, baseReferenciaId: baseId || null,
+            semanaVentaPollas: Number(encuesta.semanaVentaPollas), semanaFinProduccion: Number(encuesta.semanaFinProduccion),
+            avisoPosturaSemanas: Number(encuesta.avisoPosturaSemanas), avisoVentaDias: Number(encuesta.avisoVentaDias),
+            densidadMaxAvesM2: Number(encuesta.densidadMaxAvesM2),
+            checklistVentaPropio: encuesta.checklist.split('\n').map(x => x.trim()).filter(Boolean),
+          })) }
           : {}),
       })
       .eq('id', finca.id)
@@ -316,6 +333,32 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated, onDe
                 <span className="text-sm text-gray-500">% de rotos en la semana</span>
               </div>
               <p className="text-xs text-gray-400">Las guías buscan menos de 3 %. Si se pasa, o si los rotos suben de golpe, el galpón sugiere revisar la clasificadora.</p>
+            </div>
+          )}
+          {especies.includes('aves_ponedoras') && (
+            <div className="space-y-2 rounded-lg border border-gray-200 p-3">
+              <Label>Cómo trabaja la finca con sus aves</Label>
+              <p className="text-xs text-gray-400">Cambia de un productor a otro. Con esto el registro de aves propone las fechas y la app avisa a tiempo.</p>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="space-y-0.5 text-xs text-gray-600">Las pollas se venden en la semana
+                  <div className="flex items-center gap-1.5"><Input type="number" className="h-8 w-20" value={encuesta.semanaVentaPollas} onChange={e => setEncuesta(p => ({ ...p, semanaVentaPollas: e.target.value }))} /><span className="text-gray-400">de vida</span></div>
+                </label>
+                <label className="space-y-0.5 text-xs text-gray-600">La producción termina en la semana
+                  <div className="flex items-center gap-1.5"><Input type="number" className="h-8 w-20" value={encuesta.semanaFinProduccion} onChange={e => setEncuesta(p => ({ ...p, semanaFinProduccion: e.target.value }))} /><span className="text-gray-400">de vida</span></div>
+                </label>
+                <label className="space-y-0.5 text-xs text-gray-600">Avisar antes de la postura
+                  <div className="flex items-center gap-1.5"><Input type="number" className="h-8 w-20" value={encuesta.avisoPosturaSemanas} onChange={e => setEncuesta(p => ({ ...p, avisoPosturaSemanas: e.target.value }))} /><span className="text-gray-400">semanas</span></div>
+                </label>
+                <label className="space-y-0.5 text-xs text-gray-600">Avisar antes de una venta
+                  <div className="flex items-center gap-1.5"><Input type="number" className="h-8 w-20" value={encuesta.avisoVentaDias} onChange={e => setEncuesta(p => ({ ...p, avisoVentaDias: e.target.value }))} /><span className="text-gray-400">días</span></div>
+                </label>
+                <label className="space-y-0.5 text-xs text-gray-600">Densidad máxima
+                  <div className="flex items-center gap-1.5"><Input type="number" className="h-8 w-20" value={encuesta.densidadMaxAvesM2} onChange={e => setEncuesta(p => ({ ...p, densidadMaxAvesM2: e.target.value }))} /><span className="text-gray-400">aves/m²</span></div>
+                </label>
+              </div>
+              <label className="block space-y-0.5 text-xs text-gray-600">Puntos propios de la lista de chequeo antes de vender (uno por renglón)
+                <textarea rows={2} className="w-full rounded-lg border border-gray-200 px-2 py-1 text-sm" value={encuesta.checklist} onChange={e => setEncuesta(p => ({ ...p, checklist: e.target.value }))} />
+              </label>
             </div>
           )}
           {/* Los lugares fijos de la finca: galpones de aves o corrales de cerdos */}

@@ -12,6 +12,7 @@ import TableroReportes from '@/components/agro/reportes/TableroReportes'
 import AnalisisProduccion from '@/components/agro/reportes/AnalisisProduccion'
 import AnalisisFinca from '@/components/agro/reportes/AnalisisFinca'
 import ComparadorLineas from '@/components/agro/reportes/ComparadorLineas'
+import PrecioCerdo from '@/components/agro/reportes/PrecioCerdo'
 import AvisoImportados from '@/components/agro/comun/AvisoImportados'
 import { ESPECIES_FINCA, especiesDeFinca, nombreSeccion, type EspecieFinca } from '@/lib/especies'
 
@@ -22,7 +23,7 @@ import { ESPECIES_FINCA, especiesDeFinca, nombreSeccion, type EspecieFinca } fro
 export default function ReportesPage() {
   const { fincaActual, loading } = useFinca()
   const { verDinero, verReportes, verProduccion } = permisos(useRolFinca())
-  const [vista, setVista] = useState<EspecieFinca | 'finca' | 'historia' | 'lineas'>('finca')
+  const [vista, setVista] = useState<EspecieFinca | 'finca' | 'historia' | 'lineas' | 'precio'>('finca')
   if (loading || !fincaActual) return <div className="p-8"><Skeleton className="h-64 rounded-xl" /></div>
   // El operario y el recolector no ven reportes; el zootecnista ve la producción
   // sin la plata, y contabilidad la plata sin el análisis de los galpones
@@ -51,6 +52,8 @@ export default function ReportesPage() {
     // Toda la historia de los galpones: mejor y peor mes, mortalidad, lotes frente a la guía
     ...(verProduccion && especies.includes('aves_ponedoras') ? [{ id: 'historia' as const, label: 'Análisis de producción', icon: 'tendencia' as const }] : []),
     // Las guías de las líneas entre sí y contra los lotes reales
+    // El precio del cerdo en el mercado frente a las ventas propias (tipo trader)
+    ...(verDinero && especies.includes('cerdos') ? [{ id: 'precio' as const, label: 'Precio del cerdo', icon: 'precio' as const }] : []),
     ...(verProduccion && especies.includes('aves_ponedoras') ? [{ id: 'lineas' as const, label: 'Comparar líneas', icon: 'gallina' as const }] : []),
   ]
   const actual = pestanas.some(p => p.id === vista) ? vista : pestanas[0]?.id ?? 'finca'
@@ -74,7 +77,9 @@ export default function ReportesPage() {
         </div>
       )}
       {!fincaActual.sin_registro_ventas && <AvisoImportados fincaId={fincaActual.id} />}
-      {actual === 'lineas' ? (
+      {actual === 'precio' ? (
+        <PrecioCerdo key={fincaActual.id} fincaId={fincaActual.id} />
+      ) : actual === 'lineas' ? (
         <ComparadorLineas key={fincaActual.id} fincaId={fincaActual.id} />
       ) : actual === 'historia' ? (
         <div className="space-y-4">

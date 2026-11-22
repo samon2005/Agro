@@ -1,5 +1,8 @@
 'use client'
 
+import { useFinca } from '@/components/agro/FincaProvider'
+import { leerConfigAves } from '@/lib/configAves'
+import { checklistVenta } from '@/lib/registroAves'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
@@ -36,6 +39,8 @@ interface Props {
   /** Nombre de cualquier lote (también cerrados), para mostrar el de una venta vieja */
   nombreLote: (id: string) => string
   onGuardado: () => void
+  /** Si se abre desde un galpón: la venta sale de ese lote */
+  loteInicialId?: string
 }
 
 function esAves(t: Tipo) {
@@ -53,6 +58,8 @@ function formVacio(v?: VentaAvesLote | null) {
     descripcion: v?.descripcion ?? '',
     cliente: v?.cliente ?? '',
     observaciones: v?.observaciones ?? '',
+    peso_promedio_g: v?.peso_promedio_g != null ? String(v.peso_promedio_g) : '',
+    checklist: ((v?.checklist ?? {}) as Record<string, boolean>),
   }
 }
 
@@ -62,7 +69,11 @@ function formVacio(v?: VentaAvesLote | null) {
  * 14–15 semanas): las dos bajan las aves del galpón. Si el galpón queda vacío
  * se ofrece cerrar el lote para que quede libre para otras aves.
  */
-export default function RegistrarVentaAvesModal({ open, onClose, fincaId, ventaExistente, nombreLote, onGuardado }: Props) {
+export default function RegistrarVentaAvesModal({ open, onClose, fincaId, ventaExistente, nombreLote, onGuardado, loteInicialId }: Props) {
+  const { fincaActual } = useFinca()
+  const listaChequeo = checklistVenta(leerConfigAves(fincaActual?.config_aves))
+  // Lo que costó el lote, para la utilidad por ave (José)
+  const [costoLote, setCostoLote] = useState<{ lote: string; costo: number; aves: number } | null>(null)
   const supabase = createClient()
   const [form, setForm] = useState(() => formVacio(ventaExistente))
   const [lotes, setLotes] = useState<LoteVivo[]>([])
@@ -76,12 +87,29 @@ export default function RegistrarVentaAvesModal({ open, onClose, fincaId, ventaE
     setLoteVacio(null)
     supabase.from('lotes_aves').select('id, nombre, estado, aves_actuales')
       .eq('finca_id', fincaId).in('estado', ['activo', 'preparacion']).order('nombre')
-      .then(({ data }) => setLotes(data ?? []))
+      .then(({ data }) => {
+        setLotes(data ?? [])
+        // Desde un galpón: ese lote y el tipo de venta que le toca (gallinas o pollas)
+        const l = loteInicialId ? (data ?? []).find(x => x.id === loteInicialId) : null
+        if (l && !ventaExistente) setForm(p => ({ ...p, lote_id: l.id, tipo: l.estado === 'activo' ? 'descarte' : 'pollas' }))
+      })
     // Solo al abrir, para no borrar lo que se va escribiendo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
-  function set(campo: keyof ReturnType<typeof formVacio>, valor: string) {
+  useEffect(() => {
+    if (!open || !form.lote_id || form.lote_id === FINCA) return
+    let vigente = true
+    Promise.all([
+      supabase.from('costos_lote_aves').select('monto').eq('lote_id', form.lote_id),
+      supabase.from('lotes_aves').select('aves_iniciales').eq('id', form.lote_id).single(),
+    ]).then(([c, l]) => {
+      if (vigente) setCostoLote({ lote: form.lote_id, costo: (c.data ?? []).reduce((t, x) => t + Number(x.monto), 0), aves: l.data?.aves_iniciales ?? 0 })
+    })
+    return () => { vigente = false }
+  }, [open, form.lote_id, supabase])
+
+  function set(campo: Exclude<keyof ReturnType<typeof formVacio>, 'checklist'>, valor: string) {
     setForm(prev => ({ ...prev, [campo]: valor }))
   }
 
@@ -138,6 +166,8 @@ export default function RegistrarVentaAvesModal({ open, onClose, fincaId, ventaE
       descripcion: form.descripcion.trim() || null,
       cliente: form.cliente.trim() || null,
       observaciones: form.observaciones.trim() || null,
+      peso_promedio_g: esAves(form.tipo) && form.peso_promedio_g ? Number(form.peso_promedio_g) : null,
+      checklist: esAves(form.tipo) && Object.keys(form.checklist).length ? form.checklist : null,
     }
     const { error } = ventaExistente
       ? await supabase.from('ventas_aves_lote').update(payload).eq('id', ventaExistente.id)
@@ -291,6 +321,36 @@ export default function RegistrarVentaAvesModal({ open, onClose, fincaId, ventaE
               <Label>Observaciones</Label>
               <Input placeholder="Notas..." value={form.observaciones} onChange={e => set('observaciones', e.target.value)} />
             </div>
+            {esAves(form.tipo) && (
+              <>
+                <div className="space-y-1">
+                  <Label>Peso promedio (g)</Label>
+                  <Input type="number" min="0" placeholder="Ej: 1450" value={form.peso_promedio_g} onChange={e => set('peso_promedio_g', e.target.value)} />
+                </div>
+                <div className="col-span-2 space-y-1 rounded-lg bg-gray-50 p-3">
+                  <Label>Antes de vender</Label>
+                  <div className="grid gap-1 sm:grid-cols-2">
+                    {listaChequeo.map(item => (
+                      <label key={item} className="flex items-start gap-1.5 text-xs text-gray-700">
+                        <input type="checkbox" className="mt-0.5 accent-green-700" checked={!!form.checklist[item]}
+                          onChange={e => setForm(p => ({ ...p, checklist: { ...p.checklist, [item]: e.target.checked } }))} />
+                        {item}
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-[0.6875rem] text-gray-400">Cada finca agrega sus propios puntos en Datos de la finca.</p>
+                </div>
+                {costoLote && costoLote.lote === form.lote_id && cantidad > 0 && precio > 0 && (() => {
+                  const costoAve = costoLote.aves > 0 ? costoLote.costo / costoLote.aves : 0
+                  const fmt = (n: number) => n.toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })
+                  return (
+                    <p className="col-span-2 text-xs text-gray-600">
+                      El lote lleva {fmt(costoLote.costo)} en costos ({fmt(costoAve)} por ave alojada). Con esta venta: utilidad de <strong>{fmt(precio - costoAve)}</strong> por ave y <strong>{fmt((precio - costoAve) * cantidad)}</strong> en las {cantidad.toLocaleString('es-CO')} aves.
+                    </p>
+                  )
+                })()}
+              </>
+            )}
           </div>
 
           <div className="flex items-center justify-between rounded-lg bg-green-50 px-4 py-3">

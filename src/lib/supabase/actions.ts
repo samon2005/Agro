@@ -234,7 +234,7 @@ async function verificarNomina(fincaId: string) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('No autenticado')
   const { data: rol } = await dbGenerico(supabase).rpc('rol_en_finca', { finca: fincaId })
-  if (!['propietario', 'administrador', 'contador'].includes(String(rol))) throw new Error('No autorizado')
+  if (!['propietario', 'administrador', 'contador', 'asesor'].includes(String(rol))) throw new Error('No autorizado')
 }
 
 async function verificarPropietario(fincaId: string) {

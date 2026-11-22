@@ -1,5 +1,7 @@
 'use client'
 
+import { prediccionLechon } from '@/lib/prediccionCerdos'
+import ManejoCerda from './ManejoCerda'
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -28,6 +30,8 @@ interface Props {
   open: boolean
   onClose: () => void
   cerda: Reproductora | null
+  /** Para recargar la lista cuando se descarta o cambia algo */
+  onCambio?: () => void
 }
 
 function fmt(d: string) {
@@ -39,7 +43,7 @@ function fmt(d: string) {
  * cuánto destetó, cómo va su ciclo y qué problemas de salud ha tenido. Es lo que
  * permite decidir si sigue en el plantel o se descarta.
  */
-export default function FichaCerdaModal({ open, onClose, cerda }: Props) {
+export default function FichaCerdaModal({ open, onClose, cerda, onCambio }: Props) {
   const cfg = useConfigCerdos()
   const supabase = createClient()
   const [loading, setLoading] = useState(true)
@@ -150,6 +154,8 @@ export default function FichaCerdaModal({ open, onClose, cerda }: Props) {
               />
             </div>
 
+            <ManejoCerda key={cerda.id} cerda={cerda} cfg={cfg} onCambio={onCambio} />
+
             <section className="space-y-2">
               <h3 className="text-sm font-semibold text-gray-800">Servicios</h3>
               {servicios.length === 0 ? (
@@ -168,7 +174,7 @@ export default function FichaCerdaModal({ open, onClose, cerda }: Props) {
                     {servicios.map(s => (
                       <TableRow key={s.id}>
                         <TableCell className="py-2 text-sm">{fmt(s.fecha_servicio)}</TableCell>
-                        <TableCell className="py-2 text-sm text-gray-600">{s.codigo_semen ?? s.verraco ?? '—'}</TableCell>
+                        <TableCell className="py-2 text-sm text-gray-600">{s.codigo_semen ?? s.verraco ?? '—'}{s.origen_semen === 'propio' ? ' (propio)' : ''}{s.calidad_celo ? <span className="block text-[0.6875rem] text-gray-400">celo {s.calidad_celo === 3 ? 'bueno' : s.calidad_celo === 2 ? 'regular' : 'débil'}</span> : null}</TableCell>
                         <TableCell className="py-2 text-sm">{s.fecha_probable_parto ? fmt(s.fecha_probable_parto) : '—'}</TableCell>
                         <TableCell className="py-2 text-xs">
                           {s.estado === 'parido' ? <span className="text-green-700">Parió</span>
@@ -270,6 +276,23 @@ export default function FichaCerdaModal({ open, onClose, cerda }: Props) {
                   })}
                 </div>
               )}
+              {(() => {
+                // Lo que se espera de sus lechones vivos (lib/prediccionCerdos): una sugerencia que se corrige con los pesajes
+                const est = lechonesVivos.map(l => prediccionLechon({
+                  pesoNacer: l.peso_nacimiento_kg != null ? Number(l.peso_nacimiento_kg) : null,
+                  pesoDestete: l.peso_destete_kg != null ? Number(l.peso_destete_kg) : null,
+                  diasLactancia: cfg.reproduccion.lactanciaObjetivo, cfg,
+                })).filter((x): x is NonNullable<typeof x> => x != null)
+                if (est.length === 0) return null
+                const prom = (xs: number[]) => xs.reduce((t, x) => t + x, 0) / xs.length
+                const livianos = est.filter(e => e.liviano).length
+                return (
+                  <p className="rounded-lg bg-sky-50 px-3 py-2 text-xs text-sky-900">
+                    <Ic n="idea" /> Estimado: destetan con unos <strong>{prom(est.map(e => e.destete!)).toFixed(1)} kg</strong> y salen del precebo con unos <strong>{prom(est.map(e => e.salidaPrecebo!)).toFixed(1)} kg</strong>.
+                    {livianos > 0 && ` ${livianos} ${livianos === 1 ? 'nació' : 'nacieron'} con menos de 1 kg: crecen más lento, conviene vigilarlos.`} Es una sugerencia de la literatura; se corrige con los pesajes.
+                  </p>
+                )
+              })()}
             </section>
 
             <section className="space-y-2">

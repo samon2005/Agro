@@ -60,6 +60,8 @@ function formVacio(tipoId: string | null) {
     precio_bulto: '',
     proveedor: '',
     fecha_vencimiento: '',
+    lote_producto: '',
+    factura: '',
     observaciones: '',
   }
 }
@@ -127,6 +129,8 @@ export default function InventarioAlimentoGenerico({
           precio_bulto: entrada.precio_bulto != null ? String(entrada.precio_bulto) : '',
           proveedor: entrada.proveedor ?? '',
           fecha_vencimiento: entrada.fecha_vencimiento ?? '',
+          lote_producto: entrada.lote_producto ?? '',
+          factura: entrada.factura ?? '',
           observaciones: entrada.observaciones ?? '',
         }
       : formVacio(alimentoActivoId))
@@ -147,6 +151,8 @@ export default function InventarioAlimentoGenerico({
       precio_bulto: form.precio_bulto ? Number(form.precio_bulto) : null,
       proveedor: form.proveedor || null,
       fecha_vencimiento: form.fecha_vencimiento || null,
+      lote_producto: form.lote_producto.trim() || null,
+      factura: form.factura.trim() || null,
       observaciones: form.observaciones || null,
     }
     const { data: entrada, error } = editar
@@ -344,6 +350,14 @@ export default function InventarioAlimentoGenerico({
               <div className="space-y-1">
                 <Label>Vencimiento</Label>
                 <Input type="date" value={form.fecha_vencimiento} onChange={e => setForm(p => ({ ...p, fecha_vencimiento: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <Label>Lote del producto</Label>
+                <Input placeholder="El que trae el bulto" value={form.lote_producto} onChange={e => setForm(p => ({ ...p, lote_producto: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <Label>Factura</Label>
+                <Input placeholder="N.º de factura" value={form.factura} onChange={e => setForm(p => ({ ...p, factura: e.target.value }))} />
               </div>
               <div className="col-span-2 space-y-1">
                 <Label>Proveedor</Label>

@@ -17,6 +17,9 @@ import TabRentabilidad from '@/components/agro/aves/rentabilidad/TabRentabilidad
 import TableroReportes from '@/components/agro/reportes/TableroReportes'
 import { useRol, useRolFinca } from '@/components/agro/RolProvider'
 import { permisos } from '@/lib/roles'
+import VisitasModal from '@/components/agro/comun/VisitasModal'
+import AccionesLoteModal from '@/components/agro/aves/AccionesLoteModal'
+import RegistrarVentaAvesModal from '@/components/agro/finanzas/RegistrarVentaAvesModal'
 import { PROPOSITO_LABEL } from '@/lib/lotesAves'
 import EditarFincaModal from '@/components/agro/EditarFincaModal'
 import TabProduccion from '@/components/agro/aves/produccion/TabProduccion'
@@ -67,6 +70,7 @@ export default function AvesPonedorasPage() {
   const puedeVerCostos = useRol() !== 'trabajador'
   // Registrar, importar y cambiar lotes es del administrador y del zootecnista; el recolector solo ve Producción (lib/roles)
   const { manejarLotes, soloProduccion } = permisos(useRolFinca())
+  const [modalVisitas, setModalVisitas] = useState(false)
   const { fincaActual, loading: fincaLoading, refetch: refetchFinca } = useFinca()
   const supabase = createClient()
 
@@ -79,6 +83,9 @@ export default function AvesPonedorasPage() {
   // El día que se mira en cada lote: lo comparten Producción y Alimento (null = hoy, o el último día si el lote salió)
   const [diaPorLote, setDiaPorLote] = useState<Record<string, string | null>>({})
   const [cambiarSalida, setCambiarSalida] = useState(false)
+  // Acciones del lote (José): cambiar el propósito, trasladar y vender aves
+  const [accionLote, setAccionLote] = useState<'proposito' | 'traslado' | null>(null)
+  const [venderAves, setVenderAves] = useState(false)
   const [loteActual, setLoteActual] = useState<LoteAves | null>(null)
   const [loadingLotes, setLoadingLotes] = useState(true)
   const [activeTab, setActiveTab] = useState<Tab>('produccion')
@@ -262,6 +269,10 @@ export default function AvesPonedorasPage() {
               <Ic n="agenda" className="size-4" /> Lotes anteriores ({cerrados.length})
             </button>
           )}
+          <button onClick={() => setModalVisitas(true)}
+            className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm text-gray-500 transition-colors hover:bg-white hover:text-gray-800">
+            <Ic n="desinfeccion" className="size-4" /> Visitas
+          </button>
           {manejarLotes && (
             <button onClick={() => setModalFinca(true)}
               className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm text-gray-500 transition-colors hover:bg-white hover:text-gray-800">
@@ -339,7 +350,25 @@ export default function AvesPonedorasPage() {
           {loteActual.linea_genetica && <Pildora icono="gallina">{loteActual.linea_genetica}</Pildora>}
           <Pildora>{esCerrado(loteActual) ? `${loteActual.aves_iniciales.toLocaleString('es-CO')} aves alojadas` : `${loteActual.aves_actuales.toLocaleString('es-CO')} aves activas`}</Pildora>
           {loteActual.fecha_nacimiento && <Pildora icono="calendario">Semana {semanaDeVida(loteActual.fecha_nacimiento, esCerrado(loteActual) && loteActual.fecha_fin ? loteActual.fecha_fin : hoyLocal()) ?? '—'} de vida{esCerrado(loteActual) ? ' al salir' : ''}</Pildora>}
-          {loteActual.proposito !== 'ciclo_completo' && <Pildora tono="ambar">{PROPOSITO_LABEL[loteActual.proposito]}</Pildora>}
+          {/* Para qué están: se cambia en cualquier momento (José) */}
+          {!esCerrado(loteActual) && manejarLotes ? (
+            <button type="button" onClick={() => setAccionLote('proposito')} title="Cambiar para qué están"
+              className="inline-flex items-center gap-1 rounded-full border border-dashed border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-600 hover:border-green-600 hover:text-green-800">
+              {PROPOSITO_LABEL[loteActual.proposito]} · cambiar
+            </button>
+          ) : loteActual.proposito !== 'ciclo_completo' && <Pildora tono="ambar">{PROPOSITO_LABEL[loteActual.proposito]}</Pildora>}
+          {!esCerrado(loteActual) && manejarLotes && (
+            <button type="button" onClick={() => setAccionLote('traslado')} title="Pasar el lote a otro galpón"
+              className="inline-flex items-center gap-1 rounded-full border border-dashed border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-600 hover:border-green-600 hover:text-green-800">
+              <Ic n="flecha" className="size-3" /> Trasladar
+            </button>
+          )}
+          {!esCerrado(loteActual) && puedeVerCostos && (
+            <button type="button" onClick={() => setVenderAves(true)} title="Registrar una venta de aves de este lote"
+              className="inline-flex items-center gap-1 rounded-full border border-dashed border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-600 hover:border-green-600 hover:text-green-800">
+              <Ic n="recibo" className="size-3" /> Vender aves
+            </button>
+          )}
           {/* La salida se cambia con un clic: queda el historial con el motivo */}
           {!esCerrado(loteActual) && manejarLotes && (
             <button type="button" onClick={() => setCambiarSalida(true)} title="Cambiar la salida programada"
@@ -480,6 +509,15 @@ export default function AvesPonedorasPage() {
         </>
       )}
 
+      {accionLote && loteActual && (
+        <AccionesLoteModal accion={accionLote} lote={loteActual} galpones={galpones} ocupados={ocupados}
+          onClose={() => setAccionLote(null)} onCambio={l => { setLoteActual(l); fetchLotes() }} />
+      )}
+      {venderAves && loteActual && fincaActual && (
+        <RegistrarVentaAvesModal open={venderAves} onClose={() => setVenderAves(false)} fincaId={fincaActual.id}
+          loteInicialId={loteActual.id} nombreLote={() => loteActual.nombre} onGuardado={() => fetchLotes()} />
+      )}
+      {modalVisitas && fincaActual && <VisitasModal open={modalVisitas} onClose={() => setModalVisitas(false)} fincaId={fincaActual.id} />}
       {loteActual && !esCerrado(loteActual) && cambiarSalida && (
         <CambiarSalidaModal key={loteActual.id} open={cambiarSalida} onClose={() => setCambiarSalida(false)} lote={loteActual}
           onCambiada={l => { setLoteActual(l); fetchLotes() }} />

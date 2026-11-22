@@ -8,9 +8,9 @@
  * para José, está en la propuesta de roles (para-jose/) y en el plan de Obsidian.
  */
 export type RolFinca =
-  | 'propietario' | 'administrador' | 'zootecnista' | 'operario' | 'recolector' | 'contador' | 'trabajador'
+  | 'propietario' | 'administrador' | 'asesor' | 'zootecnista' | 'operario' | 'recolector' | 'contador' | 'trabajador'
 /** Los roles que se pueden dar con un código o al invitar */
-export type RolAsignable = 'administrador' | 'zootecnista' | 'operario' | 'recolector' | 'contador'
+export type RolAsignable = 'administrador' | 'asesor' | 'zootecnista' | 'operario' | 'recolector' | 'contador'
 
 /** Las secciones de la app */
 export type Seccion =
@@ -32,6 +32,7 @@ export const ROLES_ASIGNABLES: { v: RolAsignable; t: string; d: string }[] = [
   { v: 'operario', t: 'Operario', d: 'El día a día: registra producción, alimento y sanidad, y hace sus tareas' },
   { v: 'recolector', t: 'Recolector', d: 'Recoge y registra los huevos, y hace sus tareas' },
   { v: 'zootecnista', t: 'Zootecnista', d: 'La parte técnica: galpones, metas, sanidad y reportes de producción, sin la plata' },
+  { v: 'asesor', t: 'Asesor o profesor', d: 'Ve todo, con la plata y las alertas, para orientar; no maneja el equipo' },
   { v: 'contador', t: 'Contabilidad y nómina', d: 'Solo la plata: ventas, finanzas, reportes de dinero y el pago del equipo' },
   { v: 'administrador', t: 'Administrador de finca', d: 'Acceso total: todo lo de la finca, la plata y el equipo' },
 ]
@@ -39,6 +40,7 @@ export const ROLES_ASIGNABLES: { v: RolAsignable; t: string; d: string }[] = [
 export const NOMBRE_ROL: Record<RolFinca, string> = {
   propietario: 'Administrador de finca',
   administrador: 'Administrador de finca',
+  asesor: 'Asesor o profesor',
   zootecnista: 'Zootecnista',
   operario: 'Operario',
   recolector: 'Recolector',
@@ -52,6 +54,8 @@ const TODAS: Seccion[] = ['resumen', 'galpones', 'huevos', 'alimento', 'inventar
 export const SECCIONES_ROL: Record<RolFinca, Seccion[]> = {
   propietario: TODAS,
   administrador: TODAS,
+  // Los profesores de José: "parte administrativa y todo el detalle", sin manejar el equipo
+  asesor: ['resumen', 'galpones', 'huevos', 'alimento', 'inventario', 'sanidad', 'historial', 'reportes', 'ventas', 'finanzas', 'nomina'],
   zootecnista: ['resumen', 'galpones', 'huevos', 'alimento', 'inventario', 'sanidad', 'historial', 'reportes', 'misTareas'],
   operario: ['resumen', 'galpones', 'huevos', 'alimento', 'inventario', 'sanidad', 'historial', 'misTareas'],
   recolector: ['resumen', 'galpones', 'huevos', 'misTareas'],
@@ -70,7 +74,7 @@ export function permisos(r: RolFinca | null) {
   return {
     ve,
     /** Plata: costos, ventas, utilidad, precios (también dentro de otras secciones) */
-    verDinero: admin || rol === 'contador',
+    verDinero: admin || rol === 'contador' || rol === 'asesor',
     /** Ve la producción de los animales (huevos, postura, mortalidad, alimento) */
     verProduccion: ve('galpones'),
     verReportes: ve('reportes'),
@@ -81,7 +85,7 @@ export function permisos(r: RolFinca | null) {
     /** Datos de la finca, galpones, precios */
     configurarFinca: admin,
     /** Registrar aves, importar, cerrar lotes, cambiar la salida, ajustar metas */
-    manejarLotes: admin || rol === 'zootecnista',
+    manejarLotes: admin || rol === 'zootecnista' || rol === 'asesor',
     /** En el galpón, solo la pestaña de producción (el recolector) */
     soloProduccion: rol === 'recolector',
   }

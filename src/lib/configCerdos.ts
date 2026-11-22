@@ -90,6 +90,28 @@ export interface ConfigCerdos {
     /** Costo por kg producido que la granja se pone como meta (pesos); null = sin meta */
     costoKg: number | null
   }
+  /** Criterios de descarte (los definen los profesores; por validar) */
+  descarte: {
+    maxPartos: number
+    maxRepeticiones: number
+    maxAbortos: number
+    /** Promedio de nacidos vivos por parto por debajo del cual se revisa */
+    minNacidosVivos: number
+    /** Días máximos en recuperación (sin celo tras el destete) */
+    maxDiasRecuperacion: number
+  }
+  /** Día de vida en que se hace cada manejo del lechón (por validar) */
+  manejoLechon: {
+    hierro: number
+    tatuaje: number
+    colmillos: number
+    cola: number
+    castracion: number
+    chapeta: number
+    papillas: number
+  }
+  /** Engorde: días de vacío sanitario del corral entre grupos */
+  vacioSanitarioDias: number
   opciones: {
     /** La granja mide el agua: si no, el campo no aparece en el registro diario */
     medirAgua: boolean
@@ -153,6 +175,23 @@ export const CONFIG_CERDOS_DEFECTO: ConfigCerdos = {
     conversion: { precebo: 1.5, levante: 2.4, ceba: 2.9 },
     costoKg: null,
   },
+  descarte: {
+    maxPartos: 8,
+    maxRepeticiones: 2,
+    maxAbortos: 2,
+    minNacidosVivos: 10,
+    maxDiasRecuperacion: 30,
+  },
+  manejoLechon: {
+    hierro: 2,
+    tatuaje: 1,
+    colmillos: 1,
+    cola: 2,
+    castracion: 5,
+    chapeta: 7,
+    papillas: 7,
+  },
+  vacioSanitarioDias: 7,
   opciones: {
     medirAgua: false,
     pesoBultoKg: 40,

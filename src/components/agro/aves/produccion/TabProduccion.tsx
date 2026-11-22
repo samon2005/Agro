@@ -1,5 +1,6 @@
 'use client'
 
+import type { MetasLote } from '@/lib/registroAves'
 import { Widget, Cuadricula, ANCHO, AccionWidget } from '@/components/ui/widgets/Widget'
 import { Anillo, BarraMeta, Cifra, MiniBarras, TextoEstado } from '@/components/ui/widgets/Medidores'
 import { CalendarioMes } from '@/components/ui/widgets/Calendario'
@@ -415,6 +416,10 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
         meta_postura_pct: config.meta_postura_pct,
         meta_huevos_diaria: config.meta_huevos_diaria,
         fecha_salida_programada: config.fecha_salida_programada,
+        pct_inicio_postura: config.pct_inicio_postura,
+        semana_pico_esperada: config.semana_pico_esperada,
+        peso_huevo_esperado_g: config.peso_huevo_esperado_g,
+        peso_aves_inicio_postura_g: config.peso_aves_inicio_postura_g,
       })
       .eq('id', loteActual.id)
       .select()
@@ -650,7 +655,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
           {manejarLotes && onImportarExcel && <Button onClick={onImportarExcel} variant="ghost" title="Cargar días viejos desde el Excel de registro">
             <Ic n="diario" /> Importar Excel
           </Button>}
-          {!enPostura && !cerrado && (
+          {!enPostura && !cerrado && loteActual.proposito !== 'venta_levante' && (
             <Button
               onClick={abrirInicioPostura}
               disabled={!listoParaRegistrar}
@@ -868,11 +873,21 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
             </div>
           </Widget>
         ) : (
-          <Widget className={ANCHO.tercio} titulo="Próximo paso" icono="huevo">
-            <p className="text-sm text-gray-600">Cuando el lote empiece a poner, márcalo para llevar huevos, postura y metas.</p>
-            <Button className="mt-4" onClick={abrirInicioPostura} disabled={!listoParaRegistrar} title={!listoParaRegistrar ? faltaParaRegistrar : undefined}>
-              <Ic n="huevo" /> Marcar inicio de postura
-            </Button>
+          <Widget className={ANCHO.tercio} titulo="Próximo paso" icono={loteActual.proposito === 'venta_levante' ? 'recibo' : 'huevo'}>
+            {loteActual.proposito === 'venta_levante' ? (
+              // Levante y venta: nada de postura (José); lo que sigue es la venta de las pollas
+              <p className="text-sm text-gray-600">
+                Son pollas para vender{loteActual.fecha_salida_programada ? `, hacia el ${new Date(loteActual.fecha_salida_programada + 'T00:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'long' })}` : ''}.
+                Antes de la venta llega un recordatorio con la lista de chequeo. Si deciden dejarlas para postura, cambia para qué están.
+              </p>
+            ) : (
+              <>
+                <p className="text-sm text-gray-600">Cuando el lote empiece a poner, márcalo para llevar huevos, postura y metas.</p>
+                <Button className="mt-4" onClick={abrirInicioPostura} disabled={!listoParaRegistrar} title={!listoParaRegistrar ? faltaParaRegistrar : undefined}>
+                  <Ic n="huevo" /> Marcar inicio de postura
+                </Button>
+              </>
+            )}
           </Widget>
         )}
 
@@ -1082,12 +1097,20 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
         onClose={() => setIniciarPosturaOpen(false)}
         nombreGalpon={loteActual.nombre}
         avesActuales={loteActual.aves_actuales}
-        inicial={{
-          semanas_ciclo_postura: loteActual.semanas_ciclo_postura ?? undefined,
-          meta_postura_pct: loteActual.meta_postura_pct ?? undefined,
-          meta_huevos_diaria: loteActual.meta_huevos_diaria,
-          fecha_salida_programada: loteActual.fecha_salida_programada,
-        }}
+        inicial={(() => {
+          // Lo que se trazó al registrar el lote (metas_lote) arranca la configuración de la postura
+          const m = (loteActual.metas_lote ?? {}) as MetasLote
+          return {
+            semanas_ciclo_postura: loteActual.semanas_ciclo_postura ?? m.semanasCiclo ?? undefined,
+            meta_postura_pct: loteActual.meta_postura_pct ?? m.pico ?? undefined,
+            meta_huevos_diaria: loteActual.meta_huevos_diaria,
+            fecha_salida_programada: loteActual.fecha_salida_programada,
+            pct_inicio_postura: loteActual.pct_inicio_postura,
+            semana_pico_esperada: loteActual.semana_pico_esperada,
+            peso_huevo_esperado_g: loteActual.peso_huevo_esperado_g ?? m.pesoHuevo ?? null,
+            peso_aves_inicio_postura_g: loteActual.peso_aves_inicio_postura_g,
+          }
+        })()}
         onConfirmar={marcarInicioPostura}
       />
 

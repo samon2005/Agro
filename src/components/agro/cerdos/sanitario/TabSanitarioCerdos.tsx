@@ -16,13 +16,14 @@ import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
 import { Ic } from '@/components/ui/icon'
 import PlanVacunacion from '@/components/agro/comun/PlanVacunacion'
+import ClinicaCerdos from './ClinicaCerdos'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
 type Vacunacion = Database['public']['Tables']['vacunaciones_cerdos']['Row']
 type Desparasitacion = Database['public']['Tables']['desparasitaciones_cerdos']['Row']
 type Desinfeccion = Database['public']['Tables']['desinfecciones_cerdos']['Row']
 
-type SubTab = 'vacunas' | 'desparasitaciones' | 'desinfecciones'
+type SubTab = 'vacunas' | 'desparasitaciones' | 'desinfecciones' | 'clinica' | 'medicaciones'
 
 function cop(n: number) {
   return n.toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })
@@ -171,6 +172,8 @@ export default function TabSanitarioCerdos({ loteActual }: Props) {
           { id: 'vacunas' as const, label: 'Vacunaciones', count: vacunas.length },
           { id: 'desparasitaciones' as const, label: 'Desparasitaciones', count: desparasitaciones.length },
           { id: 'desinfecciones' as const, label: 'Desinfección', count: desinfecciones.length },
+          { id: 'clinica' as const, label: 'Clínica y brotes', count: 0 },
+          { id: 'medicaciones' as const, label: 'Medicaciones', count: 0 },
         ].map(t => (
           <button key={t.id} onClick={() => setSubTab(t.id)}
             className={cn('px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors', subTab === t.id ? 'border-green-600 text-green-700' : 'border-transparent text-gray-500 hover:text-gray-700')}>
@@ -280,6 +283,9 @@ export default function TabSanitarioCerdos({ loteActual }: Props) {
         </Card>
       )}
 
+      {(subTab === 'clinica' || subTab === 'medicaciones') ? (
+        <Card><ClinicaCerdos key={subTab} lote={loteActual} vista={subTab} /></Card>
+      ) : (
       <Card>
         <CardContent className="p-0">
           {loading ? (
@@ -362,6 +368,7 @@ export default function TabSanitarioCerdos({ loteActual }: Props) {
           )}
         </CardContent>
       </Card>
+      )}
     </div>
   )
 }

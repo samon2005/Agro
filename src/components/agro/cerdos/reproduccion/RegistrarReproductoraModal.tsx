@@ -45,6 +45,7 @@ function defaultForm(lote: LoteCerdos, naveId: string, r?: Reproductora | null) 
     fecha_nacimiento: r?.fecha_nacimiento ?? '',
     fecha_ingreso: r?.fecha_ingreso ?? hoyLocal(),
     partos_previos: r ? String(r.partos_previos) : '0',
+    origen: r?.origen ?? '',
     descartada: r?.estado === 'descartada',
     cuarentena: r ? r.cuarentena_hasta != null : false,
     peso_kg: r?.peso_kg != null ? String(r.peso_kg) : '',
@@ -112,6 +113,7 @@ export default function RegistrarReproductoraModal({ open, onClose, lote, naveId
       fecha_nacimiento: form.fecha_nacimiento || null,
       fecha_ingreso: form.fecha_ingreso,
       partos_previos: Math.max(0, Math.floor(Number(form.partos_previos) || 0)),
+      origen: form.origen || null,
       cuarentena_hasta: cuarentenaHasta,
       // El estado sale de su historia (lib/estadoCerda); aquí solo se marca o
       // se quita el descarte, y abajo se recalcula
@@ -211,6 +213,14 @@ export default function RegistrarReproductoraModal({ open, onClose, lote, naveId
             <div className="space-y-1">
               <Label>Fecha de ingreso al lote</Label>
               <Input type="date" value={form.fecha_ingreso} onChange={e => set('fecha_ingreso', e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label>Origen</Label>
+              <select value={form.origen} onChange={e => set('origen', e.target.value)} className="h-9 w-full rounded-lg border border-gray-200 bg-white px-2 text-sm">
+                <option value="">Sin anotar</option>
+                <option value="comprada">Comprada</option>
+                <option value="propia">Propia (se dejó de la granja)</option>
+              </select>
             </div>
             <div className="space-y-1">
               <Label>Partos antes de llegar</Label>

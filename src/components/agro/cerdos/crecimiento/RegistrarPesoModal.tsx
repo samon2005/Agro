@@ -1,5 +1,6 @@
 'use client'
 
+import { leerPesos, resumenPesaje, muestraSugerida } from '@/lib/engordeCerdos'
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
@@ -34,6 +35,8 @@ function defaultForm(animalesActuales: number, p?: PesoLote | null) {
     numero_pesados: p?.numero_pesados != null ? String(p.numero_pesados) : String(animalesActuales),
     metodo: p?.metodo ?? 'manual',
     observaciones: p?.observaciones ?? '',
+    // José: se pesa cada cerdo y luego el promedio
+    pesos_individuales: (p?.pesos_individuales ?? []).map(x => String(x).replace('.', ',')).join(' '),
   }
 }
 
@@ -50,7 +53,10 @@ export default function RegistrarPesoModal({ open, onClose, loteId, fincaId, ani
     setForm(prev => ({ ...prev, [field]: value ?? '' }))
   }
 
-  const uniformidad = form.peso_minimo && form.peso_maximo && form.peso_promedio
+  const individuales = leerPesos(form.pesos_individuales)
+  const resumen = resumenPesaje(individuales)
+  const sugerida = muestraSugerida(animalesActuales)
+  const uniformidad = resumen ? null : form.peso_minimo && form.peso_maximo && form.peso_promedio
     ? (() => {
         const rango = Number(form.peso_maximo) - Number(form.peso_minimo)
         const pct = (rango / Number(form.peso_promedio)) * 100
@@ -60,15 +66,17 @@ export default function RegistrarPesoModal({ open, onClose, loteId, fincaId, ani
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.peso_promedio) { toast.error('Ingresa el peso promedio'); return }
+    if (!resumen && !form.peso_promedio) { toast.error('Escribe el peso de cada cerdo o el promedio'); return }
 
     setLoading(true)
+    // Con los pesos de cada cerdo, el promedio, el mínimo y el máximo salen solos (lib/engordeCerdos)
     const payload = {
       fecha: form.fecha,
-      peso_promedio: Number(form.peso_promedio),
-      peso_minimo: form.peso_minimo ? Number(form.peso_minimo) : null,
-      peso_maximo: form.peso_maximo ? Number(form.peso_maximo) : null,
-      numero_pesados: form.numero_pesados ? Number(form.numero_pesados) : null,
+      peso_promedio: resumen ? Math.round(resumen.promedio * 100) / 100 : Number(form.peso_promedio),
+      peso_minimo: resumen ? resumen.minimo : form.peso_minimo ? Number(form.peso_minimo) : null,
+      peso_maximo: resumen ? resumen.maximo : form.peso_maximo ? Number(form.peso_maximo) : null,
+      numero_pesados: resumen ? resumen.n : form.numero_pesados ? Number(form.numero_pesados) : null,
+      pesos_individuales: resumen ? individuales : null,
       metodo: form.metodo,
       observaciones: form.observaciones || null,
     }
@@ -105,6 +113,20 @@ export default function RegistrarPesoModal({ open, onClose, loteId, fincaId, ani
               </Select>
             </div>
             <div className="col-span-2 space-y-1">
+              <Label>Peso de cada cerdo (kg)</Label>
+              <textarea rows={3} placeholder="Ej: 28,5 31 29,8 30,2 …  (separados por espacio)"
+                className="w-full rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-sm"
+                value={form.pesos_individuales} onChange={e => set('pesos_individuales', e.target.value)} />
+              <p className="text-xs text-gray-500">
+                {resumen
+                  ? <>Pesados <strong>{resumen.n}</strong> de {animalesActuales} · promedio <strong>{resumen.promedio.toFixed(2)} kg</strong> · {resumen.minimo} a {resumen.maximo} kg · uniformidad <strong className={resumen.uniformidadPct >= 80 ? 'text-green-800' : 'text-amber-700'}>{resumen.uniformidadPct.toFixed(0)} %</strong> (dentro de ±10 % del promedio)</>
+                  : sugerida < animalesActuales
+                    ? `Con ${animalesActuales} cerdos basta una muestra de ${sugerida}. O deja esto vacío y escribe solo el promedio.`
+                    : 'Pesa todos. O deja esto vacío y escribe solo el promedio.'}
+              </p>
+            </div>
+            {!resumen && <>
+            <div className="col-span-2 space-y-1">
               <Label>Peso promedio (kg) *</Label>
               <Input type="number" min="0" step="0.01" placeholder="Ej: 45.5" value={form.peso_promedio} onChange={e => set('peso_promedio', e.target.value)} />
             </div>
@@ -121,9 +143,10 @@ export default function RegistrarPesoModal({ open, onClose, loteId, fincaId, ani
                 <Ic n="grafica" /> Variación del lote: <strong>{uniformidad}%</strong> — {Number(uniformidad) < 20 ? 'Lote uniforme' : 'Lote heterogéneo'}
               </div>
             )}
+            </>}
             <div className="space-y-1">
               <Label>N° animales pesados</Label>
-              <Input type="number" min="0" value={form.numero_pesados} onChange={e => set('numero_pesados', e.target.value)} />
+              <Input type="number" min="0" value={resumen ? String(resumen.n) : form.numero_pesados} disabled={!!resumen} onChange={e => set('numero_pesados', e.target.value)} />
             </div>
             <div className="space-y-1">
               <Label>Observaciones</Label>

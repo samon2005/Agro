@@ -15,6 +15,11 @@ export interface ConfigPostura {
   meta_postura_pct: number
   meta_huevos_diaria: number | null
   fecha_salida_programada: string | null
+  /** José: % de postura con que se considera que empezó, semana del pico, peso del huevo y de las aves */
+  pct_inicio_postura: number | null
+  semana_pico_esperada: number | null
+  peso_huevo_esperado_g: number | null
+  peso_aves_inicio_postura_g: number | null
 }
 
 interface Props {
@@ -47,6 +52,10 @@ export default function IniciarPosturaModal({ open, onClose, nombreGalpon, avesA
     meta_postura_pct: '90',
     meta_huevos_diaria: '',
     fecha_salida_programada: '',
+    pct_inicio_postura: '5',
+    semana_pico_esperada: '',
+    peso_huevo_esperado_g: '',
+    peso_aves_inicio_postura_g: '',
   })
 
   useEffect(() => {
@@ -59,6 +68,10 @@ export default function IniciarPosturaModal({ open, onClose, nombreGalpon, avesA
       meta_postura_pct: String(inicial?.meta_postura_pct ?? 90),
       meta_huevos_diaria: inicial?.meta_huevos_diaria != null ? String(inicial.meta_huevos_diaria) : '',
       fecha_salida_programada: inicial?.fecha_salida_programada ?? sumarSemanas(inicio, ciclo),
+      pct_inicio_postura: String(inicial?.pct_inicio_postura ?? 5),
+      semana_pico_esperada: inicial?.semana_pico_esperada != null ? String(inicial.semana_pico_esperada) : '',
+      peso_huevo_esperado_g: inicial?.peso_huevo_esperado_g != null ? String(inicial.peso_huevo_esperado_g) : '',
+      peso_aves_inicio_postura_g: inicial?.peso_aves_inicio_postura_g != null ? String(inicial.peso_aves_inicio_postura_g) : '',
     })
     setSalidaManual(Boolean(inicial?.fecha_salida_programada))
     // Solo al abrir: si dependiera de `inicial`, cada render del padre borraría lo escrito
@@ -82,6 +95,8 @@ export default function IniciarPosturaModal({ open, onClose, nombreGalpon, avesA
     ? Math.round(avesActuales * Number(form.meta_postura_pct) / 100)
     : null
 
+  const num = (v: string) => (v.trim() !== '' && Number.isFinite(Number(v)) ? Number(v) : null)
+
   async function confirmar(e: React.FormEvent) {
     e.preventDefault()
     const semanas = Number(form.semanas_ciclo_postura)
@@ -98,6 +113,10 @@ export default function IniciarPosturaModal({ open, onClose, nombreGalpon, avesA
       // La meta en huevos ya no se escribe: sale de las aves × el % de cada semana
       meta_huevos_diaria: null,
       fecha_salida_programada: form.fecha_salida_programada || null,
+      pct_inicio_postura: num(form.pct_inicio_postura),
+      semana_pico_esperada: num(form.semana_pico_esperada),
+      peso_huevo_esperado_g: num(form.peso_huevo_esperado_g),
+      peso_aves_inicio_postura_g: num(form.peso_aves_inicio_postura_g),
     })
     setGuardando(false)
   }
@@ -127,6 +146,22 @@ export default function IniciarPosturaModal({ open, onClose, nombreGalpon, avesA
               {metaSugerida != null && (
                 <p className="text-[0.6875rem] text-gray-400">= {metaSugerida.toLocaleString('es-CO')} huevos al día. La meta de cada semana se ajusta en Configurar galpón.</p>
               )}
+            </div>
+            <div className="space-y-1">
+              <Label>Se considera que empezó con (%)</Label>
+              <Input type="number" min="0" max="100" step="0.5" value={form.pct_inicio_postura} onChange={e => set('pct_inicio_postura', e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label>Semana de vida del pico</Label>
+              <Input type="number" min="1" max="120" placeholder="Ej: 28" value={form.semana_pico_esperada} onChange={e => set('semana_pico_esperada', e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label>Peso del huevo esperado (g)</Label>
+              <Input type="number" min="0" step="0.1" placeholder="Ej: 62" value={form.peso_huevo_esperado_g} onChange={e => set('peso_huevo_esperado_g', e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label>Peso de las aves al iniciar (g)</Label>
+              <Input type="number" min="0" placeholder="Ej: 1600" value={form.peso_aves_inicio_postura_g} onChange={e => set('peso_aves_inicio_postura_g', e.target.value)} />
             </div>
             <div className="space-y-1">
               <Label>Salida programada del lote</Label>

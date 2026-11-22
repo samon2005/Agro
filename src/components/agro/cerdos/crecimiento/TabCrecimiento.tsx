@@ -19,6 +19,7 @@ import { Ic } from '@/components/ui/icon'
 import { useFinca } from '@/components/agro/FincaProvider'
 import ClasificarPorPesoModal from './ClasificarPorPesoModal'
 import ProgramarPesajeModal from './ProgramarPesajeModal'
+import LoQueVieneGrupo from './LoQueVieneGrupo'
 import { gdpEntre, gdpAcumulada, estadoPesaje, diasHasta } from '@/lib/crecimiento'
 import { etapasEngordeDeFinca } from '@/lib/cerdos'
 import { useConfigCerdos } from '@/lib/useConfigCerdos'
@@ -218,6 +219,9 @@ export default function TabCrecimiento({ loteActual, onLoteUpdated }: Props) {
         <Indicador tono="orange" icono="ciclo" compacto etiqueta="Etapa actual" valor={ETAPAS_LABEL[loteActual.etapa_actual] ?? loteActual.etapa_actual} detalle={<>{loteActual.animales_actuales} animales</>} />
         <Indicador tono="gray" icono="muerte" etiqueta="Mortalidad acum." valor={mortAcum} detalle={<>{mortPct}% del lote inicial</>} />
       </div>
+
+      {/* Lo que viene: proyección del peso y cambio de etapa (lib/engordeCerdos) */}
+      <LoQueVieneGrupo lote={loteActual} pesos={pesos} cfg={cfg} onCambio={onLoteUpdated} />
 
       {/* Sub-tabs */}
       <div className="flex gap-2 border-b border-gray-200 pb-0">

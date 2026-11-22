@@ -39,6 +39,8 @@ function defaultForm(lote: LoteCerdos, r?: NutricionDiaria | null) {
     alimento_kg: r ? String(r.alimento_kg) : consumoSugerido,
     sobrante_kg: r?.sobrante_kg != null ? String(r.sobrante_kg) : '',
     agua_litros: r?.agua_litros != null ? String(r.agua_litros) : '',
+    temperatura_c: r?.temperatura_c != null ? String(r.temperatura_c) : '',
+    humedad_pct: r?.humedad_pct != null ? String(r.humedad_pct) : '',
     observaciones: r?.observaciones ?? '',
     // La mortalidad del día se registra aquí: conteo, causa y peso
     muertes: '0',
@@ -91,6 +93,9 @@ export default function RegistrarDiaCerdosModal({ open, onClose, lote, registroE
       tipo_alimento_id: lote.alimento_activo_id,
       sobrante_kg: sobrante,
       agua_litros: form.agua_litros ? Number(form.agua_litros) : null,
+      // Del termohigrómetro (José): va en el mismo registro del día
+      temperatura_c: form.temperatura_c !== '' ? Number(form.temperatura_c) : null,
+      humedad_pct: form.humedad_pct !== '' ? Number(form.humedad_pct) : null,
       observaciones: form.observaciones || null,
     }
 
@@ -163,6 +168,24 @@ export default function RegistrarDiaCerdosModal({ open, onClose, lote, registroE
                   ? <>Comieron <strong className="text-gray-700">{kg(servido - sobrante)} kg</strong>: con eso se calculan la conversión y los costos.</>
                   : 'Lo servido viene sugerido del consumo del lote. Si mides lo que quedó en el comedero, anótalo y la app calcula lo que de verdad comieron.'}
             </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 rounded-lg border border-sky-200 bg-sky-50 p-3">
+            <p className="col-span-2 text-xs font-semibold text-sky-800"><Ic n="termometro" /> Ambiente (termohigrómetro)</p>
+            <div className="space-y-1">
+              <Label className="text-xs">Temperatura (°C)</Label>
+              <Input type="number" step="0.1" className="bg-white" placeholder="Ej: 22" value={form.temperatura_c} onChange={e => set('temperatura_c', e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Humedad (%)</Label>
+              <Input type="number" min="0" max="100" step="1" className="bg-white" placeholder="Ej: 70" value={form.humedad_pct} onChange={e => set('humedad_pct', e.target.value)} />
+            </div>
+            {form.temperatura_c !== '' && (() => {
+              const rango = cfg.alertas.temperatura[lote.etapa_actual as keyof typeof cfg.alertas.temperatura]
+              const t = Number(form.temperatura_c)
+              if (!rango || Number.isNaN(t) || (t >= rango.min && t <= rango.max)) return null
+              return <p className="col-span-2 text-xs text-amber-800"><Ic n="alerta" /> Fuera del rango de la etapa ({rango.min} a {rango.max} °C).</p>
+            })()}
           </div>
 
           <div className="p-3 bg-red-50 rounded-lg border border-red-200 space-y-3">

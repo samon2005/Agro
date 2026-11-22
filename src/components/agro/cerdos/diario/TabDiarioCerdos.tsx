@@ -1,5 +1,6 @@
 'use client'
 
+import SugerenciasGrupo from './SugerenciasGrupo'
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -18,7 +19,8 @@ import { Torta } from '@/components/ui/graficos/Torta'
 import type { Database } from '@/types/database'
 import { hoyLocal } from '@/lib/fechas'
 import { useConfigCerdos } from '@/lib/useConfigCerdos'
-import { alertasGrupo, nivelBandeja } from '@/lib/alertasCerdos'
+import { alertasGrupo, alertasParaRol, nivelBandeja } from '@/lib/alertasCerdos'
+import { useRolFinca } from '@/components/agro/RolProvider'
 import { Ic } from '@/components/ui/icon'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
@@ -41,6 +43,9 @@ export default function TabDiarioCerdos({ loteActual, onLoteUpdated, onIrAliment
   const cfg = useConfigCerdos()
   const [registros, setRegistros] = useState<NutricionDiaria[]>([])
   const [mortalidad, setMortalidad] = useState<Mortalidad[]>([])
+  const [pesajes, setPesajes] = useState<{ fecha: string; peso_promedio: number; pesos_individuales?: number[] | null }[]>([])
+  const [clinica, setClinica] = useState(0)
+  const rolFinca = useRolFinca()
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
   const [registroEditar, setRegistroEditar] = useState<NutricionDiaria | null>(null)
@@ -48,12 +53,16 @@ export default function TabDiarioCerdos({ loteActual, onLoteUpdated, onIrAliment
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
-    const [diarios, morts] = await Promise.all([
+    const [diarios, morts, pes, clin] = await Promise.all([
       supabase.from('nutricion_diaria_cerdos').select('*').eq('lote_id', loteActual.id).order('fecha', { ascending: false }).limit(60),
       supabase.from('mortalidad_cerdos').select('*').eq('lote_id', loteActual.id).order('fecha', { ascending: false }),
+      supabase.from('pesos_lote_cerdos').select('fecha, peso_promedio, pesos_individuales').eq('lote_id', loteActual.id).order('fecha', { ascending: false }).limit(5),
+      supabase.from('eventos_clinicos_cerdos').select('id', { count: 'exact', head: true }).eq('lote_id', loteActual.id).is('desenlace', null).eq('resuelto', false),
     ])
     setRegistros(diarios.data ?? [])
     setMortalidad(morts.data ?? [])
+    setPesajes((pes.data ?? []).map(x => ({ fecha: x.fecha, peso_promedio: Number(x.peso_promedio), pesos_individuales: x.pesos_individuales })))
+    setClinica(clin.count ?? 0)
     setLoading(false)
   }, [loteActual.id, supabase])
 
@@ -115,7 +124,7 @@ export default function TabDiarioCerdos({ loteActual, onLoteUpdated, onIrAliment
   const mostrarAgua = cfg.opciones.medirAgua || registros.some(r => r.agua_litros != null)
   const kg1 = (v: number) => v.toLocaleString('es-CO', { maximumFractionDigits: 1 })
   // Alertas del grupo: día sin registrar, mortalidad alta, comieron menos de lo esperado
-  const alertas = loading ? [] : alertasGrupo({ grupo: loteActual, registros, mortalidad, cfg, hoy: hoyStr })
+  const alertas = loading ? [] : alertasParaRol(alertasGrupo({ grupo: loteActual, registros, mortalidad, pesajes, clinicaAbierta: clinica, cfg, hoy: hoyStr }), rolFinca)
 
   return (
     <div className="space-y-4">
@@ -141,6 +150,12 @@ export default function TabDiarioCerdos({ loteActual, onLoteUpdated, onIrAliment
         }] : []),
         ...alertas.map(a => ({ id: a.id, nivel: nivelBandeja(a.prioridad), texto: a.texto, detalle: a.detalle })),
       ]} />
+
+      {/* Acompañamiento con lo que se está midiendo (lib/prediccionCerdos) */}
+      {!loading && loteActual.sistema !== 'cria' && (
+        <SugerenciasGrupo lote={loteActual} registros={registros} mortalidad={mortalidad} pesajes={pesajes} cfg={cfg} hoy={hoyStr}
+          consumoBajo={alertas.some(a => a.tipo === 'consumo_bajo')} />
+      )}
 
       <Cuadricula>
         <Widget className={ANCHO.cuarto} titulo="Hoy" icono="diario">
@@ -256,6 +271,7 @@ export default function TabDiarioCerdos({ loteActual, onLoteUpdated, onIrAliment
                     <TableHead className="text-right">Sobrante kg</TableHead>
                     <TableHead className="text-right">Comieron kg</TableHead>
                     {mostrarAgua && <TableHead className="text-right">Agua L</TableHead>}
+                    <TableHead className="text-right">°C · %H</TableHead>
                     <TableHead className="text-right">Muertes</TableHead>
                     <TableHead>Causa</TableHead>
                     <TableHead>Observaciones</TableHead>
@@ -273,6 +289,7 @@ export default function TabDiarioCerdos({ loteActual, onLoteUpdated, onIrAliment
                         <TableCell className="text-right text-sm text-gray-500">{r.sobrante_kg != null ? Number(r.sobrante_kg).toFixed(1) : '—'}</TableCell>
                         <TableCell className="text-right text-sm font-medium">{comido(r).toFixed(1)}</TableCell>
                         {mostrarAgua && <TableCell className="text-right text-sm text-gray-500">{r.agua_litros != null ? Number(r.agua_litros).toFixed(0) : '—'}</TableCell>}
+                        <TableCell className="text-right text-sm text-gray-500">{r.temperatura_c != null || r.humedad_pct != null ? `${r.temperatura_c != null ? Number(r.temperatura_c).toLocaleString('es-CO') : '—'} · ${r.humedad_pct != null ? Number(r.humedad_pct).toFixed(0) : '—'}` : '—'}</TableCell>
                         <TableCell className="text-right">
                           {totalMuertes > 0 ? <Badge variant="destructive" className="text-xs">{totalMuertes}</Badge> : '—'}
                         </TableCell>

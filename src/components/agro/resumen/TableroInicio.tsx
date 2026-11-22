@@ -22,6 +22,7 @@ import { usoCorralLabel } from '@/lib/instalaciones'
 import NavesResumen, { resumenNaves } from '@/components/agro/resumen/NavesResumen'
 import CierreSemanal from '@/components/agro/resumen/CierreSemanal'
 import CierreSemanalCerdos from '@/components/agro/resumen/CierreSemanalCerdos'
+import PanelCerdos from '@/components/agro/resumen/PanelCerdos'
 import MetasCerdosFrenteReal from '@/components/agro/resumen/MetasCerdosFrenteReal'
 import { metaDeFecha } from '@/lib/metasPostura'
 import { useGuias } from '@/lib/useGuias'
@@ -496,6 +497,7 @@ export function ContenidoInicio({ d, finca, fincas, especies, periodo, setPeriod
         {conRadar && p.verProduccion && (
           <div className={`${ANCHO.mitad} [&>*]:h-full`}><RadarGalpones fincaId={finca.id} /></div>
         )}
+        {p.verProduccion && especies.includes('cerdos') && <PanelCerdos fincaId={finca.id} verDinero={p.verDinero} />}
         {p.verProduccion && especies.includes('cerdos') && <CierreSemanalCerdos fincaId={finca.id} hoy={hoy} />}
         {p.verProduccion && especies.includes('cerdos') && <MetasCerdosFrenteReal fincaId={finca.id} />}
         {hayAves && p.verProduccion && (

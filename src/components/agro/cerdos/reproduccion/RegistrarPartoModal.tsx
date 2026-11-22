@@ -1,5 +1,6 @@
 'use client'
 
+import { tareasManejoLechon } from '@/lib/reproduccionCerdos'
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
@@ -46,6 +47,10 @@ function defaultForm(s?: Servicio | null, parto?: Parto | null) {
       muertos_postparto: String(parto.muertos_postparto),
       peso_camada_kg: parto.peso_camada_kg != null ? String(parto.peso_camada_kg) : '',
       observaciones: parto.observaciones ?? '',
+      hora_inicio: parto.hora_inicio?.slice(0, 5) ?? '',
+      hora_fin: parto.hora_fin?.slice(0, 5) ?? '',
+      asistido: parto.asistido == null ? '' : parto.asistido ? 'si' : 'no',
+      defectos: parto.defectos ?? '',
     }
   }
   return {
@@ -58,6 +63,10 @@ function defaultForm(s?: Servicio | null, parto?: Parto | null) {
     muertos_postparto: '0',
     peso_camada_kg: '',
     observaciones: '',
+    hora_inicio: '',
+    hora_fin: '',
+    asistido: '',
+    defectos: '',
   }
 }
 
@@ -68,13 +77,20 @@ export default function RegistrarPartoModal({ open, onClose, lote, hembras, serv
   const [form, setForm] = useState(() => defaultForm(servicioPreseleccionado, partoExistente))
   // Un peso por lechón nacido vivo: la lista crece y se recorta con la cantidad
   const [pesos, setPesos] = useState<string[]>([])
+  // Y el sexo de cada uno (M o H), que queda en su lechón
+  const [sexos, setSexos] = useState<string[]>([])
 
   useEffect(() => {
     if (!open) return
     setForm(defaultForm(servicioPreseleccionado, partoExistente))
     // Al corregir un parto se traen los pesos que ya tenía
     setPesos((partoExistente?.pesos_nacimiento_kg ?? []).map(x => String(x)))
-  }, [open, servicioPreseleccionado, partoExistente])
+    setSexos([])
+    if (partoExistente) {
+      supabase.from('lechones_cerdos').select('sexo').eq('parto_id', partoExistente.id).order('numero')
+        .then(({ data }) => setSexos((data ?? []).map(l => l.sexo ?? '')))
+    }
+  }, [open, servicioPreseleccionado, partoExistente, supabase])
 
   function set(field: string, value: string | null) {
     setForm(prev => ({ ...prev, [field]: value ?? '' }))
@@ -133,6 +149,10 @@ export default function RegistrarPartoModal({ open, onClose, lote, hembras, serv
       muertos_postparto: muertosPostparto,
       pesos_nacimiento_kg: pesosLlenos.length > 0 ? pesosLlenos : null,
       peso_camada_kg: pesoCamada,
+      hora_inicio: form.hora_inicio || null,
+      hora_fin: form.hora_fin || null,
+      asistido: form.asistido === '' ? null : form.asistido === 'si',
+      defectos: form.defectos.trim() || null,
       observaciones: form.observaciones || null,
     }
 
@@ -147,6 +167,19 @@ export default function RegistrarPartoModal({ open, onClose, lote, hembras, serv
     if (!error && servicioId) {
       await supabase.from('servicios_cerdos').update({ estado: 'parido' }).eq('id', servicioId)
     }
+    // Parto nuevo: las tareas del manejo de la camada quedan programadas (lib/reproduccionCerdos)
+    if (!error && !partoExistente && vivos > 0) {
+      const madre = hembras.find(h => h.id === form.reproductora_id)
+      await supabase.from('tareas_operarios').insert(tareasManejoLechon(form.fecha_parto, madre?.codigo ?? 'la cerda', cfg).map(t => ({
+        finca_id: lote.finca_id,
+        descripcion: t.descripcion,
+        fecha: t.fecha,
+        prioridad: t.dia <= 2 ? 'alta' : 'normal',
+        instalacion_id: lote.instalacion_id,
+        notas: `Día ${t.dia} de vida. (Programada por la app al registrar el parto; los días se cambian en Parámetros.)`,
+      })))
+    }
+
     // El estado (lactante) y el número de partos salen de su historia (lib/estadoCerda)
     if (!error) {
       await actualizarEstadoCerda(supabase, form.reproductora_id, cfg)
@@ -156,7 +189,7 @@ export default function RegistrarPartoModal({ open, onClose, lote, hembras, serv
 
     setLoading(false)
     if (error) { toast.error(partoExistente ? 'Error al guardar el parto' : 'Error al registrar el parto'); return }
-    toast.success(partoExistente ? 'Parto actualizado' : `Parto registrado: ${vivos} nacidos vivos`)
+    toast.success(partoExistente ? 'Parto actualizado' : `Parto registrado: ${vivos} nacidos vivos. Quedaron programadas las tareas de la camada.`)
     onCreated()
     onClose()
   }
@@ -179,9 +212,10 @@ export default function RegistrarPartoModal({ open, onClose, lote, hembras, serv
     // Los pesos que se escribieron se guardan en el lechón que corresponde
     for (let i = 0; i < Math.min(lechones.length, vivos); i++) {
       const peso = pesos[i] ? Number(pesos[i]) : null
-      if (peso !== (lechones[i].peso_nacimiento_kg != null ? Number(lechones[i].peso_nacimiento_kg) : null)) {
+      const sexo = sexos[i] || null
+      if (peso !== (lechones[i].peso_nacimiento_kg != null ? Number(lechones[i].peso_nacimiento_kg) : null) || sexo !== (lechones[i].sexo ?? null)) {
         await supabase.from('lechones_cerdos')
-          .update({ peso_nacimiento_kg: peso, fecha_nacimiento: form.fecha_parto })
+          .update({ peso_nacimiento_kg: peso, sexo, fecha_nacimiento: form.fecha_parto })
           .eq('id', lechones[i].id)
       }
     }
@@ -198,6 +232,7 @@ export default function RegistrarPartoModal({ open, onClose, lote, hembras, serv
           codigo: codigoLechon(madre.codigo, siguiente),
           numero: siguiente,
           peso_nacimiento_kg: pesos[i] ? Number(pesos[i]) : null,
+          sexo: sexos[i] || null,
           fecha_nacimiento: form.fecha_parto,
           estado: 'lactante',
         })
@@ -293,7 +328,7 @@ export default function RegistrarPartoModal({ open, onClose, lote, hembras, serv
             {pesos.length > 0 && (
               <div className="space-y-2">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <Label className="text-xs">Peso de cada lechón al nacer (kg)</Label>
+                  <Label className="text-xs">Peso y sexo de cada lechón al nacer</Label>
                   <span className="text-[0.6875rem] text-gray-500">
                     {pesosLlenos.length > 0
                       ? `${pesosLlenos.length} de ${pesos.length} pesados · la camada suma sola`
@@ -312,6 +347,15 @@ export default function RegistrarPartoModal({ open, onClose, lote, hembras, serv
                           onChange={e => setPesos(prev => prev.map((x, j) => j === i ? e.target.value : x))}
                         />
                         <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-gray-400">kg</span>
+                      </div>
+                      <div className="flex gap-1">
+                        {(['M', 'H'] as const).map(x => (
+                          <button key={x} type="button" title={x === 'M' ? 'Macho' : 'Hembra'}
+                            onClick={() => setSexos(prev => { const n = [...prev]; while (n.length <= i) n.push(''); n[i] = n[i] === x ? '' : x; return n })}
+                            className={`h-6 flex-1 rounded text-[0.6875rem] font-semibold ${sexos[i] === x ? (x === 'M' ? 'bg-sky-600 text-white' : 'bg-pink-600 text-white') : 'bg-white text-gray-500 ring-1 ring-gray-200'}`}>
+                            {x}
+                          </button>
+                        ))}
                       </div>
                     </div>
                   ))}
@@ -347,6 +391,30 @@ export default function RegistrarPartoModal({ open, onClose, lote, hembras, serv
                 <Ic n="alerta" /> Un lechón por debajo de 1 kg al nacer tiene mucho menos chance de llegar al destete.
               </p>
             )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="space-y-1">
+              <Label>Hora de inicio</Label>
+              <Input type="time" value={form.hora_inicio} onChange={e => set('hora_inicio', e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label>Hora de fin</Label>
+              <Input type="time" value={form.hora_fin} onChange={e => set('hora_fin', e.target.value)} />
+            </div>
+            <div className="col-span-2 space-y-1">
+              <Label>¿Necesitó asistencia?</Label>
+              <div className="grid grid-cols-3 gap-1 rounded-lg bg-gray-100 p-1">
+                {([['no', 'No'], ['si', 'Sí'], ['', 'Sin anotar']] as const).map(([v, t]) => (
+                  <button key={t} type="button" onClick={() => set('asistido', v)}
+                    className={`rounded-md px-2 py-1 text-xs font-medium ${form.asistido === v ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>{t}</button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label>Defectos de los lechones</Label>
+            <Input placeholder="Ej: 1 con hernia, 1 con patas abiertas" value={form.defectos} onChange={e => set('defectos', e.target.value)} />
           </div>
 
           <div className="space-y-1">

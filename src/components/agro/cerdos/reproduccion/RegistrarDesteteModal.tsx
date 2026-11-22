@@ -1,5 +1,6 @@
 'use client'
 
+import { sumarDias } from '@/lib/cierreSemanal'
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
@@ -98,17 +99,26 @@ export default function RegistrarDesteteModal({ open, onClose, lote, hembras, pa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
-  // Al elegir la camada se traen sus lechones, cada uno con su código
+  // Al elegir la camada se traen los lechones que cría la cerda: los suyos que no
+  // pasaron a otra (cambio de madre) y los que adoptó
   useEffect(() => {
     if (!open || !partoId) { setLechones([]); return }
-    supabase.from('lechones_cerdos').select('*').eq('parto_id', partoId).order('numero')
+    const parto = partos.find(p => p.id === partoId)
+    const madreId = parto?.reproductora_id
+    // Los adoptados por esta cerda que nacieron cerca de su parto (± 14 días): así no se mezclan los de otra camada suya
+    const desde = parto ? sumarDias(parto.fecha_parto, -14) : null
+    const hasta = parto ? sumarDias(parto.fecha_parto, 14) : null
+    const filtro = madreId && desde && hasta
+      ? `parto_id.eq.${partoId},and(nodriza_id.eq.${madreId},fecha_nacimiento.gte.${desde},fecha_nacimiento.lte.${hasta})`
+      : `parto_id.eq.${partoId}`
+    supabase.from('lechones_cerdos').select('*').or(filtro).order('codigo')
       .then(({ data }) => {
-        const lista = data ?? []
+        const lista = (data ?? []).filter(l => !l.nodriza_id || l.nodriza_id === madreId)
         setLechones(lista)
         setSalen(Object.fromEntries(lista.map(l => [l.id, l.estado !== 'muerto'])))
         setPesos(Object.fromEntries(lista.map(l => [l.id, l.peso_destete_kg != null ? String(l.peso_destete_kg) : ''])))
       })
-  }, [open, partoId, supabase])
+  }, [open, partoId, supabase, partos])
 
   const parto = partos.find(p => p.id === partoId) ?? null
   const hembra = parto ? hembras.find(h => h.id === parto.reproductora_id) : null

@@ -1,5 +1,6 @@
 'use client'
 
+import { puntajeDescarte } from '@/lib/reproduccionCerdos'
 import { Indicador } from '@/components/ui/indicador'
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
@@ -27,9 +28,12 @@ import {
 import { hoyLocal } from '@/lib/fechas'
 import { useConfigCerdos } from '@/lib/useConfigCerdos'
 import { nombrePuestos, type NaveRef } from '@/lib/instalaciones'
-import { alertasPieDeCria, nivelBandeja } from '@/lib/alertasCerdos'
+import { alertasPieDeCria, alertasParaRol, nivelBandeja } from '@/lib/alertasCerdos'
+import { useRolFinca } from '@/components/agro/RolProvider'
 import { BandejaAlertas } from '@/components/ui/widgets/Alertas'
 import { Ic } from '@/components/ui/icon'
+import MachosModal from './MachosModal'
+import AdopcionModal from './AdopcionModal'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
 type Reproductora = Database['public']['Tables']['reproductoras_cerdos']['Row']
@@ -62,6 +66,7 @@ export default function TabReproduccion({ loteActual, onLoteUpdated, nave, naves
   const cfg = useConfigCerdos()
   const supabase = createClient()
   const [subTab, setSubTab] = useState<SubTab>('hembras')
+  const rolFinca = useRolFinca()
   const [hembras, setHembras] = useState<Reproductora[]>([])
   const [servicios, setServicios] = useState<Servicio[]>([])
   const [aplicaciones, setAplicaciones] = useState<Aplicacion[]>([])
@@ -84,6 +89,9 @@ export default function TabReproduccion({ loteActual, onLoteUpdated, nave, naves
   const [grupoHembras, setGrupoHembras] = useState<string | null>(null)
   const [servicioParaParto, setServicioParaParto] = useState<Servicio | null>(null)
   const [modalDestete, setModalDestete] = useState(false)
+  // Fase 1 de cerdos: machos y celadores, y cambio de madre
+  const [modalMachos, setModalMachos] = useState(false)
+  const [modalAdopcion, setModalAdopcion] = useState(false)
   const [partoParaDestete, setPartoParaDestete] = useState<Parto | null>(null)
   const [confirmandoEliminar, setConfirmandoEliminar] = useState<string | null>(null)
 
@@ -157,6 +165,20 @@ export default function TabReproduccion({ loteActual, onLoteUpdated, nave, naves
 
   // Servicios pendientes de confirmar preñez y partos que ya vienen
   const serviciosActivos = servicios.filter(s => s.estado === 'pendiente' || s.estado === 'confirmado')
+  const candidatasDescarte = activas.map(c => {
+    const deC = (xs: { reproductora_id: string }[]) => xs.filter(x => x.reproductora_id === c.id)
+    const ps = deC(partos) as Parto[]
+    const ev = deC(eventos) as EventoGestacion[]
+    const est = estados.get(c.id)
+    const r = puntajeDescarte({
+      partos: ps.length + (c.partos_previos ?? 0),
+      repeticiones: ev.filter(e => e.tipo === 'repeticion').length,
+      abortos: ev.filter(e => e.tipo === 'aborto').length,
+      vivosPorParto: ps.length ? ps.reduce((t, p) => t + p.nacidos_vivos, 0) / ps.length : null,
+      diasRecuperacion: est?.estado === 'en_recuperacion' && est.desde ? diasDesde(est.desde) : null,
+    }, cfg)
+    return { cerda: c, ...r }
+  }).filter(c => c.puntaje >= 40).sort((a, b) => b.puntaje - a.puntaje)
   const porConfirmar = serviciosActivos.filter(s => !s.prenez_confirmada && diasDesde(s.fecha_servicio) >= cfg.reproduccion.diaConfirmacion)
 
   // Camadas sin destetar, con su día de lactancia
@@ -195,10 +217,11 @@ export default function TabReproduccion({ loteActual, onLoteUpdated, nave, naves
   const puestoNave = nave.puestos ? nombrePuestos(nave.uso)?.replace(/s$/, '') ?? null : null
 
   // Las alertas de las cerdas de esta nave salen del motor (parto, traslado, celo, destete)
-  const alertas = alertasPieDeCria({
+  // Cada rol ve las alertas que le tocan (lib/alertasCerdos)
+  const alertas = alertasParaRol(alertasPieDeCria({
     cerdas: hembras, servicios, partos, destetes, eventos, cfg, hoy: hoyStr,
     naveDeParideras: id => naves.some(n => n.id === id && n.uso === 'parideras'),
-  })
+  }), rolFinca)
 
   /**
    * Borrar un registro deshace lo que ese registro había cambiado: si se borra el
@@ -260,7 +283,15 @@ export default function TabReproduccion({ loteActual, onLoteUpdated, nave, naves
             Gestación de {cfg.reproduccion.diasGestacion} días · destete entre los {cfg.reproduccion.lactanciaMin} y los {cfg.reproduccion.lactanciaMax} días · la cerda repite celo a los {cfg.reproduccion.cicloEstral} días si no prendió
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" className="text-sm" onClick={() => setModalMachos(true)}>
+            <Ic n="cerdo" /> Machos y celadores
+          </Button>
+          {(subTab === 'partos' || subTab === 'destetes') && (
+            <Button variant="outline" className="text-sm" onClick={() => setModalAdopcion(true)}>
+              <Ic n="ciclo" /> Cambio de madre
+            </Button>
+          )}
           {subTab === 'hembras' && (
             <Button onClick={() => { setHembraEditar(null); setModalHembra(true) }} className="bg-pink-600 hover:bg-pink-700 text-white text-sm">
               + Registrar hembra
@@ -298,6 +329,12 @@ export default function TabReproduccion({ loteActual, onLoteUpdated, nave, naves
 
       {/* Lo que hay que hacer con las cerdas de esta nave (motor de alertas: src/lib/alertasCerdos.ts) */}
       <BandejaAlertas titulo="Para hacer" alertas={[
+        // Cerdas que conviene revisar para descarte (lib/reproduccionCerdos; los criterios están en Parámetros)
+        ...candidatasDescarte.map(c => ({
+          id: `descarte:${c.cerda.id}`, nivel: (c.puntaje >= 60 ? 'urgente' : 'revisar') as 'urgente' | 'revisar',
+          texto: `${c.cerda.codigo}: candidata a descarte (${c.puntaje}/100)`,
+          detalle: `${c.razones.join(' · ')}. Es una sugerencia para los profesores, no una decisión.`,
+        })),
         ...alertas.map(a => ({ id: a.id, nivel: nivelBandeja(a.prioridad), texto: a.texto, detalle: a.detalle })),
         ...(porConfirmar.length > 0 ? [{
           id: 'por-confirmar', nivel: 'revisar' as const,
@@ -309,6 +346,11 @@ export default function TabReproduccion({ loteActual, onLoteUpdated, nave, naves
       {/* KPIs del núcleo de cría */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Indicador tono="pink" icono="cerdo" etiqueta="Hembras activas" valor={activas.length} detalle={gruposHembras.filter(g => g.id !== 'descartada').map(g => `${g.total} ${g.total === 1 ? g.uno : g.label.toLowerCase()}`).join(' · ') || 'Sin hembras'} />
+        {activas.some(h => h.racion_kg_dia != null) && (
+          <Indicador tono="amber" icono="alimento" etiqueta="Ración de las cerdas"
+            valor={`${activas.reduce((t, h) => t + Number(h.racion_kg_dia ?? 0), 0).toLocaleString('es-CO', { maximumFractionDigits: 1 })} kg/día`}
+            detalle={`${activas.filter(h => h.racion_kg_dia != null).length} de ${activas.length} con ración (se pone en su ficha)`} />
+        )}
         {gestantes.length > 0 && (
           <Indicador
             tono="purple" icono="tetero" etiqueta="Partos por venir" valor={gestantes.length}
@@ -483,6 +525,10 @@ export default function TabReproduccion({ loteActual, onLoteUpdated, nave, naves
                           <TableCell className="text-sm text-gray-500">
                             {s.codigo_semen ?? s.verraco ?? '—'}
                             {s.codigo_semen && s.verraco && <span className="block text-[0.6875rem] text-gray-400">{s.verraco}</span>}
+                            {s.origen_semen === 'propio' && <span className="block text-[0.6875rem] text-gray-400">semen propio{s.fecha_recoleccion ? ` · recogido ${s.fecha_recoleccion}` : ''}</span>}
+                            {(s.grupo_sincronizado || s.inseminador) && (
+                              <span className="block text-[0.6875rem] text-gray-400">{[s.grupo_sincronizado, s.inseminador && `inseminó ${s.inseminador}`].filter(Boolean).join(' · ')}</span>
+                            )}
                           </TableCell>
                           <TableCell className="text-xs text-gray-500">
                             {(aplicacionesPorServicio.get(s.id) ?? []).length === 0
@@ -747,6 +793,7 @@ export default function TabReproduccion({ loteActual, onLoteUpdated, nave, naves
         open={fichaCerda != null}
         onClose={() => setFichaCerda(null)}
         cerda={fichaCerda}
+        onCambio={fetchAll}
       />
 
       <RegistrarDesteteModal
@@ -758,6 +805,11 @@ export default function TabReproduccion({ loteActual, onLoteUpdated, nave, naves
         partoPreseleccionado={partoParaDestete}
         onCreated={() => { fetchAll(); onLoteUpdated() }}
       />
+      {modalMachos && <MachosModal open={modalMachos} onClose={() => setModalMachos(false)} fincaId={loteActual.finca_id} />}
+      {modalAdopcion && (
+        <AdopcionModal open={modalAdopcion} onClose={() => setModalAdopcion(false)} fincaId={loteActual.finca_id} hembras={activas}
+          onGuardado={() => { fetchAll(); onLoteUpdated() }} />
+      )}
     </div>
   )
 }

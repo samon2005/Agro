@@ -21,17 +21,31 @@ import { Ic, type NombreIcono } from '@/components/ui/icon'
 import { nombreSeccion } from '@/lib/especies'
 import { SelectorUnidades, type Unidad } from '@/components/ui/widgets/Selector'
 import { Pildora } from '@/components/ui/widgets/Widget'
+import TabCrecimiento from '@/components/agro/cerdos/crecimiento/TabCrecimiento'
+import TabSanitarioCerdos from '@/components/agro/cerdos/sanitario/TabSanitarioCerdos'
+import TabAmbientalCerdos from '@/components/agro/cerdos/ambiental/TabAmbientalCerdos'
+import TabEquiposCerdos from '@/components/agro/cerdos/equipos/TabEquiposCerdos'
+import VentasCerdos from '@/components/agro/cerdos/ventas/VentasCerdos'
+import EconomiaGrupo from '@/components/agro/cerdos/ventas/EconomiaGrupo'
+import VisitasModal from '@/components/agro/comun/VisitasModal'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
 type Instalacion = Database['public']['Tables']['instalaciones']['Row']
-type Tab = 'cerdas' | 'diario' | 'alimento' | 'estadisticas'
+type Tab = 'cerdas' | 'diario' | 'alimento' | 'crecimiento' | 'sanitario' | 'ambiental' | 'equipos' | 'ventas' | 'estadisticas'
 
 /** Lo que se ve de un grupo: en las naves de cría, primero sus cerdas. */
-function tabsDelLote(lote: LoteCerdos): { id: Tab; label: string; icon: NombreIcono }[] {
+function tabsDelLote(lote: LoteCerdos, verDinero: boolean): { id: Tab; label: string; icon: NombreIcono }[] {
   return [
     ...(lote.sistema === 'cria' ? [{ id: 'cerdas' as const, label: 'Cerdas', icon: 'cerdo' as const }] : []),
     { id: 'diario', label: 'Diario', icon: 'diario' },
     { id: 'alimento', label: 'Alimento', icon: 'alimento' },
+    // Los pesajes son de los grupos de engorde; las cerdas se pesan en su ficha
+    ...(lote.sistema !== 'cria' ? [{ id: 'crecimiento' as const, label: 'Crecimiento', icon: 'bascula' as const }] : []),
+    { id: 'sanitario', label: 'Sanitario', icon: 'vacuna' },
+    { id: 'ambiental', label: 'Ambiental', icon: 'termometro' },
+    { id: 'equipos', label: 'Equipos', icon: 'ajustes' },
+    // Las ventas son de los grupos de engorde y solo las ve quien ve la plata
+    ...(verDinero && lote.sistema !== 'cria' ? [{ id: 'ventas' as const, label: 'Ventas', icon: 'recibo' as const }] : []),
     { id: 'estadisticas', label: 'Estadísticas', icon: 'grafica' },
   ]
 }
@@ -49,6 +63,7 @@ export default function CerdosPage() {
   const { fincaActual, loading: fincaLoading, refetch: refetchFinca } = useFinca()
   const rol = useRol()
   const { manejarLotes } = permisos(useRolFinca())
+  const [modalVisitas, setModalVisitas] = useState(false)
   const supabase = createClient()
   const [lugares, setLugares] = useState<Instalacion[]>([])
   const [lotes, setLotes] = useState<LoteCerdos[]>([])
@@ -125,7 +140,7 @@ export default function CerdosPage() {
     : seleccion?.startsWith('lote:')
       ? lotes.find(l => `lote:${l.id}` === seleccion) ?? null
       : corralActual ? lotePorLugar.get(corralActual.id) ?? null : null
-  const tabs = loteActual ? tabsDelLote(loteActual) : []
+  const tabs = loteActual ? tabsDelLote(loteActual, rol !== 'trabajador') : []
   const tabVisible: Tab = tabs.some(t => t.id === activeTab) ? activeTab : (tabs[0]?.id ?? 'diario')
 
   function elegirNave(id: string) {
@@ -202,6 +217,10 @@ export default function CerdosPage() {
               <Ic n="grafica" className="size-4" /> Parámetros
             </button>
           )}
+          <button onClick={() => setModalVisitas(true)}
+            className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm text-gray-500 transition-colors hover:bg-white hover:text-gray-800">
+            <Ic n="desinfeccion" className="size-4" /> Visitas
+          </button>
           {manejarLotes && <button onClick={() => setModalFinca(true)}
             className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm text-gray-500 transition-colors hover:bg-white hover:text-gray-800">
             <Ic n="ajustes" className="size-4" /> Naves y finca
@@ -325,6 +344,12 @@ export default function CerdosPage() {
               <TabDiarioCerdos key={loteActual.id} loteActual={loteActual} onLoteUpdated={cargar} onIrAlimento={() => setActiveTab('alimento')} />
             )}
             {tabVisible === 'alimento' && <AlimentoCorral key={loteActual.id} lote={loteActual} onCambio={cargar} />}
+            {tabVisible === 'crecimiento' && <TabCrecimiento key={loteActual.id} loteActual={loteActual} onLoteUpdated={cargar} />}
+            {tabVisible === 'sanitario' && <TabSanitarioCerdos key={loteActual.id} loteActual={loteActual} />}
+            {tabVisible === 'ambiental' && <TabAmbientalCerdos key={loteActual.id} loteActual={loteActual} />}
+            {tabVisible === 'equipos' && <TabEquiposCerdos key={loteActual.id} loteActual={loteActual} />}
+            {tabVisible === 'ventas' && <VentasCerdos key={loteActual.id} lote={loteActual} onCambio={cargar} />}
+            {tabVisible === 'estadisticas' && rol !== 'trabajador' && loteActual.sistema !== 'cria' && <div className="mb-4"><EconomiaGrupo key={`eco-${loteActual.id}`} lote={loteActual} /></div>}
             {tabVisible === 'estadisticas' && (
               <TableroReportes key={loteActual.id} fincaId={fincaActual.id} fincaNombre={fincaActual.nombre} especies={['cerdos']}
                 especie="cerdos" loteId={loteActual.id} verDinero={rol !== 'trabajador'} />
@@ -355,6 +380,7 @@ export default function CerdosPage() {
         />
       )}
 
+      {modalVisitas && fincaActual && <VisitasModal open={modalVisitas} onClose={() => setModalVisitas(false)} fincaId={fincaActual.id} />}
       <ParametrosCerdosModal key={modalParametros ? 'abierto' : 'cerrado'} open={modalParametros} onClose={() => setModalParametros(false)} />
 
       <EditarFincaModal

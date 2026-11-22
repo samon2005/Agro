@@ -83,6 +83,31 @@ const SECCIONES: Seccion[] = [
     ] }],
   },
   {
+    id: 'descarte', titulo: 'Descarte y lechones',
+    descripcion: 'Cuándo sugerir revisar una cerda para descarte y en qué día de vida se hace cada manejo del lechón. Los definen los profesores; estos son puntos de partida.',
+    grupos: [
+      { titulo: 'Sugerir descarte cuando la cerda tenga', campos: [
+        { ruta: 'descarte.maxPartos', etiqueta: 'Partos', unidad: 'o más' },
+        { ruta: 'descarte.maxRepeticiones', etiqueta: 'Repeticiones de celo', unidad: 'o más' },
+        { ruta: 'descarte.maxAbortos', etiqueta: 'Abortos', unidad: 'o más' },
+        { ruta: 'descarte.minNacidosVivos', etiqueta: 'Nacidos vivos por parto', unidad: 'o menos' },
+        { ruta: 'descarte.maxDiasRecuperacion', etiqueta: 'Días sin celo tras el destete', unidad: 'días' },
+      ] },
+      { titulo: 'Manejo del lechón (día de vida; el parto es el día 0)', nota: 'Al registrar un parto, la app programa estas tareas.', campos: [
+        { ruta: 'manejoLechon.tatuaje', etiqueta: 'Tatuaje', unidad: 'día' },
+        { ruta: 'manejoLechon.colmillos', etiqueta: 'Colmillos', unidad: 'día' },
+        { ruta: 'manejoLechon.hierro', etiqueta: 'Hierro', unidad: 'día' },
+        { ruta: 'manejoLechon.cola', etiqueta: 'Cola', unidad: 'día' },
+        { ruta: 'manejoLechon.castracion', etiqueta: 'Castración', unidad: 'día' },
+        { ruta: 'manejoLechon.chapeta', etiqueta: 'Chapeta', unidad: 'día' },
+        { ruta: 'manejoLechon.papillas', etiqueta: 'Papillas', unidad: 'día' },
+      ] },
+      { titulo: 'Engorde', campos: [
+        { ruta: 'vacioSanitarioDias', etiqueta: 'Vacío sanitario del corral', unidad: 'días' },
+      ] },
+    ],
+  },
+  {
     id: 'alertas', titulo: 'Alertas',
     descripcion: 'Cuándo avisa la app. Son puntos de partida: ajústalos con el veterinario o asesor de la granja.',
     grupos: [

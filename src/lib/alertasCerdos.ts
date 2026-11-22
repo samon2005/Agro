@@ -16,7 +16,7 @@ export interface AlertaCerdos {
   id: string
   tipo:
     | 'parto_proximo' | 'traslado_parideras' | 'celo_esperado' | 'cerda_sin_celo' | 'destete_pendiente'
-    | 'dia_sin_registrar' | 'mortalidad_alta' | 'consumo_bajo' | 'bajo_peso' | 'cambio_etapa'
+    | 'dia_sin_registrar' | 'mortalidad_alta' | 'consumo_bajo' | 'bajo_peso' | 'cambio_etapa' | 'clinica' | 'temperatura'
   prioridad: Prioridad
   para: Destinatario[]
   texto: string
@@ -197,6 +197,8 @@ export interface GrupoAlerta {
   numero_animales: number
   animales_actuales: number
   consumo_activo_kg: number | null
+  /** Fecha programada del cambio de etapa, si la hay */
+  proximo_cambio_etapa?: string | null
 }
 
 /**
@@ -207,11 +209,13 @@ export interface GrupoAlerta {
 export function alertasGrupo(p: {
   grupo: GrupoAlerta
   /** Registros diarios recientes: fecha y lo que comieron (consumo real) */
-  registros: { fecha: string; consumo_real_kg: number | null; alimento_kg: number }[]
+  registros: { fecha: string; consumo_real_kg: number | null; alimento_kg: number; temperatura_c?: number | null }[]
   mortalidad: { fecha: string; cantidad: number }[]
   pesajes?: { fecha: string; peso_promedio: number }[]
   /** Fecha en que el grupo entró a la etapa actual (si no, la de ingreso) */
   inicioEtapa?: string
+  /** Casos clínicos del grupo sin desenlace */
+  clinicaAbierta?: number
   cfg: ConfigCerdos
   hoy: string
 }): AlertaCerdos[] {
@@ -284,5 +288,54 @@ export function alertasGrupo(p: {
     }
   }
 
+  // Temperatura del último registro fuera del rango de la etapa (José: afecta directo la producción)
+  const conTemp = [...p.registros].filter(r => r.temperatura_c != null).sort((a, b) => b.fecha.localeCompare(a.fecha))[0]
+  if (conTemp && diasEntre(conTemp.fecha, hoy) <= 1) {
+    const rango = cfg.alertas.temperatura[grupo]
+    const t = Number(conTemp.temperatura_c)
+    if (t < rango.min || t > rango.max) {
+      out.push({
+        id: `temperatura:${g.id}:${conTemp.fecha}`, tipo: 'temperatura', prioridad: 'alta', para: ['encargado', 'administrador'],
+        texto: `${g.nombre}: ${t.toLocaleString('es-CO')} °C, fuera del rango`,
+        detalle: `Para ${grupo} va de ${rango.min} a ${rango.max} °C. ${t > rango.max ? 'Con calor comen menos y ganan menos peso.' : 'Con frío gastan energía calentándose.'}`,
+        fecha: conTemp.fecha, sujeto,
+      })
+    }
+  }
+
+  // Cambio de etapa programado: 1 a 2 días antes (José), y si ya pasó
+  const programado = g.proximo_cambio_etapa
+  if (programado && !out.some(a => a.tipo === 'cambio_etapa')) {
+    const faltan = diasEntre(hoy, programado)
+    if (faltan <= 2) {
+      out.push({
+        id: `cambio-programado:${g.id}:${programado}`, tipo: 'cambio_etapa', prioridad: faltan < 0 ? 'alta' : 'media', para: ['encargado', 'administrador'],
+        texto: faltan < 0 ? `${g.nombre}: el cambio de etapa estaba para el ${fechaCorta(programado)}` : `${g.nombre}: cambio de etapa ${faltan === 0 ? 'hoy' : faltan === 1 ? 'mañana' : `en ${faltan} días`}`,
+        detalle: 'Revisa que el grupo tenga el peso y alista el corral de la siguiente etapa.',
+        fecha: programado, sujeto,
+      })
+    }
+  }
+
+  // Grupo en clínica: animales enfermos sin desenlace anotado
+  if ((p.clinicaAbierta ?? 0) > 0) {
+    out.push({
+      id: `clinica:${g.id}:${hoy}`, tipo: 'clinica', prioridad: 'media', para: ['encargado', 'administrador'],
+      texto: `${g.nombre}: ${p.clinicaAbierta} ${p.clinicaAbierta === 1 ? 'caso clínico abierto' : 'casos clínicos abiertos'}`,
+      detalle: 'Anota cómo terminó cada uno: se recuperó, vuelve al grupo, se vendió aparte, se sacrificó o murió.',
+      fecha: hoy, sujeto,
+    })
+  }
+
   return ordenarAlertas(out)
+}
+
+/**
+ * Las alertas que le tocan a cada rol (José): el administrador y los
+ * profesores (asesor) las ven todas; el encargado (operario, zootecnista) ve
+ * las puntuales de su trabajo.
+ */
+export function alertasParaRol<T extends { para: string[] }>(alertas: T[], rol: string | null): T[] {
+  if (rol === 'propietario' || rol === 'administrador' || rol === 'asesor') return alertas
+  return alertas.filter(a => a.para.includes('encargado'))
 }

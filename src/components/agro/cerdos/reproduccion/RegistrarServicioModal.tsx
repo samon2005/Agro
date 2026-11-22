@@ -39,8 +39,18 @@ function defaultForm(s?: Servicio | null) {
     verraco: s?.verraco ?? '',
     codigo_semen: s?.codigo_semen ?? '',
     observaciones: s?.observaciones ?? '',
+    // Fase 1 de cerdos (José): semen comprado o propio, quién inseminó, celo y grupo
+    origen_semen: s?.origen_semen ?? (s?.tipo === 'monta_natural' ? 'monta' : 'comprado'),
+    macho_id: s?.macho_id ?? '',
+    fecha_recoleccion: s?.fecha_recoleccion ?? '',
+    inseminador: s?.inseminador ?? '',
+    calidad_celo: s?.calidad_celo != null ? String(s.calidad_celo) : '',
+    grupo_sincronizado: s?.grupo_sincronizado ?? '',
   }
 }
+
+type Macho = { id: string; nombre: string; funcion: string }
+const CALIDAD_CELO = [{ v: '3', t: 'Bueno (lordosis firme)' }, { v: '2', t: 'Regular' }, { v: '1', t: 'Débil' }]
 
 export default function RegistrarServicioModal({ open, onClose, lote, hembras, servicioExistente, onCreated }: Props) {
   const cfg = useConfigCerdos()
@@ -48,6 +58,22 @@ export default function RegistrarServicioModal({ open, onClose, lote, hembras, s
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState(() => defaultForm(servicioExistente))
   const [aplicaciones, setAplicaciones] = useState<Aplicacion[]>([{ fecha: hoyLocal(), hora: '', codigo_semen: '' }])
+  // Los machos de la finca (celadores y reproductores) y los grupos ya usados
+  const [machos, setMachos] = useState<Macho[]>([])
+  const [grupos, setGrupos] = useState<string[]>([])
+  useEffect(() => {
+    if (!open) return
+    let vigente = true
+    Promise.all([
+      supabase.from('machos_cerdos').select('id, nombre, funcion').eq('finca_id', lote.finca_id).eq('activo', true).order('nombre'),
+      supabase.from('servicios_cerdos').select('grupo_sincronizado').eq('finca_id', lote.finca_id).not('grupo_sincronizado', 'is', null).order('created_at', { ascending: false }).limit(200),
+    ]).then(([m, g]) => {
+      if (!vigente) return
+      setMachos((m.data ?? []) as Macho[])
+      setGrupos([...new Set((g.data ?? []).map(x => x.grupo_sincronizado as string))])
+    })
+    return () => { vigente = false }
+  }, [open, lote.finca_id, supabase])
   // El parto sale solo con los días de gestación de la granja, pero se puede corregir
   const [partoManual, setPartoManual] = useState<string | null>(null)
 
@@ -102,11 +128,20 @@ export default function RegistrarServicioModal({ open, onClose, lote, hembras, s
     if (aplicaciones.some(a => !a.fecha)) { toast.error('Cada aplicacion necesita su fecha'); return }
 
     setLoading(true)
+    const macho = machos.find(m => m.id === form.macho_id)
+    const conMacho = form.origen_semen !== 'comprado'
     const payload = {
       reproductora_id: form.reproductora_id,
       fecha_servicio: aplicaciones[0].fecha,
-      tipo: form.tipo,
-      verraco: form.verraco || null,
+      tipo: form.origen_semen === 'monta' ? 'monta_natural' : 'inseminacion',
+      // El nombre del macho también queda en "verraco", donde lo leen los reportes de antes
+      verraco: conMacho ? (macho?.nombre ?? null) : (form.verraco || null),
+      origen_semen: form.origen_semen,
+      macho_id: conMacho ? (form.macho_id || null) : null,
+      fecha_recoleccion: form.origen_semen === 'propio' ? (form.fecha_recoleccion || null) : null,
+      inseminador: form.inseminador.trim() || null,
+      calidad_celo: form.calidad_celo ? Number(form.calidad_celo) : null,
+      grupo_sincronizado: form.grupo_sincronizado.trim() || null,
       codigo_semen: form.codigo_semen || null,
       numero_dosis: aplicaciones.length,
       fecha_probable_parto: parto,
@@ -171,28 +206,63 @@ export default function RegistrarServicioModal({ open, onClose, lote, hembras, s
                 </SelectContent>
               </Select>
             </div>
+            <div className="col-span-2 space-y-1">
+              <Label>Semen</Label>
+              <div className="grid grid-cols-3 gap-1 rounded-lg bg-gray-100 p-1">
+                {([['comprado', 'Comprado (pajilla)'], ['propio', 'Propio de la finca'], ['monta', 'Monta natural']] as const).map(([v, t]) => (
+                  <button key={v} type="button" onClick={() => set('origen_semen', v)}
+                    className={`rounded-md px-2 py-1.5 text-xs font-medium ${form.origen_semen === v ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}>
+                    {t}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {form.origen_semen === 'comprado' ? (
+              <>
+                <div className="space-y-1">
+                  <Label>Genética o proveedor</Label>
+                  <Input placeholder="Ej: PIC" value={form.verraco} onChange={e => set('verraco', e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Código del semen</Label>
+                  <Input placeholder="Ej: PIC-4408-25" value={form.codigo_semen} onChange={e => set('codigo_semen', e.target.value)} />
+                </div>
+              </>
+            ) : (
+              <>
+                <div className={form.origen_semen === 'propio' ? 'space-y-1' : 'col-span-2 space-y-1'}>
+                  <Label>{form.origen_semen === 'propio' ? 'Macho del que se recogió' : 'Macho'}</Label>
+                  <select value={form.macho_id} onChange={e => set('macho_id', e.target.value)}
+                    className="h-9 w-full rounded-lg border border-gray-200 bg-white px-2 text-sm">
+                    <option value="">{machos.length ? 'Elegir…' : 'Registra los machos en "Machos y celadores"'}</option>
+                    {machos.map(m => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+                  </select>
+                </div>
+                {form.origen_semen === 'propio' && (
+                  <div className="space-y-1">
+                    <Label>Fecha de recolección</Label>
+                    <Input type="date" value={form.fecha_recoleccion} onChange={e => set('fecha_recoleccion', e.target.value)} />
+                  </div>
+                )}
+              </>
+            )}
             <div className="space-y-1">
-              <Label>Tipo</Label>
-              <Select
-                value={form.tipo}
-                onValueChange={v => set('tipo', v)}
-                items={{ inseminacion: 'Inseminación artificial', monta_natural: 'Monta natural' }}
-              >
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="inseminacion"><Ic n="vacuna" /> Inseminación artificial</SelectItem>
-                  <SelectItem value="monta_natural"><Ic n="cerdo" /> Monta natural</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label>Quién inseminó</Label>
+              <Input placeholder="Ej: Andrés (practicante)" value={form.inseminador} onChange={e => set('inseminador', e.target.value)} />
             </div>
             <div className="space-y-1">
-              <Label>Verraco / origen del semen</Label>
-              <Input placeholder="Ej: V-12 o Genética PIC" value={form.verraco} onChange={e => set('verraco', e.target.value)} />
+              <Label>Calidad del celo</Label>
+              <select value={form.calidad_celo} onChange={e => set('calidad_celo', e.target.value)}
+                className="h-9 w-full rounded-lg border border-gray-200 bg-white px-2 text-sm">
+                <option value="">Sin anotar</option>
+                {CALIDAD_CELO.map(c => <option key={c.v} value={c.v}>{c.t}</option>)}
+              </select>
             </div>
             <div className="col-span-2 space-y-1">
-              <Label>Código del semen</Label>
-              <Input placeholder="Ej: PIC-4408-25" value={form.codigo_semen} onChange={e => set('codigo_semen', e.target.value)} />
-              <p className="text-xs text-gray-400">Cada pajilla trae su código; queda guardado en cada aplicación.</p>
+              <Label>Grupo sincronizado</Label>
+              <Input list="grupos-sincronizados" placeholder="Ej: Grupo 12 (nov)" value={form.grupo_sincronizado} onChange={e => set('grupo_sincronizado', e.target.value)} />
+              <datalist id="grupos-sincronizados">{grupos.map(g => <option key={g} value={g} />)}</datalist>
+              <p className="text-xs text-gray-400">Las 4 o 5 cerdas que se sincronizan para parir juntas. Escribe el mismo nombre en todas.</p>
             </div>
             <div className="col-span-2 space-y-2 rounded-xl bg-gray-50 p-3">
               <div className="flex items-center justify-between">
