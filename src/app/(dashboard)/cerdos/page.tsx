@@ -29,6 +29,9 @@ import VentasCerdos from '@/components/agro/cerdos/ventas/VentasCerdos'
 import EconomiaGrupo from '@/components/agro/cerdos/ventas/EconomiaGrupo'
 import VisitasModal from '@/components/agro/comun/VisitasModal'
 import { AccionesResponsive } from '@/components/ui/acciones-responsive'
+import { useConfigCerdos } from '@/lib/useConfigCerdos'
+import { hoyLocal } from '@/lib/fechas'
+import { sumarDias } from '@/lib/cierreSemanal'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
 type Instalacion = Database['public']['Tables']['instalaciones']['Row']
@@ -64,6 +67,7 @@ export default function CerdosPage() {
   const { fincaActual, loading: fincaLoading, refetch: refetchFinca } = useFinca()
   const rol = useRol()
   const { manejarLotes } = permisos(useRolFinca())
+  const cfg = useConfigCerdos()
   const [modalVisitas, setModalVisitas] = useState(false)
   const supabase = createClient()
   const [lugares, setLugares] = useState<Instalacion[]>([])
@@ -253,7 +257,12 @@ export default function CerdosPage() {
               onElegir={id => { const c = corrales.find(x => x.id === id); if (c) elegirCorral(c) }}
               unidades={corrales.map((c): Unidad => {
                 const l = lotePorLugar.get(c.id)
-                if (!l) return { id: c.id, nombre: c.nombre, estado: 'vacio', sub: 'vacío' }
+                if (!l) {
+                  // Vacío sanitario: desde que salió el último grupo, los días de Parámetros (migración 094)
+                  const hasta = c.vacio_desde ? sumarDias(c.vacio_desde, cfg.vacioSanitarioDias) : null
+                  const enVacio = hasta != null && hasta > hoyLocal()
+                  return { id: c.id, nombre: c.nombre, estado: 'vacio', sub: enVacio ? `vacío sanitario hasta ${new Date(hasta + 'T00:00:00').toLocaleDateString('es-CO', { day: 'numeric', month: 'short' })}` : 'vacío · listo' }
+                }
                 return {
                   id: c.id, nombre: c.nombre, estado: 'activo',
                   pct: l.numero_animales > 0 ? (l.animales_actuales / l.numero_animales) * 100 : null,

@@ -157,9 +157,15 @@ export default function TableroInicio<F extends Finca>({ finca, fincas, onEditar
           ))}
         </div>
         {puedeConfigurar && (
-          <button onClick={onEditarFinca} className="inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs text-gray-500 transition-colors hover:bg-white hover:text-gray-800">
-            <Ic n="ajustes" /> Datos de la finca
-          </button>
+          <span className="flex flex-wrap items-center gap-1">
+            {/* Para fincas que ya tenían producción antes de la app (fase 8) */}
+            <Link href="/arranque" className="inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs text-gray-500 transition-colors hover:bg-white hover:text-gray-800">
+              <Ic n="diario" /> Cargar datos viejos
+            </Link>
+            <button onClick={onEditarFinca} className="inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs text-gray-500 transition-colors hover:bg-white hover:text-gray-800">
+              <Ic n="ajustes" /> Datos de la finca
+            </button>
+          </span>
         )}
       </div>
 
@@ -542,6 +548,7 @@ export function ContenidoInicio({ d, finca, fincas, especies, periodo, setPeriod
                 </li>
               ))}
             </ol>
+            <p className="mt-3 text-xs text-gray-500">¿La finca ya traía producción de antes? <Link href="/arranque" className="font-medium text-green-800 hover:underline">Arranca con los datos viejos</Link>.</p>
           </Widget>
 )}</>
         )}

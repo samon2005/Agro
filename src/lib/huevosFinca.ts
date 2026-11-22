@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { dbGenerico } from './especiesConfig'
 import { todasLasFilas } from '@/lib/todasLasFilas'
 import type { Database } from '@/types/database'
 import { TAMANOS_HUEVO, type PreciosHuevo, type TamanoHuevo } from '@/lib/huevos'
@@ -40,11 +41,14 @@ export interface HuevosFinca {
  * misma cuenta que lleva la base en el inventario (migración 064).
  */
 export async function cargarHuevosFinca(supabase: SupabaseClient<Database>, fincaId: string): Promise<HuevosFinca> {
-  const [prodRes, ventasRes, lotesRes, galponesRes] = await Promise.all([
+  const [prodRes, ventasRes, lotesRes, galponesRes, saldoRes] = await Promise.all([
     todasLasFilas((a, b) => supabase.from('produccion_diaria_aves').select('lote_id, huevos_c, huevos_b, huevos_a, huevos_aa, huevos_aaa, huevos_jumbo, importado').eq('finca_id', fincaId).order('id').range(a, b)),
-    supabase.from('ventas_huevos_aves').select('lote_id, cantidad_c, cantidad_b, cantidad_a, cantidad_aa, cantidad_aaa, cantidad_jumbo').eq('finca_id', fincaId),
+    // Solo las cantidades vendidas: el saldo lo ve también quien no ve la plata (migración 091)
+    dbGenerico(supabase).from('ventas_huevos_cantidades').select('lote_id, cantidad_c, cantidad_b, cantidad_a, cantidad_aa, cantidad_aaa, cantidad_jumbo').eq('finca_id', fincaId),
     supabase.from('lotes_aves').select('id, nombre, instalacion_id').eq('finca_id', fincaId),
     supabase.from('instalaciones').select('id, nombre').eq('finca_id', fincaId),
+    // Lo que había en bodega al empezar a usar la app (migración 093)
+    supabase.from('saldos_iniciales_huevos').select('*').eq('finca_id', fincaId).maybeSingle(),
   ])
   const nombreGalpon = new Map((galponesRes.data ?? []).map(g => [g.id, g.nombre]))
   const claveDe = (l: { nombre: string; instalacion_id: string | null }) =>
@@ -72,6 +76,17 @@ export async function cargarHuevosFinca(supabase: SupabaseClient<Database>, finc
       puestos[t.key] += n
       if (fila) fila.puestos[t.key] += n
     }
+  }
+  // El saldo inicial va en su propia fila, para que cuadre con el total
+  const saldo = saldoRes.data
+  if (saldo) {
+    const fila: ProduccionGalpon = { clave: 'saldo-inicial', nombre: `Saldo inicial (${saldo.fecha})`, puestos: { ...CERO }, vendidos: { ...CERO } }
+    for (const t of TAMANOS_HUEVO) {
+      const n = Number(saldo[`huevos_${t.key}` as keyof typeof saldo] ?? 0)
+      puestos[t.key] += n
+      fila.puestos[t.key] += n
+    }
+    porGalpon.set(fila.clave, fila)
   }
   for (const v of ventasRes.data ?? []) {
     const fila = v.lote_id ? filaDeLote.get(v.lote_id) : undefined

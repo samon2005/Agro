@@ -115,9 +115,9 @@ export interface Database {
         Relationships: []
       }
       instalaciones: {
-        Row: { id: string; finca_id: string; especie: string; tipo: string; nombre: string; area_m2: number | null; padre_id: string | null; puestos: number | null; uso: string | null; observaciones: string | null; registrado_por: string | null; created_at: string }
-        Insert: { id?: string; finca_id: string; especie: string; tipo?: string; nombre: string; area_m2?: number | null; padre_id?: string | null; puestos?: number | null; uso?: string | null; observaciones?: string | null; registrado_por?: string | null; created_at?: string }
-        Update: { id?: string; finca_id?: string; especie?: string; tipo?: string; nombre?: string; area_m2?: number | null; padre_id?: string | null; puestos?: number | null; uso?: string | null; observaciones?: string | null; registrado_por?: string | null; created_at?: string }
+        Row: { id: string; finca_id: string; especie: string; tipo: string; nombre: string; area_m2: number | null; padre_id: string | null; puestos: number | null; uso: string | null; observaciones: string | null; registrado_por: string | null; created_at: string; vacio_desde: string | null }
+        Insert: { id?: string; finca_id: string; especie: string; tipo?: string; nombre: string; area_m2?: number | null; padre_id?: string | null; puestos?: number | null; uso?: string | null; observaciones?: string | null; registrado_por?: string | null; created_at?: string; vacio_desde?: string | null }
+        Update: { id?: string; finca_id?: string; especie?: string; tipo?: string; nombre?: string; area_m2?: number | null; padre_id?: string | null; puestos?: number | null; uso?: string | null; observaciones?: string | null; registrado_por?: string | null; created_at?: string; vacio_desde?: string | null }
         Relationships: []
       }
       cierres_semanales: {
@@ -353,6 +353,12 @@ export interface Database {
         Row: { id: string; finca_id: string; instalacion_id: string; lote_id: string | null; fecha_inicio: string; fecha_fin: string | null; producto: string | null; dosis: string | null; aplicaciones: number | null; control_roedores: boolean; control_insectos: boolean; cambio_cama: boolean; responsable: string | null; observaciones: string | null; registrado_por: string | null; created_at: string }
         Insert: { id?: string; finca_id: string; instalacion_id: string; lote_id?: string | null; fecha_inicio: string; fecha_fin?: string | null; producto?: string | null; dosis?: string | null; aplicaciones?: number | null; control_roedores?: boolean; control_insectos?: boolean; cambio_cama?: boolean; responsable?: string | null; observaciones?: string | null; registrado_por?: string | null; created_at?: string }
         Update: { id?: string; finca_id?: string; instalacion_id?: string; lote_id?: string | null; fecha_inicio?: string; fecha_fin?: string | null; producto?: string | null; dosis?: string | null; aplicaciones?: number | null; control_roedores?: boolean; control_insectos?: boolean; cambio_cama?: boolean; responsable?: string | null; observaciones?: string | null; registrado_por?: string | null; created_at?: string }
+        Relationships: []
+      }
+      saldos_iniciales_huevos: {
+        Row: { finca_id: string; fecha: string; huevos_c: number; huevos_b: number; huevos_a: number; huevos_aa: number; huevos_aaa: number; huevos_jumbo: number; registrado_por: string | null; created_at: string }
+        Insert: { finca_id: string; fecha?: string; huevos_c?: number; huevos_b?: number; huevos_a?: number; huevos_aa?: number; huevos_aaa?: number; huevos_jumbo?: number; registrado_por?: string | null; created_at?: string }
+        Update: { finca_id?: string; fecha?: string; huevos_c?: number; huevos_b?: number; huevos_a?: number; huevos_aa?: number; huevos_aaa?: number; huevos_jumbo?: number; registrado_por?: string | null; created_at?: string }
         Relationships: []
       }
       machos_cerdos: {

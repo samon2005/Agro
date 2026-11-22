@@ -1,5 +1,6 @@
 'use client'
 
+import { dbGenerico } from './especiesConfig'
 import { useEffect, useState } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database'
@@ -22,7 +23,8 @@ export async function cargarSemanasLote(
       .select('fecha, huevos_totales, huevos_c, huevos_b, huevos_a, huevos_aa, huevos_aaa, huevos_jumbo, muertes, alimento_kg')
       .eq('lote_id', lote.id),
     supabase.from('eventos_clinicos_aves').select('fecha, aves_muertas, origen').eq('lote_id', lote.id),
-    supabase.from('ventas_aves_lote').select('fecha, cantidad, tipo').eq('lote_id', lote.id),
+    // Solo las cantidades vendidas, que también ve quien no ve la plata (migración 091)
+    dbGenerico(supabase).from('ventas_aves_cantidades').select('fecha, cantidad, tipo').eq('lote_id', lote.id),
     supabase.from('pesos_lote_aves').select('fecha, peso_promedio_g').eq('lote_id', lote.id),
   ])
   return resumenSemanal(
