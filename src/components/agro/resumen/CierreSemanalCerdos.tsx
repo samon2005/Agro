@@ -58,7 +58,7 @@ export default function CierreSemanalCerdos({ fincaId, hoy }: { fincaId: string;
   ]
 
   return (
-    <Widget className={ANCHO.todo} titulo="Cierre de la semana" icono="diario" info="Semana de lunes a domingo de toda la granja, frente a la semana anterior"
+    <Widget plegable resumen="Mejor y peor día, y la semana frente a la anterior" className={ANCHO.todo} titulo="Cierre de la semana" icono="diario" info="Semana de lunes a domingo de toda la granja, frente a la semana anterior"
       accion={
         <select value={lunes} onChange={e => setLunes(e.target.value)} className="h-8 rounded-lg border border-gray-200 bg-white px-2 text-xs text-gray-700" aria-label="Semana">
           {semanas.map((s, i) => <option key={s} value={s}>{i === 0 ? 'Esta semana (en curso)' : `${corta(s)} – ${corta(sumarDias(s, 6))}`}</option>)}

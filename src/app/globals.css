@@ -445,3 +445,39 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/*
+ * En celular las tablas se ven como tarjetas (TablasEnTarjetas.tsx pone el
+ * nombre de cada columna en data-label). Así no hay que mover la pantalla de
+ * lado. En computador siguen siendo tablas.
+ */
+@media (max-width: 639px) {
+  table.tabla-tarjetas { display: block; width: 100% !important; min-width: 0 !important; border-collapse: separate; }
+  table.tabla-tarjetas thead { display: none; }
+  table.tabla-tarjetas tbody, table.tabla-tarjetas tfoot { display: block; }
+  /* Cada fila es una tarjeta: el primer dato de título y los demás en dos columnas */
+  table.tabla-tarjetas tr {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 0.75rem; row-gap: 0.4rem;
+    margin: 0 0 0.5rem; padding: 0.65rem 0.8rem;
+    border-radius: 0.75rem; background: #fff; box-shadow: 0 0 0 1px rgb(27 26 23 / 8%);
+  }
+  table.tabla-tarjetas tr:last-child { margin-bottom: 0; }
+  table.tabla-tarjetas td {
+    display: block; min-width: 0; padding: 0 !important; border: 0 !important;
+    text-align: left !important; white-space: normal !important; overflow-wrap: anywhere; font-size: 0.875rem;
+  }
+  table.tabla-tarjetas td::before {
+    content: attr(data-label); display: block;
+    font-size: 0.6875rem; font-weight: 500; color: #6b7280; line-height: 1.2;
+  }
+  table.tabla-tarjetas td:first-child { grid-column: 1 / -1; font-size: 0.9375rem; font-weight: 600; color: #1f2937; }
+  table.tabla-tarjetas td:first-child::before { content: none; }
+  /* Celdas sin título (botones de editar o borrar): a la derecha, en su renglón */
+  table.tabla-tarjetas td[data-label=""] { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 0.25rem; }
+  table.tabla-tarjetas td[data-label=""]::before { content: none; }
+  /* Mensajes o subtítulos que ocupan toda la fila */
+  table.tabla-tarjetas td[colspan] { grid-column: 1 / -1; display: block; text-align: center !important; }
+  table.tabla-tarjetas tr:has(> td[colspan]:only-child) { display: block; }
+  /* Los contenedores que antes deslizaban de lado ya no lo necesitan */
+  [data-slot="table-container"]:has(> table.tabla-tarjetas), div.overflow-x-auto:has(> table.tabla-tarjetas) { overflow-x: visible; }
+}

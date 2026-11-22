@@ -265,7 +265,7 @@ export default function RegistrarServicioModal({ open, onClose, lote, hembras, s
               <p className="text-xs text-gray-400">Las 4 o 5 cerdas que se sincronizan para parir juntas. Escribe el mismo nombre en todas.</p>
             </div>
             <div className="col-span-2 space-y-2 rounded-xl bg-gray-50 p-3">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-xs font-semibold text-gray-700">Aplicaciones del servicio</p>
                 <p className="text-[0.6875rem] text-gray-500">Se aplica 1, 2 o 3 veces, a distintas horas</p>
               </div>

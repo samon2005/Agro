@@ -44,17 +44,17 @@ export default function VistaFincaAves({ vista }: Props) {
   }, [fincaActual])
 
   if (fincaLoading || !fincaActual || loading) {
-    return <div className="p-8"><Skeleton className="h-64 rounded-xl" /></div>
+    return <div className="p-4 md:p-8"><Skeleton className="h-64 rounded-xl" /></div>
   }
 
   if (vista === 'ventas' && rol === 'trabajador') {
-    return <div className="p-8"><AccesoRestringido /></div>
+    return <div className="p-4 md:p-8"><AccesoRestringido /></div>
   }
 
   return (
     <div className="space-y-5 p-4 md:p-8">
       <div>
-        <h1 className="text-3xl font-medium text-gray-900">{vista === 'huevos' ? 'Huevos de la finca' : 'Ventas de la finca'}</h1>
+        <h1 className="text-2xl md:text-3xl font-medium text-gray-900">{vista === 'huevos' ? 'Huevos de la finca' : 'Ventas de la finca'}</h1>
         <p className="text-sm text-gray-500">
           {fincaActual.nombre} · {vista === 'huevos' ? 'lo que ponen todos los galpones y lo que hay en bodega' : 'ventas, pagos y encargos de toda la finca'}
         </p>

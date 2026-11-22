@@ -18,6 +18,7 @@ import TableroReportes from '@/components/agro/reportes/TableroReportes'
 import { useRol, useRolFinca } from '@/components/agro/RolProvider'
 import { permisos } from '@/lib/roles'
 import VisitasModal from '@/components/agro/comun/VisitasModal'
+import { AccionesResponsive } from '@/components/ui/acciones-responsive'
 import AccionesLoteModal from '@/components/agro/aves/AccionesLoteModal'
 import RegistrarVentaAvesModal from '@/components/agro/finanzas/RegistrarVentaAvesModal'
 import { PROPOSITO_LABEL } from '@/lib/lotesAves'
@@ -199,6 +200,10 @@ export default function AvesPonedorasPage() {
   }, [loteActual?.id, supabase, alertasVersion])
 
   const ocupados = new Set(lotes.map(l => l.instalacion_id).filter((x): x is string => Boolean(x)))
+  // Las pestañas que le tocan a este galpón y a este rol
+  const tabsVisibles = loteActual
+    ? TABS.filter(tab => (tab.id !== 'rentabilidad' || puedeVerCostos) && (tab.id !== 'estadisticas' || !esCerrado(loteActual)) && (!soloProduccion || tab.id === 'produccion'))
+    : []
   // Galpones vacíos que todavía están en limpieza y desinfección: hasta qué día
   const vacioSanitario: Record<string, string> = {}
   for (const l of cerrados) {
@@ -243,42 +248,45 @@ export default function AvesPonedorasPage() {
   }
 
   return (
-    <div className="flex-1 overflow-auto p-6 space-y-5">
-      {/* Encabezado */}
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-medium text-gray-900">{nombreSeccion('aves_ponedoras', fincaActual.tipo_produccion)}</h1>
+    <div className="flex-1 space-y-4 overflow-auto p-4 md:space-y-5 md:p-6">
+      {/* Encabezado: en celular, "Más" queda al lado del título */}
+      <div className="flex items-start justify-between gap-3 sm:flex-wrap sm:items-end">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-medium text-gray-900 md:text-3xl">{nombreSeccion('aves_ponedoras', fincaActual.tipo_produccion)}</h1>
           <p className="text-sm text-gray-500">{fincaActual.nombre} · {lotes.length} {lotes.length === 1 ? 'galpón' : 'galpones'} con aves de {galpones.length}</p>
         </div>
-        <div className="flex flex-wrap items-center gap-1">
+        <div className="flex items-center gap-1.5">
           {manejarLotes && galpones.some(g => !ocupados.has(g.id)) && (
             <button onClick={() => { setGalponParaRegistrar(null); setModalNuevoLote(true) }}
               className="inline-flex h-9 items-center gap-1.5 rounded-full bg-green-700 px-4 text-sm font-medium text-white transition-colors hover:bg-green-800">
               <Ic n="mas" className="size-4" /> Registrar aves
             </button>
           )}
-          {manejarLotes && (
-            <button onClick={() => setImportarPara('nuevo')}
+          {/* Lo secundario: en celular va en "Más" para no llenar la pantalla */}
+          <AccionesResponsive>
+            {manejarLotes && (
+              <button onClick={() => setImportarPara('nuevo')}
+                className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm text-gray-500 transition-colors hover:bg-white hover:text-gray-800">
+                <Ic n="diario" className="size-4" /> Importar Excel
+              </button>
+            )}
+            {cerrados.length > 0 && (
+              <button onClick={() => setVerAnteriores(true)}
+                className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm text-gray-500 transition-colors hover:bg-white hover:text-gray-800">
+                <Ic n="agenda" className="size-4" /> Lotes anteriores ({cerrados.length})
+              </button>
+            )}
+            <button onClick={() => setModalVisitas(true)}
               className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm text-gray-500 transition-colors hover:bg-white hover:text-gray-800">
-              <Ic n="diario" className="size-4" /> Importar Excel
+              <Ic n="desinfeccion" className="size-4" /> Visitas
             </button>
-          )}
-          {cerrados.length > 0 && (
-            <button onClick={() => setVerAnteriores(true)}
-              className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm text-gray-500 transition-colors hover:bg-white hover:text-gray-800">
-              <Ic n="agenda" className="size-4" /> Lotes anteriores ({cerrados.length})
-            </button>
-          )}
-          <button onClick={() => setModalVisitas(true)}
-            className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm text-gray-500 transition-colors hover:bg-white hover:text-gray-800">
-            <Ic n="desinfeccion" className="size-4" /> Visitas
-          </button>
-          {manejarLotes && (
-            <button onClick={() => setModalFinca(true)}
-              className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm text-gray-500 transition-colors hover:bg-white hover:text-gray-800">
-              <Ic n="ajustes" className="size-4" /> Galpones y finca
-            </button>
-          )}
+            {manejarLotes && (
+              <button onClick={() => setModalFinca(true)}
+                className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm text-gray-500 transition-colors hover:bg-white hover:text-gray-800">
+                <Ic n="ajustes" className="size-4" /> Galpones y finca
+              </button>
+            )}
+          </AccionesResponsive>
         </div>
       </div>
 
@@ -336,50 +344,56 @@ export default function AvesPonedorasPage() {
         </div>
       )}
 
-      {/* El galpón elegido: sus datos en píldoras */}
+      {/* El galpón elegido: sus datos en una fila (en celular se desliza) y sus acciones aparte */}
       {loteActual && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="mr-1 text-sm font-semibold text-gray-800">{loteActual.nombre}</span>
-          {esCerrado(loteActual) ? (
-            <Pildora tono="gris" icono="agenda">Salió el {loteActual.fecha_fin ? fechaLarga(loteActual.fecha_fin) : '—'}</Pildora>
-          ) : (
-            <Pildora tono={loteActual.estado === 'activo' ? 'verde' : 'gris'} icono={loteActual.estado === 'activo' ? 'huevo' : 'brote'}>
-              {loteActual.estado === 'activo' ? 'En postura' : 'Levante'}
-            </Pildora>
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+          <div className="-mx-4 flex items-center gap-1.5 overflow-x-auto px-4 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:px-0">
+            <span className="mr-1 shrink-0 text-sm font-semibold text-gray-800">{loteActual.nombre}</span>
+            {esCerrado(loteActual) ? (
+              <Pildora tono="gris" icono="agenda">Salió el {loteActual.fecha_fin ? fechaLarga(loteActual.fecha_fin) : '—'}</Pildora>
+            ) : (
+              <Pildora tono={loteActual.estado === 'activo' ? 'verde' : 'gris'} icono={loteActual.estado === 'activo' ? 'huevo' : 'brote'}>
+                {loteActual.estado === 'activo' ? 'En postura' : 'Levante'}
+              </Pildora>
+            )}
+            {loteActual.linea_genetica && <Pildora icono="gallina">{loteActual.linea_genetica}</Pildora>}
+            <Pildora>{esCerrado(loteActual) ? `${loteActual.aves_iniciales.toLocaleString('es-CO')} aves alojadas` : `${loteActual.aves_actuales.toLocaleString('es-CO')} aves`}</Pildora>
+            {loteActual.fecha_nacimiento && <Pildora icono="calendario">Semana {semanaDeVida(loteActual.fecha_nacimiento, esCerrado(loteActual) && loteActual.fecha_fin ? loteActual.fecha_fin : hoyLocal()) ?? '—'}{esCerrado(loteActual) ? ' al salir' : ''}</Pildora>}
+            <Pildora tono={loteActual.proposito === 'ciclo_completo' ? 'gris' : 'ambar'}>{PROPOSITO_LABEL[loteActual.proposito]}</Pildora>
+            {loteActual.fecha_salida_programada && !esCerrado(loteActual) && (
+              <Pildora icono="calendario">Sale {new Date(loteActual.fecha_salida_programada + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}</Pildora>
+            )}
+            {loteActual.origen_aves && <Pildora>{loteActual.origen_aves}</Pildora>}
+          </div>
+          {/* Acciones del lote: en celular, en un menú */}
+          {!esCerrado(loteActual) && (manejarLotes || puedeVerCostos) && (
+            <AccionesResponsive etiqueta="Acciones del lote">
+              {manejarLotes && (
+                <button type="button" onClick={() => setAccionLote('proposito')}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-gray-300 bg-white px-2.5 py-1.5 text-xs text-gray-600 hover:border-green-600 hover:text-green-800">
+                  <Ic n="ciclo" className="size-3" /> Cambiar para qué están
+                </button>
+              )}
+              {manejarLotes && (
+                <button type="button" onClick={() => setCambiarSalida(true)}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-gray-300 bg-white px-2.5 py-1.5 text-xs text-gray-600 hover:border-green-600 hover:text-green-800">
+                  <Ic n="calendario" className="size-3" /> {loteActual.fecha_salida_programada ? 'Cambiar la salida' : 'Programar salida'}
+                </button>
+              )}
+              {manejarLotes && (
+                <button type="button" onClick={() => setAccionLote('traslado')}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-gray-300 bg-white px-2.5 py-1.5 text-xs text-gray-600 hover:border-green-600 hover:text-green-800">
+                  <Ic n="flecha" className="size-3" /> Trasladar a otro galpón
+                </button>
+              )}
+              {puedeVerCostos && (
+                <button type="button" onClick={() => setVenderAves(true)}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-gray-300 bg-white px-2.5 py-1.5 text-xs text-gray-600 hover:border-green-600 hover:text-green-800">
+                  <Ic n="recibo" className="size-3" /> Vender aves
+                </button>
+              )}
+            </AccionesResponsive>
           )}
-          {loteActual.linea_genetica && <Pildora icono="gallina">{loteActual.linea_genetica}</Pildora>}
-          <Pildora>{esCerrado(loteActual) ? `${loteActual.aves_iniciales.toLocaleString('es-CO')} aves alojadas` : `${loteActual.aves_actuales.toLocaleString('es-CO')} aves activas`}</Pildora>
-          {loteActual.fecha_nacimiento && <Pildora icono="calendario">Semana {semanaDeVida(loteActual.fecha_nacimiento, esCerrado(loteActual) && loteActual.fecha_fin ? loteActual.fecha_fin : hoyLocal()) ?? '—'} de vida{esCerrado(loteActual) ? ' al salir' : ''}</Pildora>}
-          {/* Para qué están: se cambia en cualquier momento (José) */}
-          {!esCerrado(loteActual) && manejarLotes ? (
-            <button type="button" onClick={() => setAccionLote('proposito')} title="Cambiar para qué están"
-              className="inline-flex items-center gap-1 rounded-full border border-dashed border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-600 hover:border-green-600 hover:text-green-800">
-              {PROPOSITO_LABEL[loteActual.proposito]} · cambiar
-            </button>
-          ) : loteActual.proposito !== 'ciclo_completo' && <Pildora tono="ambar">{PROPOSITO_LABEL[loteActual.proposito]}</Pildora>}
-          {!esCerrado(loteActual) && manejarLotes && (
-            <button type="button" onClick={() => setAccionLote('traslado')} title="Pasar el lote a otro galpón"
-              className="inline-flex items-center gap-1 rounded-full border border-dashed border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-600 hover:border-green-600 hover:text-green-800">
-              <Ic n="flecha" className="size-3" /> Trasladar
-            </button>
-          )}
-          {!esCerrado(loteActual) && puedeVerCostos && (
-            <button type="button" onClick={() => setVenderAves(true)} title="Registrar una venta de aves de este lote"
-              className="inline-flex items-center gap-1 rounded-full border border-dashed border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-600 hover:border-green-600 hover:text-green-800">
-              <Ic n="recibo" className="size-3" /> Vender aves
-            </button>
-          )}
-          {/* La salida se cambia con un clic: queda el historial con el motivo */}
-          {!esCerrado(loteActual) && manejarLotes && (
-            <button type="button" onClick={() => setCambiarSalida(true)} title="Cambiar la salida programada"
-              className="inline-flex items-center gap-1 rounded-full border border-dashed border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-600 hover:border-green-600 hover:text-green-800">
-              <Ic n="calendario" className="size-3" />
-              {loteActual.fecha_salida_programada
-                ? <>Salida {new Date(loteActual.fecha_salida_programada + 'T00:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })} · cambiar</>
-                : 'Programar salida'}
-            </button>
-          )}
-          {loteActual.origen_aves && <Pildora>{loteActual.origen_aves}</Pildora>}
         </div>
       )}
 
@@ -425,8 +439,16 @@ export default function AvesPonedorasPage() {
         <>
           {/* Tab bar */}
           <div className="space-y-5">
-            <div className="flex gap-1 overflow-x-auto border-b border-gray-200 [scrollbar-width:none]">
-              {TABS.filter(tab => (tab.id !== 'rentabilidad' || puedeVerCostos) && (tab.id !== 'estadisticas' || !esCerrado(loteActual)) && (!soloProduccion || tab.id === 'produccion')).map(tab => (
+            {/* En celular la sección se elige en una lista: así no se mueve la pantalla de lado */}
+            <label className="flex items-center gap-2 sm:hidden">
+              <span className="text-xs font-medium text-gray-500">Sección</span>
+              <select value={activeTab} onChange={e => setActiveTab(e.target.value as typeof activeTab)}
+                className="h-10 flex-1 rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-800">
+                {tabsVisibles.map(tab => <option key={tab.id} value={tab.id}>{tab.label}</option>)}
+              </select>
+            </label>
+            <div className="hidden gap-1 overflow-x-auto border-b border-gray-200 [scrollbar-width:none] sm:flex">
+              {tabsVisibles.map(tab => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}

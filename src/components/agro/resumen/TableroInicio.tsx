@@ -1,5 +1,6 @@
 'use client'
 
+import { PlegableMovil } from '@/components/ui/plegable-movil'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
@@ -295,7 +296,8 @@ export function ContenidoInicio({ d, finca, fincas, especies, periodo, setPeriod
   const pasosHechos = guia.filter(g => g.hecho).length
   // El radar solo se dibuja si algún galpón tiene guía de su línea y fecha de nacimiento
   const conRadar = d.aves.some(l => l.referencia_id && l.fecha_nacimiento)
-  const anchoPequeno = conRadar ? ANCHO.cuarto : hayAves ? ANCHO.mitad : ANCHO.tercio
+  // En celular a lo ancho: plegados de a dos no se leen
+  const anchoPequeno = conRadar ? 'col-span-12 sm:col-span-6 xl:col-span-3' : hayAves ? ANCHO.mitad : ANCHO.tercio
 
   return (
     <>
@@ -304,7 +306,7 @@ export function ContenidoInicio({ d, finca, fincas, especies, periodo, setPeriod
       <Cuadricula>
         <>{p.verProduccion && (
 <Widget className={ANCHO.cuarto} titulo="Animales en la finca" icono="ganado">
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-4">
             <Anillo pct={lugares ? (ocupadas.size / lugares) * 100 : null} centro={animales.toLocaleString('es-CO')} sub={hayAves ? 'aves' : 'animales'} />
             <div className="min-w-0 space-y-1.5">
               <Cifra etiqueta={femenino ? 'Ocupadas' : `${lugarPlural[0].toUpperCase()}${lugarPlural.slice(1)} ocupados`} valor={`${ocupadas.size} de ${lugares}`} />
@@ -336,7 +338,7 @@ export function ContenidoInicio({ d, finca, fincas, especies, periodo, setPeriod
         {hayAves ? (
           <>{p.verProduccion && (
 <Widget className={ANCHO.cuarto} titulo="Postura de hoy" icono="tendencia" info="Huevos ÷ aves de los galpones que ya registraron hoy. La rayita es la meta promedio">
-            <div className="flex items-center gap-4">
+            <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-4">
               <Anillo pct={posturaHoy} centro={posturaHoy != null ? `${n1(posturaHoy)} %` : '—'} sub={metaPostura != null ? `meta ${n1(metaPostura)} %` : 'postura'} marca={metaPostura}
                 estado={posturaHoy == null || metaPostura == null ? 'normal' : posturaHoy >= metaPostura ? 'bien' : posturaHoy >= metaPostura - 5 ? 'revisar' : 'mal'} />
               <div className="min-w-0 space-y-1.5">
@@ -368,7 +370,7 @@ export function ContenidoInicio({ d, finca, fincas, especies, periodo, setPeriod
 )}</>
 
         <>{p.verProduccion && (
-<Widget className={ANCHO.dosTercios} titulo={hayAves ? 'Huevos por día' : 'Alimento por día'} icono="grafica" accion={<AccionWidget href="/reportes">Reportes</AccionWidget>}>
+<Widget plegable resumen="Los últimos 30 días" className={ANCHO.dosTercios} titulo={hayAves ? 'Huevos por día' : 'Alimento por día'} icono="grafica" accion={<AccionWidget href="/reportes">Reportes</AccionWidget>}>
           <CurvaArea id="inicio-30" nombre={hayAves ? 'Huevos' : 'Alimento'} datos={hayAves ? serieHuevos : serieAlimento}
             formato={hayAves ? undefined : v => `${n1(v)} kg`} barras={!hayAves} alto={240} />
           <p className="mt-1 text-[0.6875rem] text-gray-400">Últimos 30 días, toda la finca</p>
@@ -376,7 +378,7 @@ export function ContenidoInicio({ d, finca, fincas, especies, periodo, setPeriod
 )}</>
 
         <>{p.verDinero && (
-<Widget className={ANCHO.tercio} titulo="Dinero" icono="recibo">
+<Widget plegable resumen={`Utilidad ${pesosCompacto(utilidad)}`} className={ANCHO.tercio} titulo="Dinero" icono="recibo">
           <div className="mb-4 inline-flex flex-wrap rounded-full bg-gray-100 p-0.5">
             {PERIODOS.map(p => (
               <button key={p.id} onClick={() => setPeriodo(p.id)}
@@ -407,7 +409,7 @@ export function ContenidoInicio({ d, finca, fincas, especies, periodo, setPeriod
 )}</>
 
         <>{p.verProduccion && (
-<Widget className={hayAves ? ANCHO.dosTercios : ANCHO.todo} titulo={`Tus ${lugarPlural}`} icono={hayAves ? 'gallina' : 'cerdo'} accion={p.configurarFinca ? <AccionWidget onClick={onEditarFinca}>Configurar</AccionWidget> : undefined}>
+<Widget plegable resumen={`${ocupadas.size} de ${lugares} ${femenino ? 'ocupadas' : 'ocupados'}`} className={hayAves ? ANCHO.dosTercios : ANCHO.todo} titulo={`Tus ${lugarPlural}`} icono={hayAves ? 'gallina' : 'cerdo'} accion={p.configurarFinca ? <AccionWidget onClick={onEditarFinca}>Configurar</AccionWidget> : undefined}>
           {lugares === 0 && d.aves.length + d.cerdos.length === 0 ? (
             <p className="py-6 text-center text-sm text-gray-500">La finca no tiene {lugarPlural}. <button onClick={onEditarFinca} className="font-medium text-green-700 hover:underline">Registrarlos</button></p>
           ) : naves ? (
@@ -477,7 +479,7 @@ export function ContenidoInicio({ d, finca, fincas, especies, periodo, setPeriod
 
         {hayAves && (
           <>{p.ve('alimento') && (
-<Widget className={ANCHO.tercio} titulo="Alimento en bodega" icono="alimento" accion={<AccionWidget href="/alimento">Ver</AccionWidget>} info="Para cuántos días alcanza lo que queda del alimento que come cada galpón">
+<Widget plegable resumen={bodega.some(b => b.diasAlcanza != null && b.diasAlcanza <= 7) ? 'Hay alimento por acabarse' : 'Para cuántos días alcanza'} className={ANCHO.tercio} titulo="Alimento en bodega" icono="alimento" accion={<AccionWidget href="/alimento">Ver</AccionWidget>} info="Para cuántos días alcanza lo que queda del alimento que come cada galpón">
             {bodega.length === 0 ? <p className="py-6 text-center text-sm text-gray-400">Sin galpones con aves</p> : (
               <div className="space-y-4">
                 {bodega.map(b => (
@@ -495,7 +497,7 @@ export function ContenidoInicio({ d, finca, fincas, especies, periodo, setPeriod
         )}
 
         {conRadar && p.verProduccion && (
-          <div className={`${ANCHO.mitad} [&>*]:h-full`}><RadarGalpones fincaId={finca.id} /></div>
+          <PlegableMovil className={`${ANCHO.mitad} [&>*]:h-full`} titulo="Galpones frente a su guía" icono="grafica" resumen="Comparación de los galpones"><RadarGalpones fincaId={finca.id} /></PlegableMovil>
         )}
         {p.verProduccion && especies.includes('cerdos') && <PanelCerdos fincaId={finca.id} verDinero={p.verDinero} />}
         {p.verProduccion && especies.includes('cerdos') && <CierreSemanalCerdos fincaId={finca.id} hoy={hoy} />}
@@ -505,13 +507,13 @@ export function ContenidoInicio({ d, finca, fincas, especies, periodo, setPeriod
         )}
 
         <>{p.verProduccion && (
-<Widget className={anchoPequeno} titulo="Registros del mes" icono="calendario" info={hayAves ? 'Días pintados según los huevos de la finca' : 'Días pintados según el alimento registrado'}>
+<Widget plegable className={anchoPequeno} titulo="Registros del mes" icono="calendario" info={hayAves ? 'Días pintados según los huevos de la finca' : 'Días pintados según el alimento registrado'}>
           <CalendarioMes valores={valoresCalendario} formato={v => hayAves ? `${v.toLocaleString('es-CO')} huevos` : `${n1(v)} kg`} />
         </Widget>
 )}</>
 
         <>{p.ve('inventario') && (
-<Widget className={anchoPequeno} titulo="Inventario y fincas" icono="caja" accion={<AccionWidget href="/inventario">Inventario</AccionWidget>}>
+<Widget plegable resumen={`${d.inventario.total} productos · ${d.inventario.bajos} bajo el mínimo`} className={anchoPequeno} titulo="Inventario y fincas" icono="caja" accion={<AccionWidget href="/inventario">Inventario</AccionWidget>}>
           <div className="grid grid-cols-2 gap-3">
             <Cifra etiqueta="Productos" valor={d.inventario.total.toLocaleString('es-CO')} grande />
             <Cifra etiqueta="Bajo el mínimo" valor={<span className={d.inventario.bajos > 0 ? 'text-red-600' : undefined}>{d.inventario.bajos}</span>} grande />
@@ -530,7 +532,7 @@ export function ContenidoInicio({ d, finca, fincas, especies, periodo, setPeriod
 
         {pasosHechos < guia.length && (
           <>{p.configurarFinca && (
-<Widget className={hayAves ? ANCHO.todo : ANCHO.tercio} titulo="Guía de inicio" icono="diario">
+<Widget plegable resumen={`${pasosHechos} de ${guia.length} pasos`} className={hayAves ? ANCHO.todo : ANCHO.tercio} titulo="Guía de inicio" icono="diario">
             <BarraMeta etiqueta={`${pasosHechos} de ${guia.length} pasos`} valor={`${Math.round((pasosHechos / guia.length) * 100)} %`} pct={(pasosHechos / guia.length) * 100} />
             <ol className="mt-3 flex flex-wrap gap-2">
               {guia.map((g, i) => (

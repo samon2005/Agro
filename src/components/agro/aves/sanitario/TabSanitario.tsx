@@ -177,7 +177,7 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-semibold text-gray-800">
           Sanitario y Bioseguridad
           <Link href="/calendario" className="ml-3 text-xs font-normal text-green-700 hover:underline"><Ic n="calendario" /> Ver calendario de la finca</Link>
@@ -223,13 +223,13 @@ export default function TabSanitario({ loteActual, onChange }: Props) {
       )}
 
       {/* Mini-tabs */}
-      <div className="flex gap-2 border-b border-gray-200 pb-0">
+      <div className="flex flex-wrap gap-x-2 border-b border-gray-200 pb-0">
         {subTabItems.map(item => (
           <button
             key={item.id}
             onClick={() => setSubTab(item.id)}
             className={cn(
-              'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+              'px-3 sm:px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
               subTab === item.id
                 ? 'border-green-600 text-green-700'
                 : 'border-transparent text-gray-500 hover:text-gray-700'

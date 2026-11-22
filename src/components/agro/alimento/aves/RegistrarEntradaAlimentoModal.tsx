@@ -181,7 +181,7 @@ export default function RegistrarEntradaAlimentoModal({ open, onClose, loteId, f
               <Input type="date" value={form.fecha} onChange={e => set('fecha', e.target.value)} />
             </div>
             <div className="space-y-1">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <Label>Precio por bulto</Label>
                 {!editandoPrecio ? (
                   <button type="button" onClick={() => setEditandoPrecio(true)} className="text-xs font-medium text-green-700 hover:underline">

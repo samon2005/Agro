@@ -107,8 +107,8 @@ export default function FinanzasPage() {
 
   useEffect(() => { fetchTodo() }, [fetchTodo])
 
-  if (fincaLoading) return <div className="p-8"><Skeleton className="h-64 rounded-xl" /></div>
-  if (rol === 'trabajador') return <div className="p-8"><AccesoRestringido /></div>
+  if (fincaLoading) return <div className="p-4 md:p-8"><Skeleton className="h-64 rounded-xl" /></div>
+  if (rol === 'trabajador') return <div className="p-4 md:p-8"><AccesoRestringido /></div>
 
   const lugar = especie ? CONFIG_ESPECIES[especie].loteLabel : 'galpón'
   const lugares = lugar === 'corral' ? 'corrales' : 'galpones'
@@ -194,7 +194,7 @@ export default function FinanzasPage() {
     <div className="space-y-5 p-4 md:p-8">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="font-heading text-3xl font-medium text-gray-900">Finanzas</h2>
+          <h2 className="font-heading text-2xl md:text-3xl font-medium text-gray-900">Finanzas</h2>
           <p className="mt-1 text-gray-500">
             {fincaActual ? `${fincaActual.nombre} · control de costos, ventas y utilidad` : 'Selecciona una finca'}
           </p>

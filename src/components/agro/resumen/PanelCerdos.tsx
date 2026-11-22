@@ -156,7 +156,7 @@ export default function PanelCerdos({ fincaId, verDinero }: { fincaId: string; v
         <p className="mt-2 text-xs text-gray-500">{partosMes} partos en los últimos 30 días{partosHoy.length ? ` · hoy nacieron ${partosHoy.reduce((t, p) => t + p.nacidos_vivos, 0)} vivos` : ''}</p>
       </Widget>
 
-      <Widget className={ANCHO.dosTercios} titulo="Engorde" icono="tendencia">
+      <Widget plegable resumen={`${engorde.length} ${engorde.length === 1 ? 'grupo' : 'grupos'}`} className={ANCHO.dosTercios} titulo="Engorde" icono="tendencia">
         <div className="mb-2 flex flex-wrap gap-1">
           {['todas', ...ETAPAS].map(e => (
             <button key={e} type="button" onClick={() => setEtapa(e)}
@@ -182,7 +182,7 @@ export default function PanelCerdos({ fincaId, verDinero }: { fincaId: string; v
         <p className="mt-2 text-[0.6875rem] text-gray-400">La salida es una estimación con la ganancia de los últimos pesajes; se corrige con cada pesaje.</p>
       </Widget>
 
-      <Widget className={ANCHO.tercio} titulo="Hoy en la granja" icono="listo">
+      <Widget plegable resumen={`${hechas} de ${tareas.length} tareas hechas`} className={ANCHO.tercio} titulo="Hoy en la granja" icono="listo">
         <p className="text-sm text-gray-700">{registradosHoy} de {lotes.filter(l => l.sistema !== 'cria').length} grupos con el día registrado</p>
         <p className="text-sm text-gray-700">{hechas} de {tareas.length} tareas hechas</p>
         {tareas.length > hechas && <p className="text-xs text-amber-700">Quedan {tareas.length - hechas} por hacer</p>}

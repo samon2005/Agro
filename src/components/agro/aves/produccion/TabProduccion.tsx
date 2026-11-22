@@ -1,5 +1,7 @@
 'use client'
 
+import { PlegableMovil } from '@/components/ui/plegable-movil'
+import { AccionesResponsive } from '@/components/ui/acciones-responsive'
 import type { MetasLote } from '@/lib/registroAves'
 import { Widget, Cuadricula, ANCHO, AccionWidget } from '@/components/ui/widgets/Widget'
 import { Anillo, BarraMeta, Cifra, MiniBarras, TextoEstado } from '@/components/ui/widgets/Medidores'
@@ -635,7 +637,9 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
           <p className="flex flex-wrap items-center gap-1 text-xs text-gray-400">
             <button type="button" onClick={() => setDiaVista(moverDia(fechaVista, -1))} aria-label="Día anterior" title="Día anterior"
               className="flex size-6 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-800">‹</button>
-            {new Date(fechaVista + 'T00:00:00').toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            {/* En celular la fecha corta, para que quepa con las flechas */}
+            <span className="hidden sm:inline">{new Date(fechaVista + 'T00:00:00').toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
+            <span className="sm:hidden">{new Date(fechaVista + 'T00:00:00').toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
             <button type="button" disabled={fechaVista >= diaBase} onClick={() => { const f = moverDia(fechaVista, 1); setDiaVista(f >= diaBase ? null : f) }} aria-label="Día siguiente" title="Día siguiente"
               className="flex size-6 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-800 disabled:opacity-30">›</button>
             <input type="date" value={fechaVista} max={diaBase} aria-label="Ir a un día" title="Ir a un día"
@@ -648,13 +652,18 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
             )}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {manejarLotes && <Button onClick={() => setConfigOpen(true)} variant="ghost">
-            <Ic n="ajustes" /> Configurar galpón
-          </Button>}
-          {manejarLotes && onImportarExcel && <Button onClick={onImportarExcel} variant="ghost" title="Cargar días viejos desde el Excel de registro">
-            <Ic n="diario" /> Importar Excel
-          </Button>}
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+          {/* Configurar e importar: en celular, en "Más" */}
+          {manejarLotes && (
+            <AccionesResponsive>
+              <Button onClick={() => setConfigOpen(true)} variant="ghost">
+                <Ic n="ajustes" /> Configurar galpón
+              </Button>
+              {onImportarExcel && <Button onClick={onImportarExcel} variant="ghost" title="Cargar días viejos desde el Excel de registro">
+                <Ic n="diario" /> Importar Excel
+              </Button>}
+            </AccionesResponsive>
+          )}
           {!enPostura && !cerrado && loteActual.proposito !== 'venta_levante' && (
             <Button
               onClick={abrirInicioPostura}
@@ -676,6 +685,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
             </Button>
           )}
           {!cerrado && <Button
+            className="order-first sm:order-none"
             onClick={() => hoy && !esHoy ? editarDiaVisto() : registrarDiaVisto()}
             disabled={!listoParaRegistrar}
             title={!listoParaRegistrar ? faltaParaRegistrar : undefined}
@@ -701,7 +711,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
         />
         {enPostura ? (<>
           <Widget className={ANCHO.cuarto} titulo={`Huevos ${delDia}`} icono="huevo" info="Huevos puestos frente a la meta del día: aves del día × % de meta de esa semana">
-            <div className="flex items-center gap-4">
+            <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-4">
               <Anillo
                 pct={hoy && metaHuevosDiaria ? (hoy.huevos_totales / metaHuevosDiaria) * 100 : posturaHoy ? Number(posturaHoy) : null}
                 centro={hoy ? hoy.huevos_totales.toLocaleString('es-CO') : '—'}
@@ -723,7 +733,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
           </Widget>
 
           <Widget className={ANCHO.cuarto} titulo={`Postura ${delDia}`} icono="tendencia" info="Huevos del día ÷ aves del día. La rayita es la meta de esa semana (la propia, la de la guía o la de pico)">
-            <div className="flex items-center gap-4">
+            <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-4">
               <Anillo
                 pct={posturaHoy ? Number(posturaHoy) : null}
                 centro={posturaHoy ? `${posturaHoy.replace('.', ',')} %` : '—'}
@@ -763,7 +773,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
           </Widget>
 
           <Widget className={ANCHO.cuarto} titulo="Mortalidad acumulada" icono="muerte" info="Viabilidad: el % de las aves que entraron que siguen vivas (cuenta las muertes del día y de los eventos clínicos)">
-            <div className="flex items-center gap-4">
+            <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-4">
               <Anillo pct={viabilidad} centro={viabilidad != null ? `${n1(viabilidad)} %` : '—'} sub="viven" estado={Number(mortPct) < 3 ? 'bien' : Number(mortPct) < 6 ? 'revisar' : 'mal'} />
               <div className="min-w-0 space-y-1.5 text-xs">
                 <Cifra etiqueta="Muertas" valor={mortAcum.toLocaleString('es-CO')} />
@@ -804,7 +814,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
           </Widget>
 
           <Widget className={ANCHO.cuarto} titulo="Mortalidad acumulada" icono="muerte" info="Viabilidad: el % de las aves que entraron que siguen vivas">
-            <div className="flex items-center gap-4">
+            <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-4">
               <Anillo pct={viabilidad} centro={viabilidad != null ? `${n1(viabilidad)} %` : '—'} sub="viven" estado={Number(mortPct) < 3 ? 'bien' : Number(mortPct) < 6 ? 'revisar' : 'mal'} />
               <div className="min-w-0 space-y-1.5 text-xs">
                 <Cifra etiqueta="Muertas" valor={mortAcum.toLocaleString('es-CO')} />
@@ -816,7 +826,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
 
         {/* Las curvas de postura y gramaje del galpón */}
         {enPostura && (
-          <div className={`${ANCHO.todo} [&>*]:h-full`}>
+          <PlegableMovil className={`${ANCHO.todo} [&>*]:h-full`} titulo="Curvas de postura y gramaje" icono="grafica" resumen="Postura y peso del huevo frente a la meta">
             <GraficasPostura
               loteId={loteActual.id}
               fechaInicioPostura={loteActual.fecha_inicio_postura}
@@ -826,11 +836,11 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
               version={`${registros.length}-${registros[0]?.id ?? ''}-${huevosAcumulados}`}
               hasta={esHoy ? undefined : fechaVista}
             />
-          </div>
+          </PlegableMovil>
         )}
 
         {enPostura && (
-          <Widget className={ANCHO.tercio} titulo={`Dinero ${delDia}`} icono="dinero" info="Según el precio por tamaño configurado en Ventas de la finca">
+          <Widget plegable className={ANCHO.tercio} titulo={`Dinero ${delDia}`} icono="dinero" info="Según el precio por tamaño configurado en Ventas de la finca">
             <div className="space-y-4">
               <Cifra etiqueta={`Ingreso por venta ${delDia}`} valor={ingresoHoy > 0 ? cop(ingresoHoy) : '—'} grande
                 nota={precioPromedio > 0 ? undefined : 'Pon el precio del huevo en Ventas de la finca'} />
@@ -848,7 +858,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
           </Widget>
         )}
 
-        <Widget className={ANCHO.tercio} titulo="Alimento" icono="alimento"
+        <Widget plegable className={ANCHO.tercio} titulo="Alimento" icono="alimento"
           accion={onIrAlimento ? <AccionWidget onClick={onIrAlimento}>Ver alimento</AccionWidget> : <AccionWidget href={`/alimento?lote=${loteActual.id}`}>Ver alimento</AccionWidget>}>
           <p className="truncate text-sm font-semibold text-gray-900">{esHoy && !cerrado ? (tipoAlimentoActivo?.nombre ?? 'Sin alimento registrado') : `Consumo del ${fechaCorta}`}</p>
           <div className="mt-3 grid grid-cols-3 gap-3">
@@ -863,7 +873,7 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
         </Widget>
 
         {enPostura ? (
-          <Widget className={ANCHO.tercio} titulo="Galpón" icono="ubicacion">
+          <Widget plegable className={ANCHO.tercio} titulo="Galpón" icono="ubicacion">
             <div className="grid grid-cols-2 gap-x-3 gap-y-4">
               <Cifra etiqueta="HAA" valor={haa ? haa.replace('.', ',') : '—'} nota="huevos por ave alojada" grande />
               <Cifra etiqueta="Densidad" valor={densidad ? densidad.replace('.', ',') : '—'} nota="aves / m²" grande />
@@ -891,14 +901,14 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
           </Widget>
         )}
 
-        <Widget className={ANCHO.tercio} titulo="Registros del mes" icono="calendario" info={enPostura ? 'Cada día pintado según los huevos de ese día; el punto rojo marca un evento clínico. Toca un día para verlo arriba' : 'Días con registro; el punto rojo marca un evento clínico'}>
+        <Widget plegable className={ANCHO.tercio} titulo="Registros del mes" icono="calendario" info={enPostura ? 'Cada día pintado según los huevos de ese día; el punto rojo marca un evento clínico. Toca un día para verlo arriba' : 'Días con registro; el punto rojo marca un evento clínico'}>
           <CalendarioMes valores={valoresCalendario} marcados={diasConEvento} desde={loteActual.fecha_nacimiento ?? loteActual.fecha_inicio}
             seleccionado={fechaVista} onElegir={f => setDiaVista(f === hoyStr ? null : f)}
             formato={v => enPostura ? `${v.toLocaleString('es-CO')} huevos` : `${n1(v)} kg de alimento`} />
         </Widget>
 
         {enPostura && (
-          <div className={`${ANCHO.dosTercios} [&>*]:h-full`}>
+          <PlegableMovil className={`${ANCHO.dosTercios} [&>*]:h-full`} titulo="Calidad del huevo" icono="huevo" resumen="Rotos, sucios y tamaños">
             <RevisionCalidadHuevo
               loteId={loteActual.id}
               fincaId={loteActual.finca_id}
@@ -907,21 +917,21 @@ export default function TabProduccion({ loteActual, onLoteUpdated, onLoteDeleted
               registros={registros}
               hasta={esHoy ? undefined : fechaVista}
             />
-          </div>
+          </PlegableMovil>
         )}
 
         {enPostura && (
-          <div className={`${ANCHO.dosTercios} [&>*]:h-full`}>
+          <PlegableMovil className={`${ANCHO.dosTercios} [&>*]:h-full`} titulo="Predicción de la postura" icono="idea" resumen="Lo que se espera las próximas semanas">
             <PrediccionPostura key={fechaVista} lote={loteActual} version={`${registros.length}-${registros[0]?.id ?? ''}-${huevosAcumulados}`} hasta={esHoy ? undefined : fechaVista} />
-          </div>
+          </PlegableMovil>
         )}
         {enPostura && !cerrado && (
-          <div className={`${ANCHO.tercio} [&>*]:h-full`}>
+          <PlegableMovil className={`${ANCHO.tercio} [&>*]:h-full`} titulo="Horarios de recolección" icono="reloj" resumen="Cuándo se recogen los huevos">
             <HorariosRecoleccion loteId={loteActual.id} fincaId={loteActual.finca_id} />
-          </div>
+          </PlegableMovil>
         )}
 
-        <Widget className={ANCHO.todo} titulo="Historial (alimento y muertes)" icono="diario"
+        <Widget plegable className={ANCHO.todo} titulo="Historial (alimento y muertes)" icono="diario"
           info="Cada día es una fila con sus muertes y su causa. El evento clínico de ese día va en su propia columna, al lado, con sus afectadas y sus muertas."
           accion={totalDias > 14 ? <AccionWidget onClick={() => setVerTodoHistorial(v => !v)}>{verTodoHistorial ? 'Ver solo 14 días' : `Ver los ${totalDias} días`}</AccionWidget> : undefined}>
           {loading ? (

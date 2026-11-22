@@ -404,13 +404,13 @@ export default function TabAlimentoAves({ lotes, loteInicialId, modo = 'finca', 
       </div>
 
       {/* Mini-tabs */}
-      <div className="flex gap-2 border-b border-gray-200 pb-0">
+      <div className="flex flex-wrap gap-x-2 border-b border-gray-200 pb-0">
         {subTabItems.map(item => (
           <button
             key={item.id}
             onClick={() => setSubTab(item.id)}
             className={cn(
-              'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+              'px-3 sm:px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
               subTab === item.id ? 'border-green-600 text-green-700' : 'border-transparent text-gray-500 hover:text-gray-700'
             )}
           >

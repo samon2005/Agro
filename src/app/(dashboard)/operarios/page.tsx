@@ -102,7 +102,7 @@ export default function OperariosPage() {
     return operarios.find(o => o.id === id)?.full_name ?? 'Operario'
   }
 
-  if (fincaLoading) return <div className="p-8"><Skeleton className="h-8 w-64 mb-6" /><Skeleton className="h-64 rounded-xl" /></div>
+  if (fincaLoading) return <div className="p-4 md:p-8"><Skeleton className="h-8 w-64 mb-6" /><Skeleton className="h-64 rounded-xl" /></div>
 
   async function cambiarRol(op: Operario, rol: string) {
     if (!fincaActual) return
@@ -118,7 +118,7 @@ export default function OperariosPage() {
     return (
       <div className="space-y-6 p-4 md:p-8">
         <div>
-          <h2 className="font-heading text-3xl font-medium text-gray-900">Nómina</h2>
+          <h2 className="font-heading text-2xl md:text-3xl font-medium text-gray-900">Nómina</h2>
           <p className="mt-1 text-gray-500">Lo que trabajó cada persona del equipo y lo que le toca por eso</p>
         </div>
         {loading ? <Skeleton className="h-64 rounded-xl" /> : (
@@ -148,9 +148,9 @@ export default function OperariosPage() {
   }
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="p-4 md:p-8 space-y-6">
       <div>
-        <h2 className="font-heading text-3xl font-medium text-gray-900">Operarios</h2>
+        <h2 className="font-heading text-2xl md:text-3xl font-medium text-gray-900">Operarios</h2>
         <p className="text-gray-500 mt-1">Equipo de trabajo, turnos y tareas de la finca</p>
       </div>
 
@@ -211,10 +211,10 @@ export default function OperariosPage() {
 
       {fincaActual && <CodigosFinca fincaId={fincaActual.id} />}
 
-      <div className="flex gap-2 border-b border-gray-200">
+      <div className="flex flex-wrap gap-x-2 border-b border-gray-200">
         {([{ id: 'turnos' as const, label: 'Turnos' }, { id: 'tareas' as const, label: 'Tareas' }, { id: 'desempeno' as const, label: 'Desempeño y pago' }]).map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
-            className={cn('px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors', tab === t.id ? 'border-green-600 text-green-700' : 'border-transparent text-gray-500 hover:text-gray-700')}>
+            className={cn('px-3 sm:px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors', tab === t.id ? 'border-green-600 text-green-700' : 'border-transparent text-gray-500 hover:text-gray-700')}>
             {t.label}
           </button>
         ))}

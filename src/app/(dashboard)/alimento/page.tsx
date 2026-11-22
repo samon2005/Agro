@@ -58,7 +58,7 @@ export default function AlimentoPage() {
 
   if (fincaLoading) {
     return (
-      <div className="p-8 space-y-4">
+      <div className="p-4 md:p-8 space-y-4">
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-40 rounded-xl" />
       </div>
@@ -67,7 +67,7 @@ export default function AlimentoPage() {
 
   if (!fincaActual || especies.length === 0) {
     return (
-      <div className="p-8">
+      <div className="p-4 md:p-8">
         <Card className="border-dashed border-gray-300">
           <CardContent className="py-16 text-center">
             <p className="text-4xl mb-2"><Ic n="alimento" /></p>
@@ -80,9 +80,9 @@ export default function AlimentoPage() {
   }
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <div className="mb-6">
-        <h2 className="font-heading text-3xl font-medium text-gray-900">Alimento
+        <h2 className="font-heading text-2xl md:text-3xl font-medium text-gray-900">Alimento
         </h2>
         <p className="text-gray-500 mt-1">
           {especies.length > 1 ? 'Consumo, costos y balance nutricional por especie' : 'Consumo, costos y balance nutricional'}

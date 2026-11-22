@@ -30,13 +30,14 @@ export function SelectorUnidades({ unidades, elegida, onElegir, icono, extra }: 
   extra?: ReactNode
 }) {
   return (
-    <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:thin]">
+    // En celular en cuadrícula de a dos, para no mover la pantalla de lado; en computador, en fila
+    <div className="grid grid-cols-2 gap-2 sm:flex sm:overflow-x-auto sm:pb-1 sm:[scrollbar-width:thin]">
       {unidades.map(u => {
         const activa = elegida === u.id
         const vacia = u.estado === 'vacio' || u.estado === 'limpieza'
         return (
           <button key={u.id} type="button" onClick={() => onElegir(u.id)} title={u.aviso ? 'Todavía no se registra el día de hoy' : undefined}
-            className={cn('group relative flex min-w-44 shrink-0 items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition-all',
+            className={cn('group relative flex min-w-0 shrink-0 items-center gap-2 rounded-2xl px-2.5 py-2 text-left transition-all sm:min-w-44 sm:gap-3 sm:px-3 sm:py-2.5',
               activa ? 'bg-green-800 text-white shadow-[0_10px_24px_-12px_rgb(42_93_34/70%)]'
                 : u.estado === 'limpieza' ? 'border border-dashed border-amber-300 bg-amber-50/60 text-amber-800 hover:border-amber-500'
                 : vacia ? 'border border-dashed border-gray-300 bg-white/60 text-gray-500 hover:border-green-500'

@@ -367,13 +367,13 @@ export default function TabReproduccion({ loteActual, onLoteUpdated, nave, naves
         )}
       </div>
 
-      <div className="flex gap-2 border-b border-gray-200 pb-0 overflow-x-auto">
+      <div className="flex flex-wrap gap-x-2 border-b border-gray-200 pb-0">
         {subTabs.map(t => (
           <button
             key={t.id}
             onClick={() => setSubTab(t.id)}
             className={cn(
-              'px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap',
+              'px-3 sm:px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap',
               subTab === t.id ? 'border-pink-600 text-pink-700' : 'border-transparent text-gray-500 hover:text-gray-700'
             )}
           >

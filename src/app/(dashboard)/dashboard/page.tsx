@@ -47,7 +47,7 @@ export default function DashboardPage() {
 
       <div className="p-4 md:p-8">
         <div className="mb-5">
-          <h2 className="font-heading text-3xl font-medium text-gray-900">
+          <h2 className="font-heading text-2xl md:text-3xl font-medium text-gray-900">
             Bienvenido, {userName}
           </h2>
           {fincaActual && (
@@ -88,7 +88,7 @@ function EmptyState({ message, hint }: { message: string; hint: string }) {
 
 function DashboardSkeleton() {
   return (
-    <div className="p-8 space-y-6">
+    <div className="p-4 md:p-8 space-y-6">
       <Skeleton className="h-8 w-64" />
       <div className="grid grid-cols-4 gap-6">
         {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}

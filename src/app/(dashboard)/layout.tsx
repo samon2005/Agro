@@ -7,6 +7,7 @@ import PaginaEntra from '@/components/agro/PaginaEntra'
 import ElegirEspecieFinca from '@/components/agro/ElegirEspecieFinca'
 import GuardiaAdmin from '@/components/agro/admin/GuardiaAdmin'
 import GuardiaSeccion from '@/components/agro/GuardiaSeccion'
+import TablasEnTarjetas from '@/components/agro/TablasEnTarjetas'
 import { dbGenerico } from '@/lib/especiesConfig'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -31,6 +32,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           {/* La finca sin especie elige la suya antes de seguir */}
           <ElegirEspecieFinca />
           <GuardiaAdmin />
+          <TablasEnTarjetas />
         </div>
       </FincaProvider>
     </RolProvider>

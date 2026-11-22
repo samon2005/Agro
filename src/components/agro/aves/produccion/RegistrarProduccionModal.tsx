@@ -313,7 +313,7 @@ export default function RegistrarProduccionModal({ open, onClose, loteId, fincaI
           {!enPreparacion && (
           <>
           <div className="p-3 bg-yellow-50 rounded-lg border border-yellow-200 space-y-2">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-xs font-semibold text-yellow-700">Huevos puestos por tamaño</p>
               {postura && (
                 <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${Number(postura) >= 80 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>

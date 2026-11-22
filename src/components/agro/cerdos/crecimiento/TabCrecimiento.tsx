@@ -173,9 +173,9 @@ export default function TabCrecimiento({ loteActual, onLoteUpdated }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-semibold text-gray-800">Producción y Crecimiento</h2>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Separar por tamaño solo tiene sentido si quedan animales que repartir */}
           {loteActual.sistema !== 'cria' && loteActual.animales_actuales > 1 && (
             <Button variant="outline" className="text-sm" onClick={() => setModalClasificar(true)}>
@@ -224,10 +224,10 @@ export default function TabCrecimiento({ loteActual, onLoteUpdated }: Props) {
       <LoQueVieneGrupo lote={loteActual} pesos={pesos} cfg={cfg} onCambio={onLoteUpdated} />
 
       {/* Sub-tabs */}
-      <div className="flex gap-2 border-b border-gray-200 pb-0">
+      <div className="flex flex-wrap gap-x-2 border-b border-gray-200 pb-0">
         {subTabs.map(t => (
           <button key={t.id} onClick={() => setSubTab(t.id)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${subTab === t.id ? 'border-green-600 text-green-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+            className={`px-3 sm:px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${subTab === t.id ? 'border-green-600 text-green-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
             {t.label}
             {t.count > 0 && <span className="ml-1 bg-gray-100 text-gray-600 text-xs px-1.5 py-0.5 rounded-full">{t.count}</span>}
           </button>

@@ -158,7 +158,7 @@ export default function TabSanitarioCerdos({ loteActual }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-semibold text-gray-800">Sanitario y Bioseguridad</h2>
         <div>
           {subTab === 'vacunas' && <Button onClick={() => setShowFormVac(v => !v)} className="bg-green-700 hover:bg-green-800 text-white text-sm">+ Registrar vacuna</Button>}
@@ -167,7 +167,7 @@ export default function TabSanitarioCerdos({ loteActual }: Props) {
         </div>
       </div>
 
-      <div className="flex gap-2 border-b border-gray-200 pb-0">
+      <div className="flex flex-wrap gap-x-2 border-b border-gray-200 pb-0">
         {[
           { id: 'vacunas' as const, label: 'Vacunaciones', count: vacunas.length },
           { id: 'desparasitaciones' as const, label: 'Desparasitaciones', count: desparasitaciones.length },
@@ -176,7 +176,7 @@ export default function TabSanitarioCerdos({ loteActual }: Props) {
           { id: 'medicaciones' as const, label: 'Medicaciones', count: 0 },
         ].map(t => (
           <button key={t.id} onClick={() => setSubTab(t.id)}
-            className={cn('px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors', subTab === t.id ? 'border-green-600 text-green-700' : 'border-transparent text-gray-500 hover:text-gray-700')}>
+            className={cn('px-3 sm:px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors', subTab === t.id ? 'border-green-600 text-green-700' : 'border-transparent text-gray-500 hover:text-gray-700')}>
             {t.label}
             {t.count > 0 && <span className="ml-1 bg-gray-100 text-gray-600 text-xs px-1.5 py-0.5 rounded-full">{t.count}</span>}
           </button>

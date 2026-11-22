@@ -28,6 +28,7 @@ import TabEquiposCerdos from '@/components/agro/cerdos/equipos/TabEquiposCerdos'
 import VentasCerdos from '@/components/agro/cerdos/ventas/VentasCerdos'
 import EconomiaGrupo from '@/components/agro/cerdos/ventas/EconomiaGrupo'
 import VisitasModal from '@/components/agro/comun/VisitasModal'
+import { AccionesResponsive } from '@/components/ui/acciones-responsive'
 
 type LoteCerdos = Database['public']['Tables']['lotes_cerdos']['Row']
 type Instalacion = Database['public']['Tables']['instalaciones']['Row']
@@ -200,17 +201,18 @@ export default function CerdosPage() {
   ]
 
   return (
-    <div className="flex-1 space-y-5 overflow-auto p-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-medium text-gray-900">{nombreSeccion('cerdos', fincaActual.tipo_produccion)}</h1>
+    <div className="flex-1 space-y-4 overflow-auto p-4 md:space-y-5 md:p-6">
+      <div className="flex items-start justify-between gap-3 sm:flex-wrap sm:items-end">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-medium text-gray-900 md:text-3xl">{nombreSeccion('cerdos', fincaActual.tipo_produccion)}</h1>
           <p className="text-sm text-gray-500">
             {fincaActual.nombre} · {naves.length} {naves.length === 1 ? 'nave' : 'naves'}
             {totalCerdas > 0 && <> · {totalCerdas} {totalCerdas === 1 ? 'cerda' : 'cerdas'}</>}
             {' '}· {lotes.filter(l => l.sistema !== 'cria').length} {lotes.filter(l => l.sistema !== 'cria').length === 1 ? 'grupo' : 'grupos'} de engorde
           </p>
         </div>
-        <div className="flex items-center gap-1">
+        {/* En celular, en "Más" para no llenar la pantalla */}
+        <AccionesResponsive>
           {manejarLotes && (
             <button onClick={() => setModalParametros(true)}
               className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm text-gray-500 transition-colors hover:bg-white hover:text-gray-800">
@@ -225,7 +227,7 @@ export default function CerdosPage() {
             className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm text-gray-500 transition-colors hover:bg-white hover:text-gray-800">
             <Ic n="ajustes" className="size-4" /> Naves y finca
           </button>}
-        </div>
+        </AccionesResponsive>
       </div>
 
       {/* Las naves: las de cría con sus cerdas (frente a sus puestos), las de engorde con sus cerdos */}
@@ -326,7 +328,15 @@ export default function CerdosPage() {
 
       {loteActual && (
         <div className="space-y-5">
-          <div className="flex gap-1 overflow-x-auto border-b border-gray-200 [scrollbar-width:none]">
+          {/* En celular la sección se elige en una lista: así no se mueve la pantalla de lado */}
+          <label className="flex items-center gap-2 sm:hidden">
+            <span className="text-xs font-medium text-gray-500">Sección</span>
+            <select value={tabVisible} onChange={e => setActiveTab(e.target.value as Tab)}
+              className="h-10 flex-1 rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-800">
+              {tabs.map(tab => <option key={tab.id} value={tab.id}>{tab.label}</option>)}
+            </select>
+          </label>
+          <div className="hidden gap-1 overflow-x-auto border-b border-gray-200 [scrollbar-width:none] sm:flex">
             {tabs.map(tab => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)}
                 className={cn('-mb-px inline-flex flex-shrink-0 items-center gap-2 border-b-2 px-3 pb-2.5 pt-1 text-[0.8125rem] font-medium whitespace-nowrap transition-colors',

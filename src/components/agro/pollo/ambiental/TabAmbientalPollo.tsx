@@ -81,7 +81,7 @@ export default function TabAmbientalPollo({ loteActual }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-semibold text-gray-800">Parámetros Ambientales del Galpón</h2>
         <Button onClick={() => setShowForm(v => !v)} className="bg-yellow-600 hover:bg-yellow-700 text-white text-sm">
           {showForm ? 'Cerrar' : '+ Registrar lectura'}

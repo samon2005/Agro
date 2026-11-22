@@ -4,10 +4,10 @@ import { Ic } from '@/components/ui/icon'
 
 export default function ProduccionPage() {
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h2 className="font-heading text-3xl font-medium text-gray-900">Registros de Producción
+          <h2 className="font-heading text-2xl md:text-3xl font-medium text-gray-900">Registros de Producción
           </h2>
           <p className="text-gray-500 mt-1">Seguimiento diario de producción por animal o lote</p>
         </div>

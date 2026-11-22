@@ -83,7 +83,7 @@ export default function PolloEngordePage() {
   return (
     <div className="flex-1 overflow-auto p-6 space-y-5">
       <div>
-        <h1 className="text-3xl font-medium text-gray-900">{nombreSeccion('pollo_engorde', fincaActual.tipo_produccion)}</h1>
+        <h1 className="text-2xl md:text-3xl font-medium text-gray-900">{nombreSeccion('pollo_engorde', fincaActual.tipo_produccion)}</h1>
         <p className="text-sm text-gray-500">{fincaActual.nombre} · Gestión integral de lotes broiler</p>
       </div>
 

@@ -128,7 +128,7 @@ export default function VentasCerdos({ lote, onCambio }: { lote: LoteCerdos; onC
         </div>
       )}
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-gray-600">{lote.animales_actuales} cerdos en el grupo · se puede vender todo o por partes</p>
         <Button size="sm" className="bg-green-700 text-white hover:bg-green-800" disabled={lote.animales_actuales === 0} onClick={() => setAbierto(a => !a)}><Ic n="mas" /> Registrar venta</Button>
       </div>

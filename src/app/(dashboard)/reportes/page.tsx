@@ -24,17 +24,17 @@ export default function ReportesPage() {
   const { fincaActual, loading } = useFinca()
   const { verDinero, verReportes, verProduccion } = permisos(useRolFinca())
   const [vista, setVista] = useState<EspecieFinca | 'finca' | 'historia' | 'lineas' | 'precio'>('finca')
-  if (loading || !fincaActual) return <div className="p-8"><Skeleton className="h-64 rounded-xl" /></div>
+  if (loading || !fincaActual) return <div className="p-4 md:p-8"><Skeleton className="h-64 rounded-xl" /></div>
   // El operario y el recolector no ven reportes; el zootecnista ve la producción
   // sin la plata, y contabilidad la plata sin el análisis de los galpones
-  if (!verReportes) return <div className="p-8"><AccesoRestringido /></div>
+  if (!verReportes) return <div className="p-4 md:p-8"><AccesoRestringido /></div>
 
   // Finca con datos viejos y sin ventas: el análisis de toda su producción, no el de las últimas semanas
   if (fincaActual.sin_registro_ventas) {
     return (
       <div className="space-y-5 p-4 md:p-8">
         <div>
-          <h1 className="text-3xl font-medium text-gray-900">Análisis de producción</h1>
+          <h1 className="text-2xl md:text-3xl font-medium text-gray-900">Análisis de producción</h1>
           <p className="text-sm text-gray-500">
             {fincaActual.nombre} · datos viejos cargados de Excel, sin ventas: postura, tamaños, mortalidad y alimento de cada lote
           </p>
@@ -61,7 +61,7 @@ export default function ReportesPage() {
   return (
     <div className="space-y-5 p-4 md:p-8">
       <div>
-        <h1 className="text-3xl font-medium text-gray-900">Reportes</h1>
+        <h1 className="text-2xl md:text-3xl font-medium text-gray-900">Reportes</h1>
         <p className="text-sm text-gray-500">{fincaActual.nombre} · cómo va la finca en el tiempo: producción, mortalidad, alimento, enfermedades y dinero</p>
       </div>
       {especies.length > 0 && (

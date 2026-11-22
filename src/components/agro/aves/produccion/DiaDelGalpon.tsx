@@ -54,7 +54,8 @@ export default function DiaDelGalpon({
       info="Todo lo que se registró ese día en el galpón. Cambia de día con las flechas de arriba o tocando el calendario"
       accion={soloConsulta ? undefined : registro
         ? <Button size="sm" variant="outline" onClick={onEditar}><Ic n="editar" /> Editar este día</Button>
-        : <Button size="sm" onClick={onRegistrar} disabled={antesDeEntrar || bloqueo != null}
+        // En celular ya está "Registrar día" arriba: aquí no se repite
+        : <Button size="sm" className="hidden sm:inline-flex" onClick={onRegistrar} disabled={antesDeEntrar || bloqueo != null}
             title={antesDeEntrar ? 'Primero cambia la fecha de entrada en Configurar galpón' : bloqueo ?? undefined}><Ic n="mas" /> Registrar este día</Button>}>
       <p className="mb-3 text-sm text-gray-600 first-letter:uppercase">
         {largo}

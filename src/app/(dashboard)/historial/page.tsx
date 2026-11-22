@@ -96,7 +96,7 @@ export default function HistorialPage() {
 
   useEffect(() => { cargar() }, [cargar])
 
-  if (fincaLoading) return <div className="p-8"><Skeleton className="h-64 rounded-xl" /></div>
+  if (fincaLoading) return <div className="p-4 md:p-8"><Skeleton className="h-64 rounded-xl" /></div>
 
   const hembraPorId = new Map(hembras.map(h => [h.id, h]))
   const partoPorId = new Map(partos.map(p => [p.id, p]))
@@ -144,7 +144,7 @@ export default function HistorialPage() {
   return (
     <div className="space-y-5 p-4 md:p-8">
       <div>
-        <h2 className="font-heading text-3xl font-medium text-gray-900">Historial</h2>
+        <h2 className="font-heading text-2xl md:text-3xl font-medium text-gray-900">Historial</h2>
         <p className="mt-1 text-gray-500">{fincaActual?.nombre} · servicios, partos, destetes y lechones de todas las cerdas</p>
       </div>
 

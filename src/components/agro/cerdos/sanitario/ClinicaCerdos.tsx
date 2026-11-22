@@ -146,7 +146,7 @@ export default function ClinicaCerdos({ lote, vista }: { lote: LoteCerdos; vista
   const abiertos = eventos.filter(e => !e.desenlace && !e.resuelto)
   return (
     <div className="space-y-3 p-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-gray-600">{abiertos.length > 0 ? `${abiertos.length} ${abiertos.length === 1 ? 'caso abierto' : 'casos abiertos'} (en clínica)` : 'Sin casos abiertos'}</p>
         <Button size="sm" variant="outline" onClick={() => setAbierto(a => !a)}><Ic n="mas" /> Caso o brote</Button>
       </div>

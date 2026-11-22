@@ -93,7 +93,7 @@ export default function ResumenFincasAdmin({ nombre }: { nombre: string }) {
   return (
     <div className="space-y-5 p-4 md:p-8">
       <div>
-        <h2 className="font-heading text-3xl font-medium text-gray-900">Hola, {nombre}</h2>
+        <h2 className="font-heading text-2xl md:text-3xl font-medium text-gray-900">Hola, {nombre}</h2>
         <p className="mt-1 text-gray-500">
           Administrador de fincas · {new Date().toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' })}
         </p>

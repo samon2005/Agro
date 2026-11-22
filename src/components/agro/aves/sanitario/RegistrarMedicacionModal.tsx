@@ -245,7 +245,7 @@ export default function RegistrarMedicacionModal({ open, onClose, loteId, fincaI
             </div>
           ) : !medicacionExistente && (
             <div className="space-y-1">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <Label>Evento clínico relacionado</Label>
                 {onCrearEvento && (
                   <button type="button" onClick={onCrearEvento} className="text-xs text-green-700 hover:underline">

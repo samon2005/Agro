@@ -159,7 +159,7 @@ export default function TabDiarioCerdos({ loteActual, onLoteUpdated, onIrAliment
 
       <Cuadricula>
         <Widget className={ANCHO.cuarto} titulo="Hoy" icono="diario">
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-4">
             <Anillo pct={registroHoy ? 100 : 0} centro={registroHoy ? '✓' : '—'} sub={registroHoy ? 'registrado' : 'pendiente'} estado={registroHoy ? 'bien' : 'revisar'} tamano={96} />
             <div className="min-w-0 space-y-1.5">
               <Cifra etiqueta="Comieron hoy" valor={registroHoy ? `${kg1(comido(registroHoy))} kg` : '—'} />
@@ -179,7 +179,7 @@ export default function TabDiarioCerdos({ loteActual, onLoteUpdated, onIrAliment
         </Widget>
 
         <Widget className={ANCHO.cuarto} titulo="Mortalidad" icono="muerte" info="Viabilidad: el % de los animales que entraron que siguen vivos">
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-4">
             <Anillo pct={viabilidad} centro={viabilidad != null ? `${viabilidad.toLocaleString('es-CO', { maximumFractionDigits: 1 })} %` : '—'} sub="viven" tamano={96}
               estado={mortPct < 3 ? 'bien' : mortPct < 6 ? 'revisar' : 'mal'} />
             <div className="min-w-0 space-y-1.5">
@@ -197,24 +197,24 @@ export default function TabDiarioCerdos({ loteActual, onLoteUpdated, onIrAliment
           </div>
         </Widget>
 
-        <Widget className={ANCHO.dosTercios} titulo="Alimento por día" icono="grafica" info="Kilos que comieron cada día: servido menos sobrante (últimos 30)">
+        <Widget plegable className={ANCHO.dosTercios} titulo="Alimento por día" icono="grafica" info="Kilos que comieron cada día: servido menos sobrante (últimos 30)">
           <CurvaArea id="alim-cerdos" nombre="Comieron" barras formato={v => `${kg1(v)} kg`}
             datos={[...registros.slice(0, 30)].reverse().map(r => ({ x: etiquetaDia(r.fecha), y: comido(r) }))} />
         </Widget>
 
-        <Widget className={ANCHO.tercio} titulo="De qué se murieron" icono="clinico">
+        <Widget plegable className={ANCHO.tercio} titulo="De qué se murieron" icono="clinico">
           {causas.length === 0
             ? <p className="py-10 text-center text-sm text-gray-400">Sin muertes registradas</p>
             : <Torta etiquetaTotal="Muertes" porciones={causas.map(c => ({ nombre: c.causa, valor: c.cantidad }))} />}
         </Widget>
 
-        <Widget className={ANCHO.tercio} titulo="Registros del mes" icono="calendario" info="Cada día pintado según los kilos que comieron; el punto rojo marca muertes">
+        <Widget plegable className={ANCHO.tercio} titulo="Registros del mes" icono="calendario" info="Cada día pintado según los kilos que comieron; el punto rojo marca muertes">
           <CalendarioMes valores={new Map(registros.map(r => [r.fecha, comido(r)]))} marcados={new Set(mortalidad.map(m => m.fecha))}
             formato={v => `${v.toLocaleString('es-CO', { maximumFractionDigits: 1 })} kg`} />
         </Widget>
 
         {mostrarAgua ? (
-        <Widget className={ANCHO.tercio} titulo="Agua" icono="agua" info="Litros registrados por día (últimos 14)">
+        <Widget plegable className={ANCHO.tercio} titulo="Agua" icono="agua" info="Litros registrados por día (últimos 14)">
           <Cifra etiqueta="Últimos 7 días" valor={agua7 > 0 ? `${agua7.toLocaleString('es-CO', { maximumFractionDigits: 0 })} L` : '—'} grande
             nota={agua7 > 0 && alimento7 > 0 ? `${(agua7 / alimento7).toLocaleString('es-CO', { maximumFractionDigits: 1 })} L por kg de alimento` : 'Sin agua registrada'} />
           <div className="mt-3">
@@ -222,7 +222,7 @@ export default function TabDiarioCerdos({ loteActual, onLoteUpdated, onIrAliment
           </div>
         </Widget>
         ) : (
-        <Widget className={ANCHO.tercio} titulo="Sobrante" icono="alimento" info="Lo que quedó en el comedero frente a lo servido, en los días en que se midió (últimos 14)">
+        <Widget plegable className={ANCHO.tercio} titulo="Sobrante" icono="alimento" info="Lo que quedó en el comedero frente a lo servido, en los días en que se midió (últimos 14)">
           <Cifra etiqueta="Quedó en el comedero" valor={sobrantePct != null ? `${sobrantePct.toLocaleString('es-CO', { maximumFractionDigits: 1 })} %` : '—'} grande
             nota={sobrantePct != null ? `${kg1(sobranteKg)} kg de ${kg1(servidoMedido)} kg servidos, en ${conSobrante.length} ${conSobrante.length === 1 ? 'día' : 'días'}` : 'Anota el sobrante en el registro del día para ver lo que de verdad comen'} />
           <div className="mt-3">
@@ -231,7 +231,7 @@ export default function TabDiarioCerdos({ loteActual, onLoteUpdated, onIrAliment
         </Widget>
         )}
 
-        <Widget className={ANCHO.tercio} titulo="El lote" icono="cerdo">
+        <Widget plegable className={ANCHO.tercio} titulo="El lote" icono="cerdo">
           <div className="grid grid-cols-2 gap-x-3 gap-y-4">
             <Cifra etiqueta={loteActual.sistema === 'cria' ? 'Hembras' : 'Animales'} valor={loteActual.animales_actuales.toLocaleString('es-CO')} nota={`de ${loteActual.numero_animales.toLocaleString('es-CO')}`} grande />
             <Cifra etiqueta="Peso objetivo" valor={loteActual.peso_objetivo_kg ? `${loteActual.peso_objetivo_kg} kg` : '—'} grande />

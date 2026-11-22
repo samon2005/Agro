@@ -106,7 +106,7 @@ export default function CierreSemanal({ fincaId, lotes, dias, hoy, umbralRotos =
 
   const f = c.finca
   return (
-    <Widget className={ANCHO.todo} titulo="Cierre de la semana" icono="diario"
+    <Widget plegable resumen="Mejor y peor día, y la semana frente a la anterior" className={ANCHO.todo} titulo="Cierre de la semana" icono="diario"
       info="Semana de lunes a domingo. La meta es la de cada galpón para esa semana de vida: la propia, la de la tabla base de la finca, la de la guía de la línea o la de pico. El mejor y el peor día cuentan solo los días con todos los galpones registrados"
       accion={
         <div className="flex flex-wrap items-center gap-1">

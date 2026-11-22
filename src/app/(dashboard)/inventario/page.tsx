@@ -182,10 +182,10 @@ export default function InventarioPage() {
         onCreated={fetchInventario}
       />
 
-      <div className="p-8">
+      <div className="p-4 md:p-8">
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <h2 className="font-heading text-3xl font-medium text-gray-900">Gestión de Inventario</h2>
+            <h2 className="font-heading text-2xl md:text-3xl font-medium text-gray-900">Gestión de Inventario</h2>
             <p className="mt-1 text-gray-500">
               {fincaActual ? `Finca: ${fincaActual.nombre}` : 'Selecciona una finca'}
             </p>

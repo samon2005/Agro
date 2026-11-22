@@ -51,7 +51,7 @@ export default function MetasCerdosFrenteReal({ fincaId }: { fincaId: string }) 
   ]
 
   return (
-    <Widget className={ANCHO.todo} titulo="Metas de la granja frente a lo real" icono="meta"
+    <Widget plegable resumen="Los últimos 12 meses frente a las metas" className={ANCHO.todo} titulo="Metas de la granja frente a lo real" icono="meta"
       info="Las metas se ponen en Naves → Parámetros. Lo real es de los últimos 12 meses">
       <div className="grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
         {filas.map(f => {

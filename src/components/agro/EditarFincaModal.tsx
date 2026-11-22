@@ -267,7 +267,7 @@ export default function EditarFincaModal({ open, onClose, finca, onUpdated, onDe
             )}
           </div>
           <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <Label>Coordenadas (para el clima en tiempo real)</Label>
               <button type="button" onClick={usarUbicacionActual} disabled={buscandoUbicacion} className="text-xs text-green-700 hover:underline">
                 {buscandoUbicacion ? 'Detectando...' : 'Usar mi ubicación actual'}

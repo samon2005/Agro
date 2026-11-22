@@ -59,10 +59,10 @@ export default function AnimalesPage() {
         onCreated={fetchAnimales}
       />
 
-      <div className="p-8">
+      <div className="p-4 md:p-8">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h2 className="font-heading text-3xl font-medium text-gray-900">Gestión de Animales
+            <h2 className="font-heading text-2xl md:text-3xl font-medium text-gray-900">Gestión de Animales
             </h2>
             <p className="text-gray-500 mt-1">
               {fincaActual ? `Finca: ${fincaActual.nombre}` : 'Selecciona una finca'}
@@ -168,7 +168,7 @@ export default function AnimalesPage() {
 
 function PageSkeleton() {
   return (
-    <div className="p-8 space-y-6">
+    <div className="p-4 md:p-8 space-y-6">
       <Skeleton className="h-8 w-64" />
       <div className="grid grid-cols-3 gap-4">
         {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-14 rounded-xl" />)}

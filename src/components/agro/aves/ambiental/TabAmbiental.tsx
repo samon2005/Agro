@@ -113,7 +113,7 @@ export default function TabAmbiental({ loteActual, finca }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-semibold text-gray-800">Parámetros Ambientales</h2>
         <Button onClick={() => setModalOpen(true)} className="bg-green-700 hover:bg-green-800 text-white text-sm">
           + Registrar lectura
